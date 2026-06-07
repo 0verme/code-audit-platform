@@ -1,0 +1,59 @@
+/* Results page styles */
+.results-page { }
+
+/* Status hero */
+.status-hero { padding: 0; margin-bottom: var(--gap); overflow: hidden; display: grid; grid-template-columns: 1fr; }
+.status-hero.ok { box-shadow: var(--shadow-sm), inset 4px 0 0 var(--ok); }
+.status-hero.err { box-shadow: var(--shadow-sm), inset 4px 0 0 var(--err); }
+.status-hero.warn { box-shadow: var(--shadow-sm), inset 4px 0 0 var(--warn); }
+.sh-main { display: flex; align-items: flex-start; gap: 16px; padding: var(--pad-card) calc(var(--pad-card) + 4px); }
+.sh-badge { width: 52px; height: 52px; border-radius: 13px; display: grid; place-items: center; flex: none; color: #fff; }
+.sh-badge.ok { background: var(--ok); box-shadow: 0 4px 14px color-mix(in oklab, var(--ok) 40%, transparent); }
+.sh-badge.err { background: var(--err); box-shadow: 0 4px 14px color-mix(in oklab, var(--err) 40%, transparent); }
+.sh-badge.warn { background: var(--warn); box-shadow: 0 4px 14px color-mix(in oklab, var(--warn) 40%, transparent); }
+.sh-text { flex: 1; min-width: 0; }
+.sh-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.sh-title { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -.3px; white-space: nowrap; }
+.sh-desc { font-size: var(--fs-sm); color: var(--text-2); margin: 5px 0 10px; }
+.sh-meta { display: flex; align-items: center; gap: 9px; font-size: var(--fs-xs); color: var(--text-2); flex-wrap: wrap; }
+.sh-meta span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sh-meta .sh-sep { color: var(--text-3); }
+.sh-metrics { border-radius: 0; border-left: none; border-right: none; border-bottom: none; }
+
+.mini-counts { display: inline-flex; gap: 10px; margin-right: 6px; }
+
+/* category board (board variant) */
+.cat-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
+.cat-card {
+  border: 1px solid var(--border); border-radius: 10px; padding: 11px 13px; background: var(--surface-2);
+  cursor: pointer; transition: border-color .14s, transform .05s, background .14s;
+}
+.cat-card:hover { border-color: var(--border-strong); transform: translateY(-1px); background: var(--surface); }
+.cat-card.err { box-shadow: inset 0 0 0 1px var(--err-bd); }
+.cat-card.warn { box-shadow: inset 0 0 0 1px var(--warn-bd); }
+.cc-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+.cc-ico { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+.cc-label { font-size: var(--fs-sm); font-weight: 600; }
+.cc-stat { font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; }
+.cat-card.err .cc-stat { color: var(--err-fg); }
+.cat-card.warn .cc-stat { color: var(--warn-fg); }
+
+/* issues board (issues variant) */
+.ib-head { display: flex; align-items: center; gap: 10px; padding: 11px var(--pad-card); border-bottom: 1px solid var(--border); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+
+/* AI section */
+.ai-body { background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 5%, var(--surface)), var(--surface)); }
+.ai-summary { display: flex; gap: 12px; padding: 4px 0 16px; }
+.ai-spark { width: 30px; height: 30px; border-radius: 8px; flex: none; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 55%, #9b5cf0)); box-shadow: var(--shadow-sm); }
+.ai-summary p { margin: 0; font-size: var(--fs-sm); line-height: 1.7; color: var(--text); }
+.ai-findings { display: flex; flex-direction: column; gap: 8px; }
+.ai-finding { display: flex; gap: 12px; padding: 11px 13px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); }
+.ai-finding > .sev { flex: none; padding-top: 1px; }
+.ai-finding.err { border-color: var(--err-bd); background: color-mix(in oklab, var(--err-bg) 50%, var(--surface)); }
+.ai-finding.warn { border-color: var(--warn-bd); background: color-mix(in oklab, var(--warn-bg) 45%, var(--surface)); }
+.aif-body { flex: 1; }
+.aif-title { font-size: var(--fs-sm); font-weight: 600; margin-bottom: 3px; }
+.aif-text { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.6; }
+
+.panel-body-wrap { }

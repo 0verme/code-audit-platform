@@ -1,0 +1,42 @@
+/* FineReport 报表审查 — report list rows + drawer extras */
+
+/* report list row (extends .pas-row vocabulary with a meta column) */
+.fr-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 11px var(--pad-card); border: none; border-bottom: 1px solid var(--border);
+  background: transparent; cursor: pointer; font-family: var(--font-ui); color: var(--text);
+}
+.fr-row:last-child { border-bottom: none; }
+.fr-row:hover { background: var(--surface-2); }
+
+.fr-ico { width: 30px; height: 30px; border-radius: 8px; flex: none; display: grid; place-items: center; }
+.fr-ico.cpt { background: var(--info-bg); color: var(--info-fg); }
+.fr-ico.frm { background: color-mix(in oklab, #7a4ff0 16%, var(--surface)); color: color-mix(in oklab, #7a4ff0 72%, var(--text)); }
+
+.fr-name { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fr-meta { display: flex; align-items: center; gap: 7px; flex: none; font-size: var(--fs-xs); color: var(--text-3); }
+.fr-meta .fr-type { font-weight: 600; color: var(--text-2); letter-spacing: .4px; }
+.fr-meta .fr-dot { color: var(--border-strong); }
+
+/* keep the check tally to a fixed-ish width and right-aligned before chevron */
+.fr-row .pas-tags { gap: 8px; min-width: 92px; justify-content: flex-end; }
+
+@media (max-width: 720px) {
+  .fr-meta { display: none; }
+}
+
+/* drawer: file path under title */
+.fr-path { font-size: var(--fs-xs); color: var(--text-3); margin-top: 5px; word-break: break-all; }
+
+/* dimension cell in the issue table */
+.fr-cat { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap; }
+.fr-cat svg { color: var(--text-3); flex: none; }
+
+/* dataset cards in drawer */
+.fr-ds-list { display: flex; flex-direction: column; gap: 9px; }
+.fr-ds { border: 1px solid var(--border); border-radius: 9px; overflow: hidden; background: var(--surface); }
+.fr-ds-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 11px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.fr-ds-name { font-size: var(--fs-sm); font-weight: 600; color: var(--text); }
+.fr-ds-rows { font-size: var(--fs-xs); color: var(--text-3); flex: none; }
+.fr-ds-sql { margin: 0; padding: 10px 11px; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-2); white-space: pre-wrap; word-break: break-word; background: transparent; }

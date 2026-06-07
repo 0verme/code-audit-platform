@@ -1,0 +1,15 @@
+backend/__pycache__/
+backend/data/*.db
+*.py[cod]
+
+frontend/node_modules/
+frontend/dist/
+
+.env
+.env.local
+.env.*.local
+frontend/.env
+frontend/.env.local
+
+.DS_Store
+Thumbs.db
