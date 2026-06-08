@@ -397,3 +397,81 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 }
+
+/* ============================================================
+   Mobile / responsive  ≤768px
+   ============================================================ */
+
+/* Hamburger — hidden on desktop, shown on mobile */
+.mobile-menu-btn { display: none !important; }
+
+/* Rail overlay backdrop */
+.rail-overlay {
+  position: fixed; inset: 0; z-index: 199;
+  background: rgba(14, 20, 30, 0);
+  pointer-events: none;
+  transition: background .24s ease;
+}
+.rail-overlay.shown {
+  background: rgba(14, 20, 30, .38);
+  pointer-events: auto;
+}
+[data-theme="dark"] .rail-overlay.shown { background: rgba(0, 0, 0, .55); }
+
+@media (max-width: 768px) {
+  /* Collapse rail column from grid; rail becomes a fixed overlay */
+  .app { grid-template-columns: 1fr !important; }
+
+  .rail {
+    position: fixed !important;
+    inset: 0 auto 0 0;
+    z-index: 200;
+    width: 260px !important;
+    transform: translateX(-100%);
+    transition: transform .24s cubic-bezier(.22, .61, .36, 1), box-shadow .24s ease;
+    border-right-color: var(--border-strong);
+  }
+  .rail.mobile-open {
+    transform: none;
+    box-shadow: var(--shadow-pop);
+  }
+
+  /* Show hamburger button */
+  .mobile-menu-btn { display: grid !important; }
+
+  /* Topbar: tighter padding, hide long path segment */
+  .topbar { padding: 0 10px; gap: 8px; }
+  .crumb .path { display: none; }
+
+  /* Content inner: reduce horizontal padding */
+  .content-inner { padding: 14px 12px 60px; }
+
+  /* Metrics: 2-up grid */
+  .metrics { grid-template-columns: repeat(2, 1fr); }
+
+  /* Dependency lane label: narrow on small screens */
+  .dep-lane { grid-template-columns: 70px 1fr; }
+
+  /* Scrollbars: thinner on touch devices */
+  *::-webkit-scrollbar { width: 5px; height: 5px; }
+}
+
+@media (max-width: 480px) {
+  /* Topbar breadcrumb: show only current segment */
+  .crumb .seg:not(.cur) { display: none; }
+  .crumb .sep { display: none; }
+
+  /* Content: even tighter */
+  .content-inner { padding: 12px 10px 60px; }
+
+  /* Table: minimum column widths */
+  .tbl thead th, .tbl tbody td { padding-left: 8px; padding-right: 8px; }
+
+  /* Panel head: allow title to wrap */
+  .panel-title { white-space: normal; }
+  .panel-sub { display: none; }
+
+  /* Buttons: ensure tap target */
+  .btn { height: 38px; }
+  .btn.sm { height: 32px; }
+}

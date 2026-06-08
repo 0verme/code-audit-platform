@@ -77,3 +77,16 @@
   .recent-row { grid-template-columns: 12px 1fr auto; }
   .rr-repo, .rr-wf, .rr-who { display: none; }
 }
+
+@media (max-width: 480px) {
+  .home-wrap { padding: 20px 12px 60px; }
+  .hero-title { font-size: 22px; letter-spacing: -.3px; }
+  .hero-sub { font-size: var(--fs-sm); }
+  .home-card { padding: 16px; }
+  .home-actions { flex-direction: column; align-items: stretch; gap: 10px; }
+  .home-actions .btn { width: 100%; justify-content: center; }
+  .ha-meta { text-align: center; }
+  .pi-proto { border-radius: 9px 0 0 9px; }
+  .route-hint { white-space: normal; }
+  .recent-block { margin-top: 20px; }
+}

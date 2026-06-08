@@ -92,4 +92,14 @@
 
 @media (max-width: 560px) {
   .sd-meta > div { grid-template-columns: 60px 1fr; }
+  .sd-head { padding: 12px 14px 10px; }
+  .sd-body { padding: 14px 14px 40px; }
+  .pas-row { padding: 10px 12px; }
+  .pas-tags { gap: 6px; }
+}
+
+@media (max-width: 400px) {
+  /* Near full-width drawer on very small phones */
+  .sd-drawer { width: 98vw; }
+  .pas-grp-label { display: none; }
 }

@@ -31,6 +31,7 @@ export const Ic = {
   gauge: <><path d="M12 13l4.5-4.5" /><path d="M4 19a8 8 0 1 1 16 0" /><circle cx="12" cy="13" r="1.3" /></>,
   shield: <path d="M12 3l8 3v5.5c0 4.6-3.2 7.7-8 9.2-4.8-1.5-8-4.6-8-9.2V6z" />,
   screen: <><rect x="3" y="4" width="18" height="13" rx="1.5" /><path d="M8 21h8M12 17v4" /><path d="M7 13l3-3 2 2 4-4" /></>,
+  menu: <><path d="M3 6h18M3 12h18M3 18h18" /></>,
 };
 
 export function Icon({ name, size = 16, stroke = 1.8, className = "", style }) {

@@ -48,9 +48,9 @@ function DebugConsole({ open, onClose }) {
   );
 }
 
-function Rail({ data, active, onJump, collapsed, params, nav }) {
+function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
   return (
-    <aside className={`rail${collapsed ? " collapsed" : ""}`}>
+    <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
       <div className="rail-head">
         <div className="brand-mark">审</div>
         {!collapsed ? (
@@ -87,11 +87,13 @@ function Rail({ data, active, onJump, collapsed, params, nav }) {
 }
 
 export default function App() {
+  const showTweaksPanel = import.meta.env.DEV;
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [view, setView] = useState("home");
   const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt" });
   const [active, setActive] = useState("overview");
   const [dbgOpen, setDbgOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);
   const contentRef = useRef(null);
   const registry = useRef(new Map());
 
@@ -174,6 +176,7 @@ export default function App() {
     setView("results");
     setActive("overview");
     setDbgOpen(nextParams.dbg);
+    setRailOpen(false);
     contentRef.current?.scrollTo({ top: 0 });
   }
 
@@ -205,11 +208,29 @@ export default function App() {
 
   return (
     <div className={`app${view === "home" ? " no-rail" : ""}`}>
-      {view !== "home" ? <Rail data={data} active={active} onJump={jump} params={params} nav={navList} /> : null}
+      {view !== "home" ? (
+        <>
+          <div
+            className={`rail-overlay${railOpen ? " shown" : ""}`}
+            onClick={() => setRailOpen(false)}
+          />
+          <Rail
+            data={data}
+            active={active}
+            onJump={(id) => { jump(id); setRailOpen(false); }}
+            params={params}
+            nav={navList}
+            mobileOpen={railOpen}
+          />
+        </>
+      ) : null}
       <div className="main">
         <header className="topbar">
           {view === "results" ? (
             <>
+              <button className="iconbtn mobile-menu-btn" title="导航菜单" onClick={() => setRailOpen((o) => !o)}>
+                <Icon name="menu" size={16} />
+              </button>
               <button className="btn ghost sm" onClick={() => setView("home")}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 新审查</button>
               <div className="crumb">
                 <span className="seg">{workflowName}</span>
@@ -239,7 +260,7 @@ export default function App() {
         {view === "results" && params.dbg ? <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} /> : null}
       </div>
 
-      <TweaksPanel title="Tweaks">
+      {showTweaksPanel ? <TweaksPanel title="Tweaks">
         <TweakSection label="主题" />
         <TweakToggle label="深色模式" value={t.dark} onChange={(value) => setTweak("dark", value)} />
         <TweakColor label="主题色" value={t.accent} options={["#3358d4", "#0e7d6b", "#b3531d", "#c0392f"]} onChange={(value) => setTweak("accent", value)} />
@@ -249,7 +270,7 @@ export default function App() {
         <TweakToggle label="AI 面板" value={t.showAi} onChange={(value) => setTweak("showAi", value)} />
         <TweakSection label="结果布局" />
         <TweakRadio label="布局变体" value={t.variant} options={[{ value: "standard", label: "标准" }, { value: "board", label: "看板" }, { value: "issues", label: "问题优先" }]} onChange={(value) => setTweak("variant", value)} />
-      </TweaksPanel>
+      </TweaksPanel> : null}
     </div>
   );
 }

@@ -57,3 +57,18 @@
 .aif-text { font-size: var(--fs-xs); color: var(--text-2); line-height: 1.6; }
 
 .panel-body-wrap { }
+
+@media (max-width: 600px) {
+  /* Status hero: stack badge and text vertically */
+  .sh-main { flex-direction: column; gap: 10px; padding: var(--pad-card); }
+  .sh-badge { width: 42px; height: 42px; border-radius: 10px; }
+  .sh-title { font-size: 16px; }
+  .sh-meta { gap: 6px; }
+
+  /* Category board: 2-up minimum */
+  .cat-board { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+
+  /* AI findings: reduce padding */
+  .ai-finding { padding: 9px 10px; }
+  .ai-summary { flex-direction: column; gap: 8px; }
+}
