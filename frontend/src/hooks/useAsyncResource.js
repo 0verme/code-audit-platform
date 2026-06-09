@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
 
-export function useAsyncResource(loader, deps = []) {
+export function useAsyncResource(loader, deps = [], options = {}) {
+  const { enabled = true } = options;
   const [state, setState] = useState({
     data: null,
     error: null,
-    loading: true,
+    loading: enabled,
   });
 
   useEffect(() => {
+    if (!enabled) {
+      setState({ data: null, error: null, loading: false });
+      return undefined;
+    }
+
     let cancelled = false;
 
     async function run() {
@@ -29,7 +35,7 @@ export function useAsyncResource(loader, deps = []) {
     return () => {
       cancelled = true;
     };
-  }, deps);
+  }, [enabled, ...deps]);
 
   return state;
 }

@@ -1,12 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { FINEREPORT_DATA, HCYT_DATA, WORKFLOWS } from "./mock/data";
-import HomePage from "./pages/HomePage";
-import { FineReportResultsPage, FR_NAV } from "./pages/FineReportPage";
-import { ResultsPage, SECTION_NAV } from "./pages/ResultsPage";
 import { reviewService } from "./services/reviewService";
+
+const HomePage = lazy(() => import("./pages/HomePage"));
+const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
+const FineReportResultsPage = lazy(() => import("./pages/FineReportPage").then((module) => ({ default: module.FineReportResultsPage })));
+const SECTION_NAV = [
+  { id: "overview", label: "姒傝", icon: "layers" },
+  { id: "changes", label: "鍙樻洿鏂囦欢", icon: "git", get: (data) => data.changes, neutral: true },
+  { id: "conflict", label: "trunk 鍐茬獊", icon: "conflict", get: (data) => data.conflicts },
+  { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
+  { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
+  { id: "python", label: "Python 鑴氭湰", icon: "python", get: (data) => data.pyScripts, neutral: true },
+  { id: "sbin", label: "鍚庣疆鑴氭湰", icon: "terminal", get: (data) => data.sbin },
+  { id: "config", label: "閰嶇疆鏂囦欢", icon: "cog", get: (data) => data.config },
+  { id: "recv", label: "鏀跺嵏閰嶇疆", icon: "download", get: (data) => data.recv },
+  { id: "schedule", label: "Schedule", icon: "grid", get: (data) => data.schedule.rows.filter((row) => row.level !== "ok") },
+  { id: "reftables", label: "Referenced Tables", icon: "db", get: (data) => data.refTables, neutral: true },
+  { id: "deps", label: "浣滀笟渚濊禆", icon: "flow", get: (data) => data.deps, neutral: true },
+];
+const FR_NAV = [
+  { id: "overview", label: "Overview", icon: "layers" },
+  { id: "reports", label: "Report Checks", icon: "grid", get: (data) => data.reports, neutral: true },
+  { id: "reftables", label: "Referenced Tables", icon: "db", get: (data) => data.refTables, neutral: true },
+];
 
 const DEBUG_LINES = [
   { t: "INFO", m: "svn checkout 启动 -> 目标版本 r48217" },
@@ -86,6 +106,15 @@ function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
   );
 }
 
+function PageFallback() {
+  return (
+    <div className="card" style={{ padding: 24 }}>
+      <div className="section-title">Loading...</div>
+      <p className="muted" style={{ margin: "8px 0 0" }}>Page resources are loading.</p>
+    </div>
+  );
+}
+
 export default function App() {
   const showTweaksPanel = import.meta.env.DEV;
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
@@ -97,16 +126,15 @@ export default function App() {
   const contentRef = useRef(null);
   const registry = useRef(new Map());
 
-  const projectsState = useAsyncResource(() => reviewService.getProjects(), []);
-  const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), []);
-  const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), []);
-  const fineReportItemsState = useAsyncResource(() => reviewService.getFineReportItems(), []);
-
   const isFR = params.workflow === "fine-report";
   const dataset = isFR ? FINEREPORT_DATA : HCYT_DATA;
   const data = t.sampleState === "pass" ? dataset.PASS : dataset.FAIL;
   const navList = isFR ? FR_NAV : SECTION_NAV;
   const workflowName = WORKFLOWS.find((workflow) => workflow.key === params.workflow)?.name || params.workflow;
+  const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: view === "home" });
+  const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [], { enabled: view === "home" });
+  const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), [], { enabled: view === "results" && !isFR });
+  const fineReportItemsState = useAsyncResource(() => reviewService.getFineReportItems(), [], { enabled: view === "results" && isFR });
 
   useEffect(() => {
     const root = document.documentElement;
@@ -183,26 +211,34 @@ export default function App() {
   const page = useMemo(() => {
     if (view === "home") {
       return (
-        <HomePage
-          onSubmit={submit}
-          projectsState={projectsState}
-          tasksState={tasksState}
-          onCreateTask={handleCreateTask}
-        />
+        <Suspense fallback={<PageFallback />}>
+          <HomePage
+            onSubmit={submit}
+            projectsState={projectsState}
+            tasksState={tasksState}
+            onCreateTask={handleCreateTask}
+          />
+        </Suspense>
       );
     }
     if (isFR) {
-      return <FineReportResultsPage d={data} aiEnabled={params.ai || t.showAi} reg={reg} apiState={fineReportItemsState} />;
+      return (
+        <Suspense fallback={<PageFallback />}>
+          <FineReportResultsPage d={data} aiEnabled={params.ai || t.showAi} reg={reg} apiState={fineReportItemsState} />
+        </Suspense>
+      );
     }
     return (
-      <ResultsPage
-        d={data}
-        aiEnabled={params.ai || t.showAi}
-        variant={t.variant}
-        reg={reg}
-        onJump={jump}
-        apiState={auditResultsState}
-      />
+      <Suspense fallback={<PageFallback />}>
+        <ResultsPage
+          d={data}
+          aiEnabled={params.ai || t.showAi}
+          variant={t.variant}
+          reg={reg}
+          onJump={jump}
+          apiState={auditResultsState}
+        />
+      </Suspense>
     );
   }, [auditResultsState, data, fineReportItemsState, isFR, params.ai, projectsState, t.showAi, t.variant, tasksState, view]);
 
