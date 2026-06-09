@@ -38,7 +38,7 @@ const DEBUG_LINES = [
 ];
 
 const TWEAK_DEFAULTS = {
-  dark: false,
+  dark: true,
   density: "standard",
   sampleState: "fail",
   variant: "standard",
