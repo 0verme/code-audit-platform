@@ -17,6 +17,7 @@ function Toggle({ on, onChange, label, desc, icon }) {
 
 function mapTaskToRecent(task) {
   return {
+    id: task.id,
     repo: task.repo,
     wf: task.workflow,
     rev: task.revision,
@@ -30,6 +31,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
   const [path, setPath] = useState("svn://10.18.32.7/datawh/branches/2026Q2/hcyt");
   const [ai, setAi] = useState(false);
   const [dbg, setDbg] = useState(false);
+  const [live, setLive] = useState(false);
 
   const detected = detectWorkflow(path);
   const recentList = useMemo(() => {
@@ -42,8 +44,13 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
   async function submit() {
     if (!path.trim()) return;
     const payload = { path: path.trim(), ai, dbg, workflow: detected || "hcyt" };
-    await onCreateTask(payload);
-    onSubmit(payload);
+    if (!live) {
+      // 默认走演示数据（mock），不依赖后端
+      onSubmit({ ...payload, taskId: null });
+      return;
+    }
+    const created = await onCreateTask(payload);
+    onSubmit({ ...payload, taskId: created?.id ?? null, workflow: created?.workflow || payload.workflow });
   }
 
   return (
@@ -110,6 +117,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         <div className="toggles">
           <Toggle on={ai} onChange={setAi} icon="sparkle" label="接入本地 AI 大模型" desc="启用后追加 AI 语义分析与修复建议（默认关闭）" />
           <Toggle on={dbg} onChange={setDbg} icon="terminal" label="调试日志" desc="输出检测、分类与规则执行的详细日志（默认关闭）" />
+          <Toggle on={live} onChange={setLive} icon="git" label="真实后端执行" desc="关闭时使用演示数据；开启后连接后端拉取 SVN 并执行真实审查" />
         </div>
 
         <div className="home-actions">
@@ -128,7 +136,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
             const workflow = WORKFLOWS.find((entry) => entry.key === item.wf) || WORKFLOWS[0];
             const tone = item.status === "pass" ? "ok" : item.status === "fail" ? "err" : "warn";
             return (
-              <div key={`${item.rev}-${index}`} className="recent-row" onClick={() => onSubmit({ path: item.repo, ai: false, dbg: false, workflow: item.wf })}>
+              <div key={`${item.rev}-${index}`} className="recent-row" onClick={() => onSubmit({ path: item.repo, ai: false, dbg: false, workflow: item.wf, taskId: item.id ?? null })}>
                 <Dot tone={tone} />
                 <span className="rr-rev mono">{item.rev}</span>
                 <span className="rr-repo mono">{item.repo}</span>

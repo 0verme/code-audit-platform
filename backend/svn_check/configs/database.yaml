@@ -1,0 +1,23 @@
+# 数据库后端选择：postgres | gaussdb
+# 也可用环境变量 SVN_CHECK_DB_BACKEND 覆盖。
+backend: postgres
+
+# ---- Postgres（测试环境）----
+postgres:
+  host: 192.168.0.163
+  port: 5433
+  dbname: test
+  user: test
+  password: test
+  schema: dwp
+
+# ---- GaussDB（行内生产，经 JDBC 桥）----
+defaults:
+  driver: com.huawei.gauss200.jdbc.Driver
+  jar_path: E:/AI生成代码/pytools/resources/jars/gaussdb200.jar
+
+profiles:
+  czcb:
+    jdbc_url: jdbc:gaussdb://10.1.1.123:25308/czcb?currentSchema=test
+    user: czcb
+    password: test,.

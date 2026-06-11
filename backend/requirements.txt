@@ -2,3 +2,16 @@ Flask==3.0.3
 Flask-Cors==5.0.1
 gunicorn==23.0.0
 waitress==3.0.0
+
+# 真实审查引擎（svn_check）运行所需
+pandas
+xlrd
+PyYAML
+openpyxl
+
+# 数据库后端（在 svn_check/configs/database.yaml 的 backend 段或
+# 环境变量 SVN_CHECK_DB_BACKEND 中选择 postgres / gaussdb）
+# - Postgres（测试环境）：
+psycopg[binary]>=3.1
+# - GaussDB（行内生产，经 JDBC 桥，可选）：
+# jaydebeapi

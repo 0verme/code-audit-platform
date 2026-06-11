@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Badge, Icon, Metric, Panel, Sev } from "../components/ui";
+import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { AiSection, STATUS_META } from "./ResultsPage";
 
 const FR_CAT = {
@@ -178,6 +178,48 @@ function FrRefTablesSection({ d, reg }) {
   );
 }
 
+function TxtTableSection({ id, icon, title, section, reg }) {
+  if (!section) return null;
+  const messages = section.messages || [];
+  const severity = messages.some((m) => m.level === "err") ? "err" : messages.some((m) => m.level === "warn") ? "warn" : "ok";
+  return (
+    <Panel
+      id={id}
+      icon={icon}
+      title={title}
+      registerRef={reg}
+      count={messages.length || "通过"}
+      countTone={severity}
+      defaultOpen={messages.length > 0}
+    >
+      <div className="panel-body">
+        {section.rows?.length ? (
+          <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: messages.length ? 12 : 0 }}>
+            <table className="tbl">
+              <thead><tr>{section.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
+              <tbody>
+                {section.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+        {messages.length ? (
+          <div className="fr-issue-list">
+            {messages.map((msg, index) => (
+              <div key={index} className={`ai-finding ${msg.level}`} style={{ marginBottom: 6 }}>
+                <Sev level={msg.level} />
+                <div className="aif-body"><div className="aif-text">{msg.msg}</div></div>
+              </div>
+            ))}
+          </div>
+        ) : <OkState>校验通过</OkState>}
+      </div>
+    </Panel>
+  );
+}
+
 function ReportDetailDrawer({ report, onClose }) {
   const [shown, setShown] = useState(false);
 
@@ -209,18 +251,25 @@ function ReportDetailDrawer({ report, onClose }) {
             <span className="sd-head-actions">
               <span className={`badge ${audit.level}`}>
                 <Icon name={audit.level === "ok" ? "check" : audit.level === "err" ? "x" : "alert"} size={11} stroke={2.4} />
-                {audit.level === "ok" ? "Pass" : audit.err ? `${audit.err} errors` : `${audit.warn} warnings`}
+                {audit.level === "ok" ? "通过" : audit.err ? `${audit.err} 错误` : `${audit.warn} 警告`}
               </span>
-              <button className="btn ghost sm"><Icon name="download" size={13} /> Download</button>
+              {report.previewUrl ? (
+                <a className="btn ghost sm" href={report.previewUrl} target="_blank" rel="noreferrer"><Icon name="screen" size={13} /> 预览报表</a>
+              ) : null}
+              {report.downloadUrl ? (
+                <a className="btn ghost sm" href={report.downloadUrl} target="_blank" rel="noreferrer"><Icon name="download" size={13} /> 下载代码</a>
+              ) : null}
               <button className="iconbtn" style={{ width: 28, height: 28 }} onClick={onClose}><Icon name="x" size={15} /></button>
             </span>
           </div>
           <div className="sd-script">{report.title}</div>
           <div className="fr-path mono">{report.file}</div>
           <dl className="sd-meta">
-            <div><dt>Type</dt><dd>{report.type === "frm" ? "Decision screen" : "Standard report"}</dd></div>
-            <div><dt>Connection</dt><dd className="mono">{report.conn}</dd></div>
-            <div><dt>Datasets</dt><dd className="mono">{report.datasets.length} / Refs {report.refTables.length}</dd></div>
+            <div><dt>类型</dt><dd>{report.type === "frm" ? "决策大屏" : "普通报表"}</dd></div>
+            <div><dt>数据源</dt><dd className="mono">{report.conn}</dd></div>
+            {report.engine ? <div><dt>引擎</dt><dd>{report.engine}</dd></div> : null}
+            {report.sheets?.length ? <div><dt>Sheet 页</dt><dd className="mono">{report.sheets.length} 个：{report.sheets.join(", ")}</dd></div> : null}
+            <div><dt>数据集 / 引用表</dt><dd className="mono">{report.datasets.length} / {report.refTables.length}</dd></div>
           </dl>
         </div>
 
@@ -289,8 +338,13 @@ function ReportDetailDrawer({ report, onClose }) {
             <div className="subhead"><Icon name="db" size={12} /> Referenced Tables <span className="sd-num mono">{report.refTables.length}</span></div>
             <div className="chips">
               {report.refTables.map((item) => (
-                <span key={item.name} className={`chip ${item.type === "result" ? "result" : item.type === "mid" ? "mid" : "src"}`}>
+                <span
+                  key={item.name}
+                  className={`chip ${item.type === "result" ? "result" : item.type === "mid" ? "mid" : "src"}`}
+                  style={item.highlight ? { color: "var(--err-fg)", fontWeight: 700 } : undefined}
+                >
                   <span className="cdot" />{item.name}
+                  {item.disabled ? "（禁用）" : item.sysNames?.length ? `（${item.sysNames.join("/")}）` : ""}
                 </span>
               ))}
             </div>
@@ -341,6 +395,8 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
       {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>Loading FineReport items...</div> : null}
       {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--warn)" }}>FineReport API is unavailable. Mock data is being used.</div> : null}
       <FrStatusHeader d={mergedData} />
+      <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
+      <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
       <ReportListSection d={mergedData} reg={reg} onOpen={setOpenReport} />
       <FrRefTablesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}

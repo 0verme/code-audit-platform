@@ -7,4 +7,6 @@ export const API_PATHS = {
   auditTasks: "/audit-tasks",
   auditResults: "/audit-results",
   fineReportItems: "/fine-report/items",
+  auditTask: (id) => `/audit-tasks/${id}`,
+  auditTaskReport: (id) => `/audit-tasks/${id}/report`,
 };

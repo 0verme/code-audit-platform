@@ -16,6 +16,20 @@ def get_connection() -> sqlite3.Connection:
     return connection
 
 
+def _migrate_audit_tasks(connection: sqlite3.Connection) -> None:
+    """老库平滑升级：补齐任务进度 / 日志相关列。"""
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(audit_tasks)").fetchall()}
+    for name, ddl in (
+        ("progress", "ALTER TABLE audit_tasks ADD COLUMN progress INTEGER NOT NULL DEFAULT 0"),
+        ("step", "ALTER TABLE audit_tasks ADD COLUMN step TEXT NOT NULL DEFAULT ''"),
+        ("finished_at", "ALTER TABLE audit_tasks ADD COLUMN finished_at TEXT"),
+        ("error", "ALTER TABLE audit_tasks ADD COLUMN error TEXT"),
+        ("logs_json", "ALTER TABLE audit_tasks ADD COLUMN logs_json TEXT NOT NULL DEFAULT '[]'"),
+    ):
+        if name not in existing:
+            connection.execute(ddl)
+
+
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -41,7 +55,19 @@ def init_db() -> None:
                 started_at TEXT NOT NULL,
                 duration TEXT NOT NULL,
                 ai_enabled INTEGER NOT NULL DEFAULT 0,
-                debug_enabled INTEGER NOT NULL DEFAULT 0
+                debug_enabled INTEGER NOT NULL DEFAULT 0,
+                progress INTEGER NOT NULL DEFAULT 0,
+                step TEXT NOT NULL DEFAULT '',
+                finished_at TEXT,
+                error TEXT,
+                logs_json TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE TABLE IF NOT EXISTS task_reports (
+                task_id INTEGER PRIMARY KEY,
+                report_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (task_id) REFERENCES audit_tasks(id)
             );
 
             CREATE TABLE IF NOT EXISTS audit_results (
@@ -71,6 +97,8 @@ def init_db() -> None:
             );
             """
         )
+
+        _migrate_audit_tasks(connection)
 
         project_count = connection.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
         if project_count:

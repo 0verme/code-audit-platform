@@ -14,8 +14,15 @@ export const reviewService = {
   createAuditTask(payload) {
     return apiClient.post(API_PATHS.auditTasks, payload);
   },
-  getAuditResults() {
-    return apiClient.get(API_PATHS.auditResults);
+  getAuditTask(taskId) {
+    return apiClient.get(API_PATHS.auditTask(taskId));
+  },
+  getAuditTaskReport(taskId) {
+    return apiClient.get(API_PATHS.auditTaskReport(taskId));
+  },
+  getAuditResults(taskId) {
+    const suffix = taskId ? `?task_id=${taskId}` : "";
+    return apiClient.get(`${API_PATHS.auditResults}${suffix}`);
   },
   getFineReportItems() {
     return apiClient.get(API_PATHS.fineReportItems);

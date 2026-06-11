@@ -72,11 +72,14 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
   );
 }
 
-function CmpCell({ value, note, side }) {
+function CmpCell({ value, note, side, row }) {
   if (!value) return <span className="cmp-empty">- {side === "sql" ? "脚本未引用" : "调度未配置"}</span>;
+  const danger = side === "sql" && row?.highlight;
   return (
     <span className="cmp-val">
-      <span className="mono">{value}</span>
+      <span className="mono" style={danger ? { color: "var(--err-fg)", fontWeight: 700 } : undefined}>{value}</span>
+      {side === "sql" && row?.disabled ? <span className="cmp-note" style={{ color: "var(--err-fg)" }}>禁用</span> : null}
+      {side === "sql" && row?.sysNames?.length ? <span className="cmp-note">{row.sysNames.join("/")}</span> : null}
       {note ? <span className="cmp-note">{note}</span> : null}
     </span>
   );
@@ -131,14 +134,23 @@ export function ScriptDetailDrawer({ script, onClose }) {
           <div className="sd-head-top">
             <span className="sd-kicker"><Icon name="python" size={13} /> 检查脚本</span>
             <span className="sd-head-actions">
-              <button className="btn ghost sm"><Icon name="download" size={13} /> 下载代码</button>
+              {script.downloadUrl ? (
+                <a className="btn ghost sm" href={script.downloadUrl} target="_blank" rel="noreferrer"><Icon name="download" size={13} /> 下载代码</a>
+              ) : (
+                <button className="btn ghost sm" disabled><Icon name="download" size={13} /> 下载代码</button>
+              )}
               <button className="iconbtn" style={{ width: 28, height: 28 }} onClick={close}><Icon name="x" size={15} /></button>
             </span>
           </div>
           <div className="sd-script mono">{script.script}</div>
           <dl className="sd-meta">
             <div><dt>表名</dt><dd className="mono">{script.table}</dd></div>
-            <div><dt>作业名</dt><dd className="mono">{script.job}</dd></div>
+            <div>
+              <dt>作业名</dt>
+              <dd className="mono" style={script.jobDisabled ? { color: "var(--err-fg)", fontWeight: 700 } : undefined}>
+                {script.job}{script.jobDisabled ? "（禁用）" : ""}
+              </dd>
+            </div>
             <div><dt>频率</dt><dd>{script.freq}</dd></div>
           </dl>
         </div>
@@ -200,7 +212,7 @@ export function ScriptDetailDrawer({ script, onClose }) {
                     const meta = SD_STATE[item.state];
                     return (
                       <tr key={index} className={item.state === "missing" ? "err-row" : item.state === "extra" ? "warn-row" : ""}>
-                        <td><CmpCell value={item.sql} note={item.note} side="sql" /></td>
+                        <td><CmpCell value={item.sql} note={item.note} side="sql" row={item} /></td>
                         <td><CmpCell value={item.dep} side="dep" /></td>
                         <td><Badge tone={meta.cls} icon={meta.icon}>{meta.label}</Badge></td>
                       </tr>

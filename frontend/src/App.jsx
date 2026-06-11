@@ -2,30 +2,38 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
 import { useAsyncResource } from "./hooks/useAsyncResource";
-import { FINEREPORT_DATA, HCYT_DATA, WORKFLOWS } from "./mock/data";
+import { useAuditRun } from "./hooks/useAuditRun";
+import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
 const FineReportResultsPage = lazy(() => import("./pages/FineReportPage").then((module) => ({ default: module.FineReportResultsPage })));
+const NupsResultsPage = lazy(() => import("./pages/NupsPage").then((module) => ({ default: module.NupsResultsPage })));
+const NUPS_NAV = [
+  { id: "overview", label: "概览", icon: "layers" },
+  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
+  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => data.sqlChecks, neutral: true },
+  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => data.pyScripts, neutral: true },
+];
 const SECTION_NAV = [
-  { id: "overview", label: "姒傝", icon: "layers" },
-  { id: "changes", label: "鍙樻洿鏂囦欢", icon: "git", get: (data) => data.changes, neutral: true },
-  { id: "conflict", label: "trunk 鍐茬獊", icon: "conflict", get: (data) => data.conflicts },
+  { id: "overview", label: "概览", icon: "layers" },
+  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
+  { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
   { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
   { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
-  { id: "python", label: "Python 鑴氭湰", icon: "python", get: (data) => data.pyScripts, neutral: true },
-  { id: "sbin", label: "鍚庣疆鑴氭湰", icon: "terminal", get: (data) => data.sbin },
-  { id: "config", label: "閰嶇疆鏂囦欢", icon: "cog", get: (data) => data.config },
-  { id: "recv", label: "鏀跺嵏閰嶇疆", icon: "download", get: (data) => data.recv },
-  { id: "schedule", label: "Schedule", icon: "grid", get: (data) => data.schedule.rows.filter((row) => row.level !== "ok") },
-  { id: "reftables", label: "Referenced Tables", icon: "db", get: (data) => data.refTables, neutral: true },
-  { id: "deps", label: "浣滀笟渚濊禆", icon: "flow", get: (data) => data.deps, neutral: true },
+  { id: "python", label: "Python 脚本", icon: "python", get: (data) => data.pyScripts, neutral: true },
+  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
+  { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
+  { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
+  { id: "schedule", label: "调度表", icon: "grid", get: (data) => data.schedule.rows.filter((row) => row.level !== "ok") },
+  { id: "reftables", label: "引用表汇总", icon: "db", get: (data) => data.refTables, neutral: true },
+  { id: "deps", label: "作业依赖", icon: "flow", get: (data) => data.deps, neutral: true },
 ];
 const FR_NAV = [
-  { id: "overview", label: "Overview", icon: "layers" },
-  { id: "reports", label: "Report Checks", icon: "grid", get: (data) => data.reports, neutral: true },
-  { id: "reftables", label: "Referenced Tables", icon: "db", get: (data) => data.refTables, neutral: true },
+  { id: "overview", label: "概览", icon: "layers" },
+  { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
+  { id: "reftables", label: "引用表汇总", icon: "db", get: (data) => data.refTables, neutral: true },
 ];
 
 const DEBUG_LINES = [
@@ -46,24 +54,68 @@ const TWEAK_DEFAULTS = {
   accent: "#3358d4",
 };
 
-function DebugConsole({ open, onClose }) {
+function DebugConsole({ open, onClose, logs }) {
+  const realLines = logs?.length
+    ? logs.map((entry) => ({ t: entry.level === "ERR" ? "ERR" : entry.level === "WARN" ? "WARN" : "INFO", m: entry.msg, ts: entry.ts }))
+    : null;
+  const lines = realLines || DEBUG_LINES;
   return (
     <div className={`debug-drawer${open ? " open" : ""}`}>
       <div className="dbg-head">
         <Icon name="terminal" size={14} /> 调试日志
-        <span className="badge mono" style={{ marginLeft: 8 }}>hcyt-ruleset@v3.4.2</span>
+        <span className="badge mono" style={{ marginLeft: 8 }}>{realLines ? "svn_check 实时日志" : "演示日志"}</span>
         <span style={{ flex: 1 }} />
         <button className="iconbtn" style={{ width: 26, height: 26 }} onClick={onClose}><Icon name="x" size={14} /></button>
       </div>
       <div className="dbg-body mono">
-        {DEBUG_LINES.map((line, index) => (
+        {lines.map((line, index) => (
           <div key={index} className="dbg-line">
-            <span className="dbg-ts">14:22:{(8 + index * 11).toString().padStart(2, "0")}</span>
+            <span className="dbg-ts">{line.ts || `14:22:${(8 + index * 11).toString().padStart(2, "0")}`}</span>
             <span className={`dbg-tag ${line.t.trim().toLowerCase()}`}>{line.t}</span>
             <span className="dbg-msg">{line.m}</span>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function RunningView({ task }) {
+  const progress = task?.progress ?? 0;
+  const step = task?.step || "排队中";
+  const recentLogs = (task?.logs || []).slice(-12);
+  return (
+    <div className="card fade-in" style={{ padding: 24 }}>
+      <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon name="clock" size={16} /> 审查任务执行中
+      </div>
+      <p className="muted" style={{ margin: "10px 0 6px" }}>当前步骤：{step}</p>
+      <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden", margin: "10px 0 16px" }}>
+        <div style={{ height: "100%", width: `${progress}%`, background: "var(--accent)", transition: "width .4s" }} />
+      </div>
+      {recentLogs.length ? (
+        <pre className="mono" style={{ fontSize: "var(--fs-xs)", color: "var(--text-2)", whiteSpace: "pre-wrap", margin: 0 }}>
+          {recentLogs.map((entry) => `[${entry.ts}] ${entry.msg}`).join("\n")}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
+function FailedView({ task, onBack }) {
+  const recentLogs = (task?.logs || []).slice(-20);
+  return (
+    <div className="card fade-in" style={{ padding: 24, borderColor: "var(--err)" }}>
+      <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--err-fg)" }}>
+        <Icon name="x" size={16} /> 审查任务执行失败
+      </div>
+      <p className="muted" style={{ margin: "10px 0" }}>{task?.error || "任务异常结束，未生成报告。"}</p>
+      {recentLogs.length ? (
+        <pre className="mono" style={{ fontSize: "var(--fs-xs)", color: "var(--text-2)", whiteSpace: "pre-wrap", margin: "0 0 14px" }}>
+          {recentLogs.map((entry) => `[${entry.ts}] ${entry.level} ${entry.msg}`).join("\n")}
+        </pre>
+      ) : null}
+      <button className="btn primary" onClick={onBack}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 返回首页</button>
     </div>
   );
 }
@@ -119,7 +171,7 @@ export default function App() {
   const showTweaksPanel = import.meta.env.DEV;
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [view, setView] = useState("home");
-  const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt" });
+  const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt", taskId: null });
   const [active, setActive] = useState("overview");
   const [dbgOpen, setDbgOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
@@ -127,14 +179,22 @@ export default function App() {
   const registry = useRef(new Map());
 
   const isFR = params.workflow === "fine-report";
-  const dataset = isFR ? FINEREPORT_DATA : HCYT_DATA;
-  const data = t.sampleState === "pass" ? dataset.PASS : dataset.FAIL;
-  const navList = isFR ? FR_NAV : SECTION_NAV;
+  const isNups = params.workflow === "nups";
+  const run = useAuditRun(view === "results" ? params.taskId : null);
+  const liveData = run.report;
+  const mockDataset = isNups ? NUPS_DATA : (isFR ? FINEREPORT_DATA : HCYT_DATA);
+  const data = liveData || (t.sampleState === "pass" ? mockDataset.PASS : mockDataset.FAIL);
+  const navList = isNups ? NUPS_NAV : (isFR ? FR_NAV : SECTION_NAV);
   const workflowName = WORKFLOWS.find((workflow) => workflow.key === params.workflow)?.name || params.workflow;
+  const aiEnabled = liveData ? Boolean(liveData.ai) : (params.ai || t.showAi);
   const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: view === "home" });
-  const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [], { enabled: view === "home" });
-  const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), [], { enabled: view === "results" && !isFR });
-  const fineReportItemsState = useAsyncResource(() => reviewService.getFineReportItems(), [], { enabled: view === "results" && isFR });
+  const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [view], { enabled: view === "home" });
+  const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), [], {
+    enabled: view === "results" && !isFR && !params.taskId,
+  });
+  const fineReportItemsState = useAsyncResource(() => reviewService.getFineReportItems(), [], {
+    enabled: view === "results" && isFR && !params.taskId,
+  });
 
   useEffect(() => {
     const root = document.documentElement;
@@ -187,7 +247,7 @@ export default function App() {
 
   async function handleCreateTask(payload) {
     try {
-      await reviewService.createAuditTask({
+      return await reviewService.createAuditTask({
         repo: payload.path,
         workflow: payload.workflow,
         ai_enabled: payload.ai,
@@ -196,17 +256,18 @@ export default function App() {
     } catch {
       return null;
     }
-    return null;
   }
 
   function submit(nextParams) {
-    setParams(nextParams);
+    setParams({ taskId: null, ...nextParams });
     setView("results");
     setActive("overview");
     setDbgOpen(nextParams.dbg);
     setRailOpen(false);
     contentRef.current?.scrollTo({ top: 0 });
   }
+
+  const taskFailed = !!params.taskId && !!run.task && !run.running && !liveData;
 
   const page = useMemo(() => {
     if (view === "home") {
@@ -221,10 +282,28 @@ export default function App() {
         </Suspense>
       );
     }
+    if (params.taskId && (run.running || (!run.task && !run.error))) {
+      return <RunningView task={run.task} />;
+    }
+    if (taskFailed) {
+      return <FailedView task={run.task} onBack={() => setView("home")} />;
+    }
+    if (isNups) {
+      return (
+        <Suspense fallback={<PageFallback />}>
+          <NupsResultsPage d={data} aiEnabled={aiEnabled} reg={reg} />
+        </Suspense>
+      );
+    }
     if (isFR) {
       return (
         <Suspense fallback={<PageFallback />}>
-          <FineReportResultsPage d={data} aiEnabled={params.ai || t.showAi} reg={reg} apiState={fineReportItemsState} />
+          <FineReportResultsPage
+            d={data}
+            aiEnabled={aiEnabled}
+            reg={reg}
+            apiState={liveData ? null : fineReportItemsState}
+          />
         </Suspense>
       );
     }
@@ -232,15 +311,15 @@ export default function App() {
       <Suspense fallback={<PageFallback />}>
         <ResultsPage
           d={data}
-          aiEnabled={params.ai || t.showAi}
+          aiEnabled={aiEnabled}
           variant={t.variant}
           reg={reg}
           onJump={jump}
-          apiState={auditResultsState}
+          apiState={liveData ? null : auditResultsState}
         />
       </Suspense>
     );
-  }, [auditResultsState, data, fineReportItemsState, isFR, params.ai, projectsState, t.showAi, t.variant, tasksState, view]);
+  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, liveData, params.taskId, projectsState, run.error, run.running, run.task, t.variant, taskFailed, tasksState, view]);
 
   return (
     <div className={`app${view === "home" ? " no-rail" : ""}`}>
@@ -271,7 +350,7 @@ export default function App() {
               <div className="crumb">
                 <span className="seg">{workflowName}</span>
                 <span className="sep">/</span>
-                <span className="seg cur mono">{data.task.revision}</span>
+                <span className="seg cur mono">{liveData ? liveData.task.revision : data.task.revision}</span>
                 <span className="path">{params.path || data.task.repo}</span>
               </div>
             </>
@@ -293,7 +372,9 @@ export default function App() {
           {view === "home" ? page : <div className="content-inner">{page}</div>}
         </div>
 
-        {view === "results" && params.dbg ? <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} /> : null}
+        {view === "results" && (params.dbg || run.task?.logs?.length) ? (
+          <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} logs={run.task?.logs} />
+        ) : null}
       </div>
 
       {showTweaksPanel ? <TweaksPanel title="Tweaks">

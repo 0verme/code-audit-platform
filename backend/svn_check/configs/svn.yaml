@@ -1,0 +1,17 @@
+﻿defaults:
+  svn_bin: svn
+  username: ''
+  password: ''
+  non_interactive: true
+  trust_server_cert: true
+
+projects:
+  hcyt:
+    trunk_url: svn://svnj.app.cz/hcyt/trunk
+    marker: hcyt/
+  fine-report:
+    trunk_url: svn://svnj.app.cz/fine-report/trunk
+    marker: fine-report/
+  nups:
+    trunk_url: svn://svnj.app.cz/NUPS/trunk
+    marker: NUPS/

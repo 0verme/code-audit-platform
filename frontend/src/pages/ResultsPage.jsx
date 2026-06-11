@@ -85,15 +85,23 @@ function ChangesSection({ d, reg }) {
             const index = change.path.lastIndexOf("/") + 1;
             const dir = change.path.slice(0, index);
             const name = change.path.slice(index);
+            const hasDiff = change.add != null || change.del != null;
             return (
               <div key={change.path} className="frow">
                 <span className={`chg-tag ${change.type}`}>{change.type}</span>
                 <span className="fpath"><span className="fdir">{dir}</span>{name}</span>
                 <Badge>{change.cat}</Badge>
-                <span className="diffstat">
-                  <span className="add">+{change.add}</span>
-                  <span className="del">-{change.del}</span>
-                </span>
+                {hasDiff ? (
+                  <span className="diffstat">
+                    <span className="add">+{change.add || 0}</span>
+                    <span className="del">-{change.del || 0}</span>
+                  </span>
+                ) : null}
+                {change.downloadUrl ? (
+                  <a className="dl-link" href={change.downloadUrl} target="_blank" rel="noreferrer">
+                    <Icon name="download" size={12} /> 下载
+                  </a>
+                ) : null}
               </div>
             );
           })}
@@ -139,7 +147,7 @@ function ConflictSection({ d, reg }) {
   );
 }
 
-function CheckSection({ id, icon, title, rows, reg, okMsg }) {
+function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
   const severity = levelOf(rows);
   const errs = rows.filter((row) => row.level === "err").length;
   const warns = rows.filter((row) => row.level === "warn").length;
@@ -162,8 +170,83 @@ function CheckSection({ id, icon, title, rows, reg, okMsg }) {
         ) : null
       }
     >
+      {scriptMeta?.script ? (
+        <div className="script-bar">
+          <Icon name="file" size={12} /> 检查脚本：<span className="mono">{scriptMeta.script}</span>
+          {scriptMeta.downloadUrl ? (
+            <a className="dl-link" href={scriptMeta.downloadUrl} target="_blank" rel="noreferrer">
+              <Icon name="download" size={12} /> 下载代码
+            </a>
+          ) : null}
+        </div>
+      ) : null}
       <div className={rows.length ? "panel-body flush" : "panel-body"}>
         {rows.length ? <ViolationTable rows={rows} /> : <OkState>{okMsg || "未发现违规项"}</OkState>}
+      </div>
+    </Panel>
+  );
+}
+
+const SCHED_TABLE_ORDER = ["plan", "seq", "cale", "job"];
+
+function ScheduleListTables({ tables }) {
+  const present = SCHED_TABLE_ORDER.filter((key) => tables[key]?.rows?.length);
+  if (!present.length) return null;
+  return (
+    <div className="sched-tables">
+      {present.map((key) => {
+        const table = tables[key];
+        const rowStates = table.rowStates || [];
+        return (
+          <div key={key} className="sched-table-block">
+            <div className="subhead" style={{ marginBottom: 7 }}>{table.title || key.toUpperCase()}</div>
+            <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+              <table className="tbl">
+                <thead><tr>{table.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
+                <tbody>
+                  {table.rows.map((row, rowIndex) => {
+                    const state = rowStates[rowIndex];
+                    const cls = state === "new" ? "row-new" : state === "disabled" ? "row-disabled" : "";
+                    return (
+                      <tr key={rowIndex} className={cls}>
+                        {row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ConfigJsonSection({ files, reg }) {
+  if (!files?.length) return null;
+  return (
+    <Panel id="configjson" icon="cog" title="schema_config 连接信息" registerRef={reg} count={files.length} sub="JSON 内容表格化">
+      <div className="panel-body">
+        {files.map((file) => (
+          <div key={file.name} style={{ marginBottom: 14 }}>
+            <div className="subhead" style={{ marginBottom: 7 }}><Icon name="file" size={12} /> {file.name}</div>
+            {file.error ? (
+              <div className="sd-empty">{file.error}</div>
+            ) : (
+              <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                <table className="tbl">
+                  <thead><tr>{file.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
+                  <tbody>
+                    {file.rows.map((row, rowIndex) => (
+                      <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </Panel>
   );
@@ -198,7 +281,9 @@ function ScheduleSection({ d, reg }) {
           <Metric label="循环依赖" value={schedule.summary.cycles} tone={schedule.summary.cycles ? "err" : "ok"} />
           <Metric label="缺失映射" value={schedule.summary.missing} tone={schedule.summary.missing ? "warn" : "ok"} />
         </div>
-        <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+        {schedule.tables ? <ScheduleListTables tables={schedule.tables} /> : null}
+        {schedule.rows.length ? <div className="subhead" style={{ margin: "6px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div> : null}
+        {schedule.rows.length ? <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
           <table className="tbl">
             <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
             <tbody>
@@ -213,7 +298,7 @@ function ScheduleSection({ d, reg }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </div> : null}
       </div>
     </Panel>
   );
@@ -451,11 +536,12 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       {variant === "issues" ? <><StatusHeader d={mergedData} /><IssuesBoard d={mergedData} /></> : null}
       <ChangesSection d={mergedData} reg={reg} />
       <ConflictSection d={mergedData} reg={reg} />
-      <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} />
-      <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} />
+      <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} scriptMeta={mergedData.sqlChecks?.dws} />
+      <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} scriptMeta={mergedData.sqlChecks?.hive} />
       <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
       <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="config" icon="cog" title="配置文件检查" rows={mergedData.config} reg={reg} okMsg="Schema 配置文件校验通过" />
+      <ConfigJsonSection files={mergedData.configFiles} reg={reg} />
       <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" />
       <ScheduleSection d={mergedData} reg={reg} />
       <RefTablesSection d={mergedData} reg={reg} />

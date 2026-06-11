@@ -13,3 +13,6 @@ frontend/.env.local
 
 .DS_Store
 Thumbs.db
+
+# Python 缓存（含 svn_check 子包）
+__pycache__/
