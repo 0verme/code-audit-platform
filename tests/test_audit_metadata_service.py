@@ -18,6 +18,12 @@ class RowLike:
         self._mapping = values
 
 
+class AttrRow:
+    def __init__(self, **values):
+        for name, value in values.items():
+            setattr(self, name, value)
+
+
 class AuditMetadataServiceTests(unittest.TestCase):
     def test_single_column_normalizer_handles_common_row_shapes(self):
         rows = [
@@ -51,10 +57,11 @@ class AuditMetadataServiceTests(unittest.TestCase):
             {"table": "table_b", "outfile": "outfile_b"},
             (None, ""),
             ("table_c",),
+            (" table_a ", "outfile_a"),
         ]
 
         self.assertEqual(
-            service._normalize_multi_column_rows(rows, 2),
+            service._normalize_multi_column_rows(rows, (("table",), ("outfile",))),
             [
                 ("table_a", "outfile_a"),
                 ("table_b", "outfile_b"),
@@ -128,6 +135,70 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(service.list_job_outfiles(), [("table_a", "plan_a")])
             self.assertEqual(service.list_result_table_recv_details(), [("table_a", "plan_a", "sys_a")])
 
+    def test_p0_5c_queries_parse_tuple_rows_and_clean_values(self):
+        sample_rows = [
+            (" table_a ", " value_a ", " sys_a "),
+            ("table_a", "value_a", "sys_a"),
+            (None, "", None),
+            ("table_b",),
+        ]
+
+        with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
+            self.assertEqual(service.list_job_outfiles(), [("table_a", "value_a"), ("table_b", "")])
+            self.assertEqual(service.list_recv_mapping_plans(), [("TABLE_A",), ("TABLE_B",)])
+            self.assertEqual(
+                service.list_result_table_sys_names(),
+                [("table_a", "value_a"), ("table_b", "")],
+            )
+            self.assertEqual(
+                service.list_result_table_recv_details(),
+                [("table_a", "value_a", "sys_a"), ("table_b", "", "")],
+            )
+
+    def test_p0_5c_queries_parse_dict_rows_by_field_name(self):
+        sample_rows = [
+            {
+                "ignored": "wrong",
+                "job_name": " job_a ",
+                "outfile": " outfile_a ",
+                "recv_plan": " plan_a ",
+                "table_name": " table_a ",
+                "sys_name": " sys_a ",
+            },
+            {
+                "ignored": "wrong",
+                "a": "job_b",
+                "b": "outfile_b",
+                "result_table": "table_b",
+                "source_system": "sys_b",
+                "plan": "plan_b",
+            },
+        ]
+
+        with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
+            self.assertEqual(service.list_job_outfiles(), [("job_a", "outfile_a"), ("job_b", "outfile_b")])
+            self.assertEqual(service.list_recv_mapping_plans(), [("PLAN_A",), ("PLAN_B",)])
+            self.assertEqual(service.list_result_table_sys_names(), [("table_a", "sys_a"), ("table_b", "sys_b")])
+            self.assertEqual(
+                service.list_result_table_recv_details(),
+                [("table_a", "plan_a", "sys_a"), ("table_b", "plan_b", "sys_b")],
+            )
+
+    def test_p0_5c_queries_parse_row_like_and_attr_rows(self):
+        sample_rows = [
+            RowLike(job_name=" job_a ", outfile=" outfile_a ", table_name=" table_a ", recv_plan=" plan_a ", sys_name=" sys_a "),
+            AttrRow(job_name="job_b", outfile="outfile_b", table_name="table_b", recv_plan="plan_b", sys_name="sys_b"),
+        ]
+
+        with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
+            self.assertEqual(service.list_job_outfiles(), [("job_a", "outfile_a"), ("job_b", "outfile_b")])
+            self.assertEqual(service.list_recv_mapping_plans(), [("PLAN_A",), ("PLAN_B",)])
+            self.assertEqual(service.list_result_table_sys_names(), [("table_a", "sys_a"), ("table_b", "sys_b")])
+            self.assertEqual(
+                service.list_result_table_recv_details(),
+                [("table_a", "plan_a", "sys_a"), ("table_b", "plan_b", "sys_b")],
+            )
+
     def test_public_data_lightweight_wrappers_remain_callable(self):
         sample_rows = [("table_a",), ("TABLE_A",), ("table_b",)]
 
@@ -136,6 +207,15 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(public_data.all_view_names(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(public_data.all_function_names(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(public_data.all_para_table_lists(), [("TABLE_A",), ("TABLE_B",)])
+
+    def test_public_data_p0_5c_wrappers_remain_callable(self):
+        sample_rows = [("table_a", "plan_a", "sys_a")]
+
+        with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
+            self.assertEqual(public_data.all_job_outfile(), [("table_a", "plan_a")])
+            self.assertEqual(public_data.all_recv_mapping_plans(), [("TABLE_A",)])
+            self.assertEqual(public_data.all_result_table_sys_names(), [("table_a", "plan_a")])
+            self.assertEqual(public_data.all_result_table_recv_details(), [("table_a", "plan_a", "sys_a")])
 
     def test_degraded_log_excludes_sensitive_exception_text(self):
         sensitive_message = (
