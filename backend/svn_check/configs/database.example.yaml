@@ -1,28 +1,31 @@
-# 数据库连接配置模板。
-# 复制为 database.yaml 并填入真实连接信息（database.yaml 已被 .gitignore 忽略，不入库）。
-#   cp database.example.yaml database.yaml
-# 也可不落盘，全部用环境变量覆盖：
-#   SVN_CHECK_DB_BACKEND / SVN_CHECK_PG_HOST/PORT/DB/USER/PASSWORD/SCHEMA
+# Database connection template for the rule metadata service.
+# Copy this file to database.yaml in your deployment environment and fill real values.
+# Do not commit real usernames, passwords, tokens, internal IPs, or production DSNs.
+#
+# Environment variables can override this file:
+#   SVN_CHECK_DB_BACKEND
+#   SVN_CHECK_PG_HOST / SVN_CHECK_PG_PORT / SVN_CHECK_PG_DB
+#   SVN_CHECK_PG_USER / SVN_CHECK_PG_PASSWORD / SVN_CHECK_PG_SCHEMA
 
-# 数据库后端选择：postgres | gaussdb（可被环境变量 SVN_CHECK_DB_BACKEND 覆盖）
+# Supported values: postgres | gaussdb
 backend: postgres
 
-# ---- Postgres（测试环境）----
+# ---- Postgres metadata database ----
 postgres:
   host: 127.0.0.1
   port: 5432
-  dbname: your_db
-  user: your_user
-  password: your_password
+  dbname: demo_db
+  user: demo_user
+  password: demo_password
   schema: dwp
 
-# ---- GaussDB（行内生产，经 JDBC 桥）----
+# ---- Optional GaussDB over JDBC ----
 defaults:
-  driver: com.huawei.gauss200.jdbc.Driver
+  driver: com.example.jdbc.Driver
   jar_path: /path/to/resources/jars/gaussdb200.jar
 
 profiles:
-  czcb:
-    jdbc_url: jdbc:gaussdb://HOST:PORT/DBNAME?currentSchema=SCHEMA
-    user: your_user
-    password: your_password
+  demo:
+    jdbc_url: jdbc:gaussdb://db.example.com:5432/demo_db?currentSchema=dwp
+    user: demo_user
+    password: demo_password

@@ -1,0 +1,21 @@
+# SVN access configuration template.
+# Copy this file to svn.yaml in your deployment environment and fill real values.
+# Do not commit real usernames, passwords, tokens, or internal repository URLs.
+
+defaults:
+  svn_bin: svn
+  username: ""
+  password: ""
+  non_interactive: true
+  trust_server_cert: true
+
+projects:
+  hcyt:
+    trunk_url: https://svn.example.com/repos/demo-hcyt/trunk
+    marker: hcyt/
+  fine-report:
+    trunk_url: https://svn.example.com/repos/demo-fine-report/trunk
+    marker: fine-report/
+  nups:
+    trunk_url: https://svn.example.com/repos/demo-nups/trunk
+    marker: nups/

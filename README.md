@@ -1,250 +1,194 @@
-# 代码审查平台
+# SQL Review Platform
 
-当前仓库已将静态原型拆成可运行的 `React + Vite` 前端和 `Flask + SQLite` 后端，保留了原型的页面结构、卡片、表格、导航和交互，同时增加了 REST API、mock 回退、构建和离线部署说明。
+面向数据开发和湖仓上线场景的 SQL 调度与代码审计平台，用于在发布前检查本次新增或变更内容中的 SQL、调度、依赖、字段映射、产出表和元数据一致性风险。
 
-## 真实审查引擎（已内置，脱离 pytools_new 独立运行）
+> 当前仓库仍包含历史迁移痕迹、演示数据和本地开发配置。公开发布或迁移部署前，请先执行 [公开发布前检查](docs/public_release_checklist.md)。
 
-真实项目 `pytools_new/apps/svn_check` 的规则引擎源码已**物理拷贝**进
-`backend/svn_check/`（core 规则、SVN/正则/AI 服务、shared 的 db/lineage/graph、
-configs），与 pytools_new 完全脱钩，可独立部署。拷贝时仅做最小改动：
+## 适用场景
 
-- `services/diag_service.py` 改为纯 logging 实现（剥离 Streamlit）；
-- `shared/db/gaussdb.py` 容忍 jaydebeapi/JVM 缺失（import 不再致命）；
-- `services/db_service.py` 在 DB 访问入口加降级层：行内 GaussDB 连不上时返回
-  空集并记日志，规则逻辑零改动；
-- `services/svn_service.py` 配置路径改为随包定位（`svn_check/configs/`）。
+- 数据仓库、湖仓、批处理链路上线前审查。
+- SQL、Python、Shell、配置文件、调度清单等变更的集中检查。
+- 产出表、上游依赖、调度依赖和元数据登记的一致性核对。
+- 前端演示、离线规则回归、本地目录审计和 SVN 工作区审计。
+- 将审计结果转换为统一风险输出，供后续对接资产门户或工单系统。
 
-`backend/engine.py` 是编排层（不含规则逻辑），提交审查时在后台线程执行完整流水线，
-并把结果整理成「与 Streamlit 版展示内容对齐」的结构化报告：
+## 核心能力
 
-- 工作流路由与 Streamlit 版一致：URL 含 `/hcyt/` 走湖仓审查、`/NUPS/`、`/nups/`
-  走 NUPS、`/fine-report/` 走帆软报表审查；
-- HCYT：SVN 分支差异拉取 → dws/hive SQL 规则 → sbin/SCHEMA_CONFIG/recv 检查 →
-  PLAN/SEQ/CALE/JOB 调度 Excel 清单与规则 → dwo/dwf/加工程序检查 → 结果表与调度
-  依赖比对（含禁用/源系统标注）→（可选）AI 分析；
-- FineReport：目录(menu)/权限(authority) 表格与规则 → 帆软模板（数据源、引擎、
-  sheet、数据集 SQL、敏感字段、引用表）→ 预览/下载链接；
-- NUPS：NUPS SQL 检查 + 加工程序检查 + SQL 引用表；
-- 行内 GaussDB / 血缘库连不上时自动降级：依赖数据库的展示信息弱化、纯静态规则照常输出；
-- 任务进度/步骤/日志实时落库，前端 2 秒轮询 `GET /api/audit-tasks/:id`，完成后拉取
-  `GET /api/audit-tasks/:id/report` 渲染真实报告；
-- 运行 `python backend/dev_selfcheck.py` 可在无 SVN/数据库环境离线自检三条流水线。
+- **SQL 审计**：规则引擎位于 `backend/svn_check/core`，覆盖 SQL、DDL、Hive/DWS 类脚本、报表数据集 SQL 等检查。
+- **调度/作业检查**：结合调度 Excel、作业元数据和加工程序，核对作业、程序、依赖和禁用状态。
+- **元数据辅助检查**：`backend/svn_check/services/audit_metadata_service.py` 和 `shared/db` 提供元数据访问边界；外部数据库不可用时部分检查会降级。
+- **上游/下游依赖分析**：`shared/graph`、`shared/lineage` 和 `services/re_service.py` 负责依赖汇总、引用表识别和血缘摘要。
+- **统一风险输出**：后端报告中包含 `assetIssues` 与 `unifiedAssetIssues`，用于描述资产问题和未来外部系统适配边界；当前平台运行不强依赖外部资产门户。
+- **前端结果展示**：React/Vite 前端展示任务、进度、日志、风险分组、报表检查和 mock 回退数据。
 
-> 行内库需要 GaussDB JDBC 驱动时，安装 `jaydebeapi` 并放置
-> `backend/svn_check/resources/jars/gaussdb200.jar`（缺失则自动降级为纯静态检查）。
+## 架构概览
 
-### 数据库后端：Postgres / GaussDB 可切换
-
-规则引擎查询的元数据库支持两种后端，通过统一路由 `svn_check/shared/db/router.py` 分发：
-
-- 选择方式：`svn_check/configs/database.yaml` 的 `backend: postgres|gaussdb`，或环境变量
-  `SVN_CHECK_DB_BACKEND` 覆盖（优先级更高）；
-- **Postgres（测试环境，当前默认）**：连接参数在 `database.yaml` 的 `postgres` 段，
-  也可用 `SVN_CHECK_PG_HOST/PORT/DB/USER/PASSWORD/SCHEMA` 覆盖。驱动用 `psycopg`；
-- **GaussDB（行内生产）**：经 JDBC 桥（jaydebeapi），配置见 `profiles` 段。
-
-建表（把规则引擎所需的 `dwp.p_*` 元数据表建进 Postgres，幂等可重复执行）：
-
-```bash
-cd backend
-python init_pg.py          # DDL 见 svn_check/migrate/postgres_schema.sql
-```
-
-已创建的表（schema `dwp`，表名 `p_` 开头）：`p_job_hjj`、`p_program_hjj`、`p_plan_hjj`、
-`p_role_hjj`、`p_fine_hjj`、`p_job_outfile`、`p_para_table_lists`、`p_recv_dwf`、
-`p_recv_ops_mapping`、`p_term_root`。`p_job_hjj` 用 `select *` 按列序取值，故保留 28 列
-（`a..ab`，其中 `e`=程序KEY、`x`=状态、`ab`=前置依赖串）。
-
-> 方言说明：`all_tab_partitions` 查询 Oracle 数据字典 `dba_tab_partitions`，
-> Postgres 无对应表，该查询会走降级（分区步骤校验不触发），其余查询均已在 PG 验证可用。
+- **前端**：`frontend/`，React 18 + Vite，通过 `VITE_API_BASE_URL` 访问后端 API，后端不可用时部分页面回退到 `frontend/src/mock/data.js`。
+- **后端**：`backend/`，Flask 提供 REST API，`backend/engine.py` 编排真实规则引擎并异步执行审计任务。
+- **平台运行库**：默认使用 SQLite，文件位于 `backend/data/app.db`，首次启动由 `backend/database.py` 自动建表并写入演示数据。
+- **规则元数据库**：规则引擎可连接 Postgres 或 GaussDB 类元数据库；Postgres 初始化脚本位于 `backend/svn_check/migrate/postgres_schema.sql`。
+- **脚本/定时任务**：当前仓库没有独立 `jobs/` 或 crontab 目录；元数据同步可按部署环境另行补充，并将快照日期写入同步结果或日志。
+- **可选元数据同步**：元数据是增强审计效果的数据准备层，不是前后端启动的强依赖。
 
 ## 目录结构
 
 ```text
-code-review-platform/
-├─ 静态原型代码/
-├─ frontend/
-│  ├─ src/
-│  │  ├─ components/
-│  │  ├─ config/
-│  │  ├─ hooks/
-│  │  ├─ mock/
-│  │  ├─ pages/
-│  │  ├─ services/
-│  │  └─ styles/
-│  ├─ package.json
-│  ├─ vite.config.js
-│  └─ .env.example
-├─ backend/
-│  ├─ app.py
-│  ├─ database.py
-│  ├─ requirements.txt
-│  └─ data/
-└─ README.md
+.
+├── backend/
+│   ├── app.py                         # Flask API 入口
+│   ├── database.py                    # SQLite 平台运行库初始化
+│   ├── engine.py                      # 审计任务编排与报告生成
+│   ├── init_pg.py                     # Postgres 元数据表初始化脚本
+│   ├── requirements.txt               # 后端依赖
+│   └── svn_check/
+│       ├── configs/                   # 数据库、SVN 等配置模板/配置
+│       ├── core/                      # SQL/调度/报表等规则
+│       ├── migrate/postgres_schema.sql
+│       ├── services/                  # SVN、元数据、AI、诊断等服务边界
+│       └── shared/                    # DB、血缘、图依赖等共享能力
+├── frontend/
+│   ├── src/
+│   │   ├── config/                    # API 地址配置
+│   │   ├── mock/                      # 前端 mock 数据
+│   │   ├── pages/                     # 页面
+│   │   ├── services/                  # API client
+│   │   └── styles/                    # 样式
+│   ├── .env.example
+│   └── package.json
+├── tests/                             # unittest 回归用例
+├── docs/                              # 设计、部署、开发和发布文档
+└── 静态原型代码/                       # 历史静态原型资料
 ```
 
-## 第一阶段：前端工程化
+## 快速开始
 
-前端位于 [frontend](E:/AI生成代码/代码审查平台/frontend)。
+### 环境要求
 
-安装依赖：
+- Python 3.10+，建议 3.11。
+- Node.js 18+，npm 9+。
+- 本地开发默认不需要外部数据库；规则元数据检查需要 Postgres 12+ 或按实际环境配置 GaussDB/JDBC。
+- 如使用 SVN 审计，需要本机安装 `svn` 命令行客户端并配置可访问的仓库地址。
 
-```bash
-cd frontend
-npm install
+### 安装后端依赖
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-开发启动：
-
-```bash
-npm run dev
-```
-
-生产构建：
-
-```bash
-npm run build
-```
-
-说明：
-
-- 原型中的 React/Babel CDN 已移除，改为 Vite 本地构建。
-- CSS 已迁移到 `src/styles`，并继续沿用原有视觉风格。
-- mock 数据位于 `src/mock/data.js`，后端不可用时自动回退。
-- 前端 API 地址通过 `VITE_API_BASE_URL` 配置，示例见 [frontend/.env.example](E:/AI生成代码/代码审查平台/frontend/.env.example)。
-
-## 第二阶段：后端 Flask
-
-后端位于 [backend](E:/AI生成代码/代码审查平台/backend)。
-
-创建虚拟环境并安装依赖：
+Linux/macOS:
 
 ```bash
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-开发启动：
+### 准备配置文件
 
-```bash
-python app.py
+```powershell
+copy backend\svn_check\configs\database.example.yaml backend\svn_check\configs\database.yaml
+copy backend\svn_check\configs\svn.example.yaml backend\svn_check\configs\svn.yaml
+copy frontend\.env.example frontend\.env
 ```
 
-已提供接口：
+将示例值替换为本地或测试环境配置。不要把真实账号、密码、token、内网 IP、生产 SVN 地址提交到仓库。
 
-- `GET /api/health`
-- `GET /api/projects`
-- `GET /api/audit-tasks`
-- `GET /api/audit-tasks/:id` —— 任务状态 / 进度 / 步骤 / 实时日志
-- `GET /api/audit-tasks/:id/report` —— 真实审查报告（前端页面数据结构）
-- `GET /api/audit-results?task_id=` —— 按任务过滤的规则命中明细
-- `POST /api/audit-tasks` —— 创建任务并后台执行真实审查
-- `GET /api/fine-report/items`
+### 初始化数据库
 
-说明：
+平台运行库 SQLite 会在后端首次启动时自动初始化。
 
-- SQLite 数据库文件默认生成在 `backend/data/app.db`。
-- 首次启动会自动初始化表结构和示例数据。
-- 已启用 CORS，方便前端本地联调。
+如果需要初始化规则元数据 Postgres 表：
 
-## 第三阶段：前后端联调
+```powershell
+cd backend
+python init_pg.py
+```
 
-联调要点：
+该命令读取 `backend/svn_check/configs/database.yaml` 或 `SVN_CHECK_*` 环境变量，并执行 `backend/svn_check/migrate/postgres_schema.sql`。
 
-- `frontend/src/services/apiClient.js` 统一管理请求。
-- `frontend/src/config/api.js` 统一管理 API 路径和基础地址。
-- 首页项目列表、任务列表、结果列表、帆软报表列表优先请求后端。
-- 当后端不可用时，页面会显示友好提示并回退到 `mock` 数据。
-- 已处理 `loading / empty / error` 三类状态。
+### 启动后端
 
-前后端一起启动时建议：
-
-```bash
+```powershell
 cd backend
 python app.py
 ```
 
-```bash
+默认监听 `http://127.0.0.1:5000`，健康检查：
+
+```text
+GET http://127.0.0.1:5000/api/health
+```
+
+### 启动前端
+
+```powershell
 cd frontend
-copy .env.example .env
+npm install
 npm run dev
 ```
 
-默认前端会请求：
+默认访问 Vite 输出地址，通常是 `http://127.0.0.1:5173`。
 
-```text
-http://127.0.0.1:5000/api
+## 常见部署方式
+
+- **本地开发部署**：后端 `python app.py`，前端 `npm run dev`，SQLite 自动初始化，元数据服务可不配置。
+- **单机部署**：前端 `npm run build` 后交给 Nginx 托管；后端用 `gunicorn` 或 `waitress` 常驻运行；Nginx 反向代理 `/api/` 到 Flask。
+- **内网部署**：使用内网 Python/npm 镜像源，真实配置只放在部署机器或环境变量中，不进入 Git。
+- **Docker/容器化**：当前版本暂未内置 Dockerfile 或 docker-compose，可按后续规划补充。
+
+详细步骤见 [部署文档](docs/deployment.md)。
+
+## 配置说明
+
+主要配置入口：
+
+- [配置说明](docs/configuration.md)
+- `frontend/.env.example`
+- `backend/svn_check/configs/database.example.yaml`
+- `backend/svn_check/configs/svn.example.yaml`
+
+真实配置文件应保留在部署环境，不应提交到仓库。
+
+## 测试与回归
+
+后端当前使用 `unittest`：
+
+```powershell
+python -m unittest discover -s tests
+python backend\dev_selfcheck.py
 ```
 
-## 第四阶段：Linux 离线部署
+前端构建检查：
 
-### 前端离线部署
-
-在有依赖缓存或内网 npm 源的环境完成构建：
-
-```bash
+```powershell
 cd frontend
-npm install
 npm run build
 ```
 
-构建产物位于：
+更多命令见 [回归命令](docs/regression_commands.md)。
 
-```text
-frontend/dist
-```
+## 安全与公开发布注意事项
 
-`dist` 可独立部署到 Nginx 静态目录，不依赖 `unpkg`、`cdn.jsdelivr` 或任何公网 CDN。
+- 不提交真实数据库连接串、生产 IP、账号密码、token、cookie。
+- 不提交真实 SVN/FTP 地址或内部 Git 地址。
+- 不在 README、截图、mock 数据中大段暴露真实系统名、真实表名、真实字段名。
+- 发布前检查 `backend/database.py` 中的演示数据、`frontend/src/mock/data.js`、`docs/` 历史文档和截图。
+- 对历史提交中曾经出现的敏感信息，按 [历史清理计划](docs/public_release_history_cleanup_plan.md) 处理。
+- 公开发布前按 [发布检查清单](docs/public_release_checklist.md) 执行。
 
-### 后端离线部署
+## Roadmap
 
-建议先在内网制品库准备 Python wheel 包，再安装：
+- 提供统一配置加载与多环境配置示例。
+- 补齐容器化部署文件和生产级启动脚本。
+- 将平台运行库从 SQLite 扩展到可选 PostgreSQL。
+- 增强元数据同步任务的快照日期、失败重试和审计日志。
+- 完善资产风险输出到外部门户、工单或消息系统的适配层。
+- 补充 CI、代码风格检查和端到端测试。
 
-```bash
-cd backend
-pip install -r requirements.txt
-```
+## License
 
-Linux 启动方式：
-
-```bash
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
-```
-
-如果环境更适合 Windows 服务或纯 Python 方式，可用：
-
-```bash
-waitress-serve --host 0.0.0.0 --port 5000 app:app
-```
-
-### Nginx 配置示例
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-
-    root /opt/code-review-platform/frontend/dist;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:5000/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-## 后续可扩展点
-
-- 将 SQLite 数据访问替换为 SQLAlchemy 或仓储层，方便后续切 Oracle/PostgreSQL。
-- 增加 `GET /api/audit-results/:taskId` 之类的明细接口，进一步替换结果页 mock 数据。
-- 将“提交审查”真正接入 SVN/Git 扫描与规则引擎。
+待补充。当前仓库尚未声明开源协议，公开发布前必须由项目所有者确认许可证文本。

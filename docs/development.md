@@ -1,0 +1,109 @@
+# Development Guide
+
+## 本地开发环境准备
+
+建议版本：
+
+- Python 3.10+，建议 3.11。
+- Node.js 18+。
+- npm 9+。
+- 可选：Postgres 12+，用于规则元数据表。
+- 可选：SVN 命令行客户端，用于 SVN 工作区审计。
+
+克隆仓库后先准备配置模板：
+
+```powershell
+copy frontend\.env.example frontend\.env
+copy backend\svn_check\configs\database.example.yaml backend\svn_check\configs\database.yaml
+copy backend\svn_check\configs\svn.example.yaml backend\svn_check\configs\svn.yaml
+```
+
+真实配置只放在本地，不提交。
+
+## 后端启动
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
+
+后端默认监听 `http://127.0.0.1:5000`。首次启动会创建 `backend/data/app.db` 并写入演示数据。
+
+## 前端启动
+
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+
+`frontend/src/config/api.js` 会读取 `VITE_API_BASE_URL`，默认值是 `http://127.0.0.1:5000/api`。
+
+## mock 模式/API 模式
+
+前端当前没有单独的 `VITE_USE_MOCK` 开关。
+
+- 首页、结果页和报表页会优先请求后端 API。
+- 当 API 不可用、没有任务 ID 或没有实时报告时，页面会使用 `frontend/src/mock/data.js` 中的演示数据。
+- `frontend/src/hooks/useAuditRun.js` 注明：`taskId` 为空时不发起请求，适合纯原型或 mock 演示。
+- 创建真实任务时，后端 `POST /api/audit-tasks` 支持 `sourceType=svn` 或 `sourceType=local`；本地目录模式当前只支持 `hcyt` 工作流键。
+
+## 常用测试命令
+
+```powershell
+python -m unittest discover -s tests
+python backend\dev_selfcheck.py
+```
+
+单测示例：
+
+```powershell
+python -m unittest tests.test_asset_issue
+python -m unittest tests.test_workspace_service
+python -m unittest tests.test_engine_lineage_summary
+```
+
+前端构建：
+
+```powershell
+cd frontend
+npm run build
+```
+
+## 代码风格检查
+
+当前项目未内置 Ruff、Black、ESLint 或 Prettier 命令。新增代码时建议先保持现有风格，并在后续 Roadmap 中补充统一 lint 配置。
+
+可执行的基础检查：
+
+```powershell
+git diff --check
+python -m unittest discover -s tests
+cd frontend
+npm run build
+```
+
+## Git 提交建议
+
+- 提交前执行 `git status --short`，确认只包含本次相关文件。
+- 文档、配置模板、业务代码分开提交。
+- commit message 建议使用简洁的 Conventional Commit，例如 `docs: add public deployment and release documentation`。
+
+## 新增功能时同步更新
+
+- API 变更：更新 README、`docs/deployment.md`、`docs/development.md`。
+- 新配置：更新 `docs/configuration.md` 和对应 `.example` 文件。
+- 新规则输出：更新 `docs/architecture.md`、前端 mock 数据和相关单测。
+- 新部署方式：更新 `docs/deployment.md` 和 `docs/public_release_checklist.md`。
+- 外部系统适配：明确是可选集成还是强依赖，并补充失败降级说明。
+
+## 避免引入内部敏感信息
+
+- 不复制真实 SVN URL、数据库地址、账号、token 到源码或文档。
+- 不把生产日志、真实 Excel、真实 SQLite 数据库放入仓库。
+- mock 数据统一使用 `demo_*`、`example.com`、`127.0.0.1`。
+- 截图发布前检查浏览器地址栏、任务日志、表名、人员名、系统名。
+- 提交前执行敏感关键词扫描，并对命中结果逐项确认。
