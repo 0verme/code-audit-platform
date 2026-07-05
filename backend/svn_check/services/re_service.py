@@ -17,6 +17,10 @@ from pathlib import Path
 import fnmatch
 
 
+SENSITIVE_VALUE_RE = re.compile(
+    r"(?i)(password|passwd|pwd|token|secret|jdbc:|dsn=|://|\b(?:10|127|172|192)\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)"
+)
+
 
 def get_export_base():
     env_path = os.getenv("SVN_CHECK_EXPORT_BASE")
@@ -155,6 +159,305 @@ def get_yilai_table_from_lookup(input_string, dependency_table_lookup):
         if table_name:
             matched_values.append(table_name)
     return matched_values
+
+
+def _safe_lineage_value(value):
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    cleaned = str(value).strip()
+    if not cleaned or SENSITIVE_VALUE_RE.search(cleaned):
+        return ""
+    return cleaned
+
+
+def _lineage_row_value(row, index=0, field_names=()):
+    if row is None:
+        return None
+    row_mapping = getattr(row, "_mapping", None)
+    if hasattr(row_mapping, "keys"):
+        for field_name in field_names:
+            if field_name in row_mapping:
+                return row_mapping[field_name]
+        values = list(row_mapping.values())
+        return values[index] if index < len(values) else None
+    if isinstance(row, dict):
+        for field_name in field_names:
+            if field_name in row:
+                return row[field_name]
+        values = list(row.values())
+        return values[index] if index < len(values) else None
+    if isinstance(row, (str, bytes)):
+        return row if index == 0 else None
+    for field_name in field_names:
+        if hasattr(row, field_name):
+            return getattr(row, field_name)
+    try:
+        return row[index]
+    except (TypeError, KeyError, IndexError):
+        return row if index == 0 else None
+
+
+def _dedupe_append(values, value):
+    if value and value not in values:
+        values.append(value)
+
+
+def _normalize_lineage_table_name(value):
+    cleaned = _safe_lineage_value(value)
+    return cleaned.upper() if cleaned else ""
+
+
+def _normalize_lineage_job_name(value):
+    cleaned = _safe_lineage_value(value)
+    return cleaned.upper() if cleaned else ""
+
+
+def _empty_wide_table_lineage_summary(warnings=None):
+    return {
+        "resultTables": [],
+        "jobs": [],
+        "recvPlans": [],
+        "sysNames": [],
+        "outfiles": [],
+        "warnings": list(warnings or []),
+        "stats": {
+            "resultTableCount": 0,
+            "jobCount": 0,
+            "recvPlanCount": 0,
+            "sysNameCount": 0,
+            "outfileCount": 0,
+        },
+        "plan_name": "",
+        "job_name": "",
+        "program_name": "",
+        "program_path": "",
+        "result_table": "",
+        "dependency_jobs": [],
+        "dependency_result_tables": [],
+        "recv_plan": "",
+        "source_system": "",
+        "outfile": "",
+        "missing_steps": list(warnings or []),
+        "source_fields": [],
+    }
+
+
+def _finalize_wide_table_lineage_summary(summary):
+    summary["stats"] = {
+        "resultTableCount": len(summary["resultTables"]),
+        "jobCount": len(summary["jobs"]),
+        "recvPlanCount": len(summary["recvPlans"]),
+        "sysNameCount": len(summary["sysNames"]),
+        "outfileCount": len(summary["outfiles"]),
+    }
+    summary["job_name"] = summary["jobs"][0] if summary["jobs"] else ""
+    summary["result_table"] = summary["resultTables"][0] if summary["resultTables"] else ""
+    summary["dependency_jobs"] = list(summary["jobs"])
+    summary["dependency_result_tables"] = list(summary["resultTables"])
+    summary["recv_plan"] = summary["recvPlans"][0] if summary["recvPlans"] else ""
+    summary["source_system"] = summary["sysNames"][0] if summary["sysNames"] else ""
+    summary["outfile"] = summary["outfiles"][0] if summary["outfiles"] else ""
+    summary["missing_steps"] = list(summary["warnings"])
+    summary["source_fields"] = [
+        {"field": "resultTables", "value": list(summary["resultTables"])},
+        {"field": "jobs", "value": list(summary["jobs"])},
+        {"field": "recvPlans", "value": list(summary["recvPlans"])},
+        {"field": "sysNames", "value": list(summary["sysNames"])},
+        {"field": "outfiles", "value": list(summary["outfiles"])},
+    ]
+    return summary
+
+
+def _safe_metadata_rows(fetcher, warning_name, warnings):
+    try:
+        return fetcher() or []
+    except Exception as exc:
+        warnings.append(f"{warning_name} unavailable: {type(exc).__name__}")
+        return []
+
+
+def build_job_outfile_lookup(rows=None):
+    lookup = {}
+    try:
+        iterable = rows or []
+    except Exception:
+        return lookup
+
+    try:
+        for row in iterable:
+            job_name = _normalize_lineage_job_name(
+                _lineage_row_value(row, 0, ("job_name", "job", "a"))
+            )
+            outfile = _safe_lineage_value(
+                _lineage_row_value(row, 1, ("outfile", "outfile_value", "b"))
+            )
+            if not job_name or not outfile:
+                continue
+            if job_name not in lookup:
+                lookup[job_name] = outfile
+    except Exception:
+        return {}
+    return lookup
+
+
+def build_wide_table_lineage_summary(
+    merge_df=None,
+    input_path=None,
+    *,
+    job_outfile_lookup=None,
+    job_outfile_rows=None,
+    result_table_recv_detail_map=None,
+    result_table_recv_detail_rows=None,
+    result_table_sys_name_rows=None,
+    recv_mapping_plan_rows=None,
+    metadata_service=None,
+    tail_levels=4,
+):
+    warnings = []
+    summary = _empty_wide_table_lineage_summary()
+
+    if metadata_service is not None:
+        if job_outfile_rows is None and job_outfile_lookup is None:
+            job_outfile_rows = _safe_metadata_rows(
+                metadata_service.list_job_outfiles,
+                "job outfile metadata",
+                warnings,
+            )
+        if result_table_recv_detail_rows is None and result_table_recv_detail_map is None:
+            result_table_recv_detail_rows = _safe_metadata_rows(
+                metadata_service.list_result_table_recv_details,
+                "result table recv detail metadata",
+                warnings,
+            )
+        if result_table_sys_name_rows is None:
+            result_table_sys_name_rows = _safe_metadata_rows(
+                metadata_service.list_result_table_sys_names,
+                "result table sys name metadata",
+                warnings,
+            )
+        if recv_mapping_plan_rows is None:
+            recv_mapping_plan_rows = _safe_metadata_rows(
+                metadata_service.list_recv_mapping_plans,
+                "recv mapping plan metadata",
+                warnings,
+            )
+
+    if job_outfile_lookup is None:
+        job_outfile_lookup = build_job_outfile_lookup(job_outfile_rows)
+    else:
+        job_outfile_lookup = {
+            _normalize_lineage_job_name(job): _safe_lineage_value(outfile)
+            for job, outfile in dict(job_outfile_lookup or {}).items()
+            if _normalize_lineage_job_name(job) and _safe_lineage_value(outfile)
+        }
+
+    recv_detail_map = {}
+    if result_table_recv_detail_map:
+        for table_name, details in result_table_recv_detail_map.items():
+            normalized_table = _normalize_lineage_table_name(table_name)
+            if not normalized_table:
+                continue
+            recv_detail_map.setdefault(normalized_table, [])
+            for detail in details or []:
+                recv_plan = _safe_lineage_value(
+                    _lineage_row_value(detail, 0, ("recv_plan", "plan"))
+                ).upper()
+                sys_name = _safe_lineage_value(
+                    _lineage_row_value(detail, 1, ("source_system", "sys_name"))
+                )
+                row = {"recv_plan": recv_plan, "source_system": sys_name}
+                if (recv_plan or sys_name) and row not in recv_detail_map[normalized_table]:
+                    recv_detail_map[normalized_table].append(row)
+
+    for row in result_table_recv_detail_rows or []:
+        table_name = _normalize_lineage_table_name(
+            _lineage_row_value(row, 0, ("table_name", "result_table", "d.table_name"))
+        )
+        recv_plan = _safe_lineage_value(
+            _lineage_row_value(row, 1, ("recv_plan", "plan", "d.recv_plan"))
+        ).upper()
+        sys_name = _safe_lineage_value(
+            _lineage_row_value(row, 2, ("sys_name", "source_system", "m.sys_name"))
+        )
+        if not table_name:
+            continue
+        recv_detail_map.setdefault(table_name, [])
+        detail = {"recv_plan": recv_plan, "source_system": sys_name}
+        if (recv_plan or sys_name) and detail not in recv_detail_map[table_name]:
+            recv_detail_map[table_name].append(detail)
+
+    for row in result_table_sys_name_rows or []:
+        table_name = _normalize_lineage_table_name(
+            _lineage_row_value(row, 0, ("table_name", "result_table", "d.table_name"))
+        )
+        sys_name = _safe_lineage_value(
+            _lineage_row_value(row, 1, ("sys_name", "source_system", "m.sys_name"))
+        )
+        if table_name and sys_name:
+            recv_detail_map.setdefault(table_name, [])
+            detail = {"recv_plan": "", "source_system": sys_name}
+            if detail not in recv_detail_map[table_name]:
+                recv_detail_map[table_name].append(detail)
+
+    for row in recv_mapping_plan_rows or []:
+        recv_plan = _safe_lineage_value(
+            _lineage_row_value(row, 0, ("recv_plan", "plan"))
+        ).upper()
+        _dedupe_append(summary["recvPlans"], recv_plan)
+
+    if merge_df is not None:
+        try:
+            if not getattr(merge_df, "empty", True):
+                program_path_col = merge_df.columns[-6]
+                matched_df = merge_df
+                if input_path:
+                    input_tail = tail_path(input_path, tail_levels)
+                    matched_df = merge_df[
+                        merge_df[program_path_col].apply(lambda x: tail_path(x, tail_levels)) == input_tail
+                    ]
+                dependency_lookup = build_dependency_table_lookup(merge_df)
+                for _, row in matched_df.iterrows():
+                    job_name = _normalize_lineage_job_name(row.iloc[2] if len(row) > 2 else "")
+                    dependency_raw = row.iloc[27] if len(row) > 27 else ""
+                    program_path = row.iloc[32] if len(row) > 32 else row.iloc[-6]
+                    result_table = _normalize_lineage_table_name(
+                        _table_name_from_program_path_value(program_path)
+                    )
+                    _dedupe_append(summary["jobs"], job_name)
+                    _dedupe_append(summary["resultTables"], result_table)
+                    for dependency_job in _dependency_items(dependency_raw):
+                        normalized_job = _normalize_lineage_job_name(dependency_job)
+                        _dedupe_append(summary["jobs"], normalized_job)
+                        _dedupe_append(summary["outfiles"], job_outfile_lookup.get(normalized_job, ""))
+                    for dependency_table in get_yilai_table_from_lookup(dependency_raw, dependency_lookup):
+                        normalized_table = _normalize_lineage_table_name(dependency_table)
+                        _dedupe_append(summary["resultTables"], normalized_table)
+                        for detail in recv_detail_map.get(normalized_table, []):
+                            _dedupe_append(summary["recvPlans"], detail.get("recv_plan"))
+                            _dedupe_append(summary["sysNames"], detail.get("source_system"))
+        except Exception as exc:
+            warnings.append(f"merge metadata unavailable: {type(exc).__name__}")
+
+    for table_name, details in recv_detail_map.items():
+        _dedupe_append(summary["resultTables"], table_name)
+        for detail in details:
+            _dedupe_append(summary["recvPlans"], detail.get("recv_plan"))
+            _dedupe_append(summary["sysNames"], detail.get("source_system"))
+
+    for job_name, outfile in job_outfile_lookup.items():
+        _dedupe_append(summary["jobs"], job_name)
+        _dedupe_append(summary["outfiles"], outfile)
+
+    if not any(summary[key] for key in ("resultTables", "jobs", "recvPlans", "sysNames", "outfiles")):
+        warnings.append("empty lineage metadata")
+
+    summary["warnings"] = warnings
+    return _finalize_wide_table_lineage_summary(summary)
 
 
 def get_result(merge_df, input_path, tail_levels=3, prog_path_col=None):
