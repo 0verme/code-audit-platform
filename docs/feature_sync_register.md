@@ -31,3 +31,10 @@
 - FS-008：仍不标记为完整完成；来源系统已进入 `lineageSummary` 展示并具备边界降级，结果表禁用和完整治理口径仍待 P1 或单独 round。
 - FS-009：仍不标记为完整完成；`outfile` 已进入 `lineageSummary` 展示并具备边界降级，完整下游推送校验仍待 P1 或单独 round。
 - FS-018：`assetIssues`、`sourceType`、`workspaceRoot`、`changes`、`lineageSummary` 已接入并完成兼容性回放；后续字段继续按登记推进。
+
+## P0-S2 公开发布历史清理备注
+
+- P0-S2 已形成公开发布前 Git 历史扫描与脱敏执行方案：`docs/public_release_history_cleanup_plan.md`。
+- 本轮只做方案评审和备注复核，不执行真实清理，不删除文件，不重写 Git 历史，不修改旧平台业务代码、新平台 backend/frontend/tests 或真实配置文件。
+- 具体清理执行、配置模板化、demo 数据替换、截图复核和公开仓库导出建议另开独立 round。
+- 当前不改变 FS-008 / FS-009 状态；结果表治理、来源系统完整治理和 outfile 完整下游校验仍按既有登记进入 P1 或独立 round。
