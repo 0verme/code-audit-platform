@@ -67,6 +67,7 @@ def _load_real_modules():
             from services.svn_service import svn_main
             from services.ai_service import call_sql_llm
             from services import re_service
+            from services import audit_metadata_service
             from services.workspace_service import load_local_workspace
             import core.hcyt as hcyt
             import core.nups_rule as nups_rule
@@ -83,6 +84,7 @@ def _load_real_modules():
                 load_local_workspace=load_local_workspace,
                 call_sql_llm=call_sql_llm,
                 re_service=re_service,
+                audit_metadata_service=audit_metadata_service,
                 hcyt=hcyt,
                 hcyt_ddl_rule=hcyt_ddl_rule,
                 hcyt_sql_rule=hcyt_sql_rule,
@@ -231,6 +233,90 @@ def asset_issue_to_dict(issue):
 # ---------------------------------------------------------------------------
 # 任务执行
 # ---------------------------------------------------------------------------
+
+def _json_safe(value):
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Path):
+        return value.name
+    if isinstance(value, dict):
+        return {str(k): _json_safe(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_json_safe(v) for v in value]
+    return str(value)
+
+
+def _empty_lineage_summary(warnings=None):
+    return {
+        "resultTables": [],
+        "jobs": [],
+        "recvPlans": [],
+        "sysNames": [],
+        "outfiles": [],
+        "warnings": list(warnings or []),
+        "stats": {},
+    }
+
+
+def _lineage_warning(label, exc):
+    return f"{label} unavailable: {type(exc).__name__}"
+
+
+def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None):
+    warnings = []
+    merge_df = None
+    job_outfile_lookup = {}
+    metadata_service = getattr(m, "audit_metadata_service", None)
+
+    if metadata_service is None:
+        warnings.append("job metadata unavailable")
+    else:
+        try:
+            job_outfile_rows = metadata_service.list_job_outfiles() or []
+            job_outfile_lookup = m.re_service.build_job_outfile_lookup(job_outfile_rows)
+        except Exception as exc:
+            warnings.append(_lineage_warning("job outfile metadata", exc))
+            job_outfile_lookup = {}
+
+    if job_df is not None and program_xls:
+        try:
+            program_df = m.re_service.load_xls_to_df(program_xls)
+            merge_job = m.hcyt.all_job_df(job_df, db_job_rows) if db_job_rows is not None else job_df
+            try:
+                merge_program = m.hcyt.all_program_df(program_df)
+            except Exception:
+                merge_program = program_df
+            merge_df = m.re_service.merge_job_program(merge_job, merge_program)
+        except Exception as exc:
+            warnings.append(_lineage_warning("merge metadata", exc))
+    elif job_df is None:
+        warnings.append("job metadata unavailable")
+
+    try:
+        summary = m.re_service.build_wide_table_lineage_summary(
+            merge_df=merge_df,
+            input_path=None,
+            job_outfile_lookup=job_outfile_lookup,
+            metadata_service=metadata_service,
+        )
+    except Exception as exc:
+        summary = _empty_lineage_summary([_lineage_warning("lineage summary", exc)])
+
+    summary = _json_safe(summary)
+    if not isinstance(summary, dict):
+        summary = _empty_lineage_summary(["lineage summary unavailable"])
+    for key in ("resultTables", "jobs", "recvPlans", "sysNames", "outfiles", "warnings"):
+        if not isinstance(summary.get(key), list):
+            summary[key] = []
+    if not isinstance(summary.get("stats"), dict):
+        summary["stats"] = {}
+    for warning in warnings:
+        if warning not in summary["warnings"]:
+            summary["warnings"].append(warning)
+    return summary
+
 
 class TaskRun:
     def __init__(
@@ -556,6 +642,13 @@ class TaskRun:
         grouped["python"] += py_rows
         asset_issues += py_asset_issues
         asset_issues = [asset_issue_to_dict(issue) for issue in m.dedupe_issues(asset_issues)]
+        lineage_summary = _build_lineage_summary_payload(
+            m,
+            job_df=job_df,
+            program_xls=program_xls,
+            py_lists=py_lists,
+            db_job_rows=db_job_rows,
+        )
 
         errors, warnings = self.count_levels(list(grouped.values()) + [schedule["rows"]])
         self.update(progress=85, step="AI 分析" if self.ai_enabled else "汇总报告")
@@ -590,6 +683,7 @@ class TaskRun:
             "refTables": ref_tables,
             "deps": deps,
             "assetIssues": asset_issues,
+            "lineageSummary": lineage_summary,
         }
         if ai:
             report["ai"] = ai
