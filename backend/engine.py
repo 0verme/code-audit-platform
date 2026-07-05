@@ -73,7 +73,7 @@ def _load_real_modules():
             import core.nups_rule as nups_rule
             import core.fine_rule as fine_rule
             import core.public_data as public_data
-            from core.asset_issue import dedupe_issues
+            from core.asset_issue import asset_issues_to_unified_issues, dedupe_issues
             from core.hcyt import ddl_rule as hcyt_ddl_rule
             from core.hcyt import python_rule as hcyt_python_rule
             from core.hcyt import sql_rule as hcyt_sql_rule
@@ -93,6 +93,7 @@ def _load_real_modules():
                 fine_rule=fine_rule,
                 public_data=public_data,
                 dedupe_issues=dedupe_issues,
+                asset_issues_to_unified_issues=asset_issues_to_unified_issues,
                 load_registered_result_tables=load_registered_result_tables,
             )
         except Exception:
@@ -642,6 +643,10 @@ class TaskRun:
         grouped["python"] += py_rows
         asset_issues += py_asset_issues
         asset_issues = [asset_issue_to_dict(issue) for issue in m.dedupe_issues(asset_issues)]
+        unified_asset_issues = m.asset_issues_to_unified_issues(
+            asset_issues,
+            scan_batch_id=self.task_id,
+        )
         lineage_summary = _build_lineage_summary_payload(
             m,
             job_df=job_df,
@@ -683,6 +688,7 @@ class TaskRun:
             "refTables": ref_tables,
             "deps": deps,
             "assetIssues": asset_issues,
+            "unifiedAssetIssues": unified_asset_issues,
             "lineageSummary": lineage_summary,
         }
         if ai:
@@ -998,6 +1004,7 @@ class TaskRun:
             "sqlChecks": sql_checks,
             "pyScripts": py_scripts,
             "assetIssues": [],
+            "unifiedAssetIssues": [],
         }
         if ai:
             report["ai"] = ai
@@ -1138,6 +1145,7 @@ class TaskRun:
             "reports": reports,
             "refTables": all_ref_tables,
             "assetIssues": [],
+            "unifiedAssetIssues": [],
         }
         if ai:
             report["ai"] = ai
