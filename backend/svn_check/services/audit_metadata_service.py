@@ -83,6 +83,10 @@ def _get_backend_name() -> str:
 def _safe_row_value(row: Any, index: int = 0) -> Any:
     if row is None:
         return None
+    row_mapping = getattr(row, "_mapping", None)
+    if isinstance(row_mapping, Mapping):
+        values = list(row_mapping.values())
+        return values[index] if index < len(values) else None
     if isinstance(row, Mapping):
         values = list(row.values())
         return values[index] if index < len(values) else None
@@ -101,9 +105,11 @@ def _normalize_value(value: Any, upper: bool = False) -> str:
 
 def _normalize_single_column_rows(rows: Iterable[Any] | None, upper: bool = True) -> list[tuple[str]]:
     result: list[tuple[str]] = []
+    seen: set[str] = set()
     for row in rows or []:
         value = _normalize_value(_safe_row_value(row, 0), upper=upper)
-        if value:
+        if value and value not in seen:
+            seen.add(value)
             result.append((value,))
     return result
 
