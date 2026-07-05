@@ -33,7 +33,7 @@ _fail_orphan_tasks()
 
 TASK_COLUMNS = """
     id, repo, workflow, status, revision, author, started_at, duration,
-    ai_enabled, debug_enabled, progress, step, finished_at, error, logs_json
+    ai_enabled, debug_enabled, progress, step, finished_at, error, logs_json, source_type
 """
 
 
@@ -94,11 +94,27 @@ def get_audit_task_report(task_id: int):
 @app.post("/api/audit-tasks")
 def create_audit_task():
     payload = request.get_json(silent=True) or {}
-    repo = (payload.get("repo") or "").strip()
+    source_type = (payload.get("sourceType") or payload.get("source_type") or "svn").strip().lower()
+    if source_type not in {"svn", "local"}:
+        return jsonify({"error": "sourceType must be svn or local"}), 400
+
+    repo = (
+        payload.get("repo")
+        or payload.get("workspaceRoot")
+        or payload.get("workspace_root")
+        or payload.get("localPath")
+        or payload.get("local_path")
+        or ""
+    ).strip()
     if not repo:
-        return jsonify({"error": "repo is required"}), 400
+        field = "localPath" if source_type == "local" else "repo"
+        return jsonify({"error": f"{field} is required"}), 400
 
     workflow = engine.detect_workflow(repo, payload.get("workflow", "hcyt"))
+    if source_type == "local":
+        workflow = (payload.get("workflow") or "hcyt").strip().lower()
+        if workflow != "hcyt":
+            return jsonify({"error": "local source currently supports hcyt workflow only"}), 400
     revision = payload.get("revision") or "-"
     author = payload.get("author") or "local-user"
     ai_enabled = bool(payload.get("ai_enabled"))
@@ -110,20 +126,20 @@ def create_audit_task():
             """
             INSERT INTO audit_tasks (
                 repo, workflow, status, revision, author, started_at, duration,
-                ai_enabled, debug_enabled, progress, step
+                ai_enabled, debug_enabled, progress, step, source_type
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 repo, workflow, "running", revision, author, started_at, "0秒",
-                int(ai_enabled), int(debug_enabled), 0, "排队中",
+                int(ai_enabled), int(debug_enabled), 0, "排队中", source_type,
             ),
         )
         task_id = cursor.lastrowid
 
     # 后台线程跑真实审查引擎（pytools_new/apps/svn_check）
-    engine.start_task(task_id, repo, workflow, ai_enabled, debug_enabled, author)
-    return jsonify({"id": task_id, "repo": repo, "workflow": workflow, "status": "running"}), 201
+    engine.start_task(task_id, repo, workflow, ai_enabled, debug_enabled, author, source_type)
+    return jsonify({"id": task_id, "repo": repo, "workflow": workflow, "sourceType": source_type, "status": "running"}), 201
 
 
 @app.get("/api/audit-results")

@@ -28,12 +28,14 @@ function mapTaskToRecent(task) {
 }
 
 export default function HomePage({ onSubmit, projectsState, tasksState, onCreateTask }) {
-  const [path, setPath] = useState("svn://10.18.32.7/datawh/branches/2026Q2/hcyt");
+  const [sourceType, setSourceType] = useState("svn");
+  const [path, setPath] = useState("svn://example.com/repos/branches/demo-hcyt");
   const [ai, setAi] = useState(false);
   const [dbg, setDbg] = useState(false);
   const [live, setLive] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
-  const detected = detectWorkflow(path);
+  const detected = sourceType === "local" ? "hcyt" : detectWorkflow(path);
   const recentList = useMemo(() => {
     if (tasksState.data?.length) {
       return tasksState.data.map(mapTaskToRecent);
@@ -42,14 +44,20 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
   }, [tasksState.data]);
 
   async function submit() {
+    setSubmitError("");
     if (!path.trim()) return;
-    const payload = { path: path.trim(), ai, dbg, workflow: detected || "hcyt" };
+    const payload = { path: path.trim(), sourceType, ai, dbg, workflow: detected || "hcyt" };
     if (!live) {
+      onSubmit({ ...payload, taskId: null });
       // 默认走演示数据（mock），不依赖后端
       onSubmit({ ...payload, taskId: null });
       return;
     }
     const created = await onCreateTask(payload);
+    if (created?.error) {
+      setSubmitError(created.error);
+      return;
+    }
     onSubmit({ ...payload, taskId: created?.id ?? null, workflow: created?.workflow || payload.workflow });
   }
 
@@ -62,9 +70,32 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
       </div>
 
       <div className="card home-card fade-in">
+        <label className="field-label"><Icon name={sourceType === "local" ? "folder" : "git"} size={14} /> 审计来源</label>
+        <div className="chips" style={{ marginBottom: 12 }}>
+          <button
+            type="button"
+            className={`chip src${sourceType === "svn" ? " active" : ""}`}
+            onClick={() => {
+              setSourceType("svn");
+              setPath("svn://example.com/repos/branches/demo-hcyt");
+            }}
+          >
+            SVN
+          </button>
+          <button
+            type="button"
+            className={`chip src${sourceType === "local" ? " active" : ""}`}
+            onClick={() => {
+              setSourceType("local");
+              setPath("C:\\path\\to\\local-hcyt-workspace");
+            }}
+          >
+            本地目录
+          </button>
+        </div>
         <label className="field-label"><Icon name="git" size={14} /> 仓库路径</label>
         <div className="path-input">
-          <span className="pi-proto mono">{path.startsWith("http") ? "https" : "svn"}</span>
+          <span className="pi-proto mono">{sourceType === "local" ? "dir" : (path.startsWith("http") ? "https" : "svn")}</span>
           <input
             className="pi-field mono"
             value={path}
@@ -76,7 +107,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
           {detected ? <span className="pi-detect"><Dot tone="ok" /> 已识别</span> : <span className="pi-detect muted"><Dot /> 待识别</span>}
         </div>
 
-        <div className="route-grid">
+        {sourceType === "svn" ? <div className="route-grid">
           {WORKFLOWS.map((workflow) => (
             <div
               key={workflow.key}
@@ -84,10 +115,10 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
               onClick={() =>
                 setPath(
                   workflow.key === "hcyt"
-                    ? "svn://10.18.32.7/datawh/branches/2026Q2/hcyt"
+                    ? "svn://example.com/repos/branches/demo-hcyt"
                     : workflow.key === "fine-report"
-                      ? "https://git.intra/report/fine-report.git"
-                      : "svn://10.18.32.7/pay/nups/trunk",
+                      ? "svn://example.com/repos/branches/demo-fine-report"
+                      : "svn://example.com/repos/branches/demo-nups",
                 )
               }
             >
@@ -99,7 +130,9 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
               {detected === workflow.key ? <span className="rc-flag"><Icon name="check" size={13} stroke={2.6} /></span> : null}
             </div>
           ))}
-        </div>
+        </div> : null}
+        {sourceType === "local" ? <p className="route-hint"><Icon name="info" size={12} /> 本地目录模式当前仅接入 HCYT 审计流程。</p> : null}
+        {submitError ? <p className="route-hint" style={{ color: "var(--err)" }}>{submitError}</p> : null}
         <p className="route-hint"><Icon name="info" size={12} /> 根据路径中的关键字自动路由到对应工作流</p>
 
         {projectsState.loading ? <p className="route-hint">正在加载后端项目列表...</p> : null}

@@ -249,12 +249,13 @@ export default function App() {
     try {
       return await reviewService.createAuditTask({
         repo: payload.path,
+        sourceType: payload.sourceType || "svn",
         workflow: payload.workflow,
         ai_enabled: payload.ai,
         debug_enabled: payload.dbg,
       });
-    } catch {
-      return null;
+    } catch (error) {
+      return { error: error.message || "Failed to create audit task" };
     }
   }
 

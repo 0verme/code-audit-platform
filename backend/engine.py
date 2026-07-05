@@ -67,6 +67,7 @@ def _load_real_modules():
             from services.svn_service import svn_main
             from services.ai_service import call_sql_llm
             from services import re_service
+            from services.workspace_service import load_local_workspace
             import core.hcyt as hcyt
             import core.nups_rule as nups_rule
             import core.fine_rule as fine_rule
@@ -79,6 +80,7 @@ def _load_real_modules():
 
             _mods = _types.SimpleNamespace(
                 svn_main=svn_main,
+                load_local_workspace=load_local_workspace,
                 call_sql_llm=call_sql_llm,
                 re_service=re_service,
                 hcyt=hcyt,
@@ -231,13 +233,23 @@ def asset_issue_to_dict(issue):
 # ---------------------------------------------------------------------------
 
 class TaskRun:
-    def __init__(self, task_id, repo, workflow, ai_enabled=False, debug_enabled=False, author="local-user"):
+    def __init__(
+        self,
+        task_id,
+        repo,
+        workflow,
+        ai_enabled=False,
+        debug_enabled=False,
+        author="local-user",
+        source_type="svn",
+    ):
         self.task_id = task_id
         self.repo = repo
         self.workflow = workflow
         self.ai_enabled = bool(ai_enabled)
         self.debug_enabled = bool(debug_enabled)
         self.author = author
+        self.source_type = (source_type or "svn").lower()
         self.logs = []
         self.start_ts = time.time()
 
@@ -322,11 +334,20 @@ class TaskRun:
 
             workflow = detect_workflow(self.repo, self.workflow)
             self.workflow = workflow
-            self.log(f"开始处理：{self.repo}（工作流 {workflow}）")
-            self.update(progress=5, step="拉取 SVN")
+            source_label = self.repo if self.source_type == "svn" else "local workspace"
+            self.log(f"开始处理：{source_label}（工作流 {workflow}，来源 {self.source_type}）")
+            self.update(progress=5, step="拉取 SVN" if self.source_type == "svn" else "读取本地目录")
 
-            svn_result = _mods.svn_main(workflow, self.repo)
-            self.log(f"SVN 拉取完成，导出 {len(svn_result['exported_paths'])} 个变更文件")
+            if self.source_type == "local":
+                if workflow != "hcyt":
+                    raise ValueError("Local workspace source currently supports hcyt workflow only")
+                svn_result = _mods.load_local_workspace(self.repo, workflow)
+                self.log(f"本地目录加载完成，识别 {len(svn_result['exported_paths'])} 个待审计文件")
+            else:
+                svn_result = _mods.svn_main(workflow, self.repo)
+                svn_result["source_type"] = "svn"
+                svn_result["workspace_root"] = ""
+                self.log(f"SVN 拉取完成，导出 {len(svn_result['exported_paths'])} 个变更文件")
             self.update(progress=25, step="分析文件")
 
             if workflow == "fine-report":
@@ -336,13 +357,15 @@ class TaskRun:
             else:
                 report = self.run_hcyt(svn_result)
 
+            report["sourceType"] = svn_result.get("source_type", self.source_type)
+            report["workspaceRoot"] = svn_result.get("workspace_root", "")
             report["logs"] = self.logs
             self.update(progress=100, step="完成")
             self.log("任务完成")
             self.finish(report["task"]["status"], report=report)
         except Exception as exc:
             message = str(exc)
-            if isinstance(exc, FileNotFoundError) or "WinError 2" in message:
+            if self.source_type == "svn" and (isinstance(exc, FileNotFoundError) or "WinError 2" in message):
                 message += "（未找到 svn 命令行客户端，请安装 SVN 并加入 PATH）"
             self.log(f"任务异常: {message}", "ERR")
             self.log(traceback.format_exc(), "ERR")
@@ -364,6 +387,8 @@ class TaskRun:
             "author": self.author,
             "startedAt": datetime.fromtimestamp(self.start_ts).strftime("%Y-%m-%d %H:%M:%S"),
             "duration": format_duration(time.time() - self.start_ts),
+            "sourceType": svn_result.get("source_type", self.source_type),
+            "workspaceRoot": svn_result.get("workspace_root", ""),
         }
         meta.update(extra)
         return meta
@@ -1025,8 +1050,8 @@ class TaskRun:
         return report
 
 
-def start_task(task_id, repo, workflow, ai_enabled=False, debug_enabled=False, author="local-user"):
-    run = TaskRun(task_id, repo, workflow, ai_enabled, debug_enabled, author)
+def start_task(task_id, repo, workflow, ai_enabled=False, debug_enabled=False, author="local-user", source_type="svn"):
+    run = TaskRun(task_id, repo, workflow, ai_enabled, debug_enabled, author, source_type)
     thread = threading.Thread(target=run.run, name=f"audit-task-{task_id}", daemon=True)
     thread.start()
     return thread

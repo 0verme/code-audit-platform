@@ -25,6 +25,7 @@ def _migrate_audit_tasks(connection: sqlite3.Connection) -> None:
         ("finished_at", "ALTER TABLE audit_tasks ADD COLUMN finished_at TEXT"),
         ("error", "ALTER TABLE audit_tasks ADD COLUMN error TEXT"),
         ("logs_json", "ALTER TABLE audit_tasks ADD COLUMN logs_json TEXT NOT NULL DEFAULT '[]'"),
+        ("source_type", "ALTER TABLE audit_tasks ADD COLUMN source_type TEXT NOT NULL DEFAULT 'svn'"),
     ):
         if name not in existing:
             connection.execute(ddl)
@@ -60,7 +61,8 @@ def init_db() -> None:
                 step TEXT NOT NULL DEFAULT '',
                 finished_at TEXT,
                 error TEXT,
-                logs_json TEXT NOT NULL DEFAULT '[]'
+                logs_json TEXT NOT NULL DEFAULT '[]',
+                source_type TEXT NOT NULL DEFAULT 'svn'
             );
 
             CREATE TABLE IF NOT EXISTS task_reports (
@@ -136,8 +138,8 @@ def init_db() -> None:
 
         connection.executemany(
             """
-            INSERT INTO audit_tasks (repo, workflow, status, revision, author, started_at, duration, ai_enabled, debug_enabled)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO audit_tasks (repo, workflow, status, revision, author, started_at, duration, ai_enabled, debug_enabled, source_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -150,6 +152,7 @@ def init_db() -> None:
                     "1m47s",
                     0,
                     1,
+                    "svn",
                 ),
                 (
                     "svn://10.18.32.7/datawh/branches/2026Q2/hcyt",
@@ -161,6 +164,7 @@ def init_db() -> None:
                     "58s",
                     1,
                     0,
+                    "svn",
                 ),
                 (
                     "https://git.intra/report/fine-report.git",
@@ -172,6 +176,7 @@ def init_db() -> None:
                     "1m12s",
                     1,
                     0,
+                    "svn",
                 ),
             ],
         )
