@@ -24,3 +24,10 @@
 | FS-016 | 用户操作日志 | Streamlit 操作、widget、异常、任务日志 | `services/diag_service.py` | `backend/app.py`, `backend/engine.py` | 无 | `services/diag_service.py` | 日志配置 | `audit_tasks.logs_json` | `logs` | `App.jsx` debug console | 待补 | 未开始 | P2 | 中 | 应重写为新平台日志模型 |
 | FS-017 | 旧平台资产 issue 单测迁移 | 迁移资产 issue 相关单测 | `tests/apps/test_svn_check_asset_issue.py` | `tests/` | `core/asset_issue.py` | `services/portal_link_builder.py` | 示例环境变量 | 无 | 无 | 无 | `tests/test_asset_issue.py`, `tests/test_portal_link_builder.py` | 已补测试 | P0 | 中 | 已迁移并按新平台脱敏门户默认值调整断言 |
 | FS-018 | 新平台报告 JSON schema 补齐 | 补齐资产、链路、门户、workspace 来源等字段 | 无 | `backend/engine.py`, `frontend/src/pages/*` | 间接依赖全部规则 | `backend/engine.py` | 无 | `audit_tasks`, `task_reports` | `assetIssues`, `lineageSummary`, `sourceType`, `workspaceRoot` | `ResultsPage.jsx`, `FineReportPage.jsx`, `NupsPage.jsx` | `tests/test_asset_issue.py`, `tests/test_local_audit_task.py`, `tests/test_engine_lineage_summary.py` | 已补测试 | P0 | 高 | assetIssues、sourceType/workspaceRoot、changes、lineageSummary 已接入并完成兼容性回放；后续字段继续按登记推进 |
+## P0-S1 复核备注
+
+- FS-006：P0-5 已完成 metadata service 的安全降级、轻量查询、中等风险查询和 mock 单测；生产 DB Profile 完整适配仍不属于 P0-5 范围，继续归入 FS-005/P1 或单独 round。
+- FS-007：`lineageSummary` 已闭环，覆盖后端服务层、报告 JSON、前端最小展示、边界回放和安全降级；复杂血缘图谱不纳入 P0-5。
+- FS-008：仍不标记为完整完成；来源系统已进入 `lineageSummary` 展示并具备边界降级，结果表禁用和完整治理口径仍待 P1 或单独 round。
+- FS-009：仍不标记为完整完成；`outfile` 已进入 `lineageSummary` 展示并具备边界降级，完整下游推送校验仍待 P1 或单独 round。
+- FS-018：`assetIssues`、`sourceType`、`workspaceRoot`、`changes`、`lineageSummary` 已接入并完成兼容性回放；后续字段继续按登记推进。
