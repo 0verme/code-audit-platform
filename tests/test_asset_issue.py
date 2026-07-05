@@ -198,6 +198,78 @@ class AuditAssetIssueTests(unittest.TestCase):
     def test_unified_issues_empty_input_returns_empty_list(self):
         self.assertEqual(asset_issues_to_unified_issues([]), [])
 
+    def test_report_can_carry_legacy_and_unified_asset_issues(self):
+        asset_issues = [
+            create_audit_asset_issue(
+                issue_type="root_missing",
+                issue_title="Root is missing",
+                issue_desc="Field uses an unmaintained root word",
+                asset_type="root",
+                source_module="hcyt",
+                source_file="dws.sql",
+                severity="warning",
+                suggestion="Maintain the missing root word",
+                portal_module="root-management",
+                action_label="Do not expose as action",
+                schema_name="dwm",
+                table_name="m_customer",
+                field_name="customer_id",
+                root_word="customer",
+            ),
+            create_audit_asset_issue(
+                issue_type="asset_table_review",
+                issue_title="Asset table needs review",
+                issue_desc="Created table should be reviewed in asset portal",
+                asset_type="table",
+                source_module="hcyt",
+                source_file="demo.py",
+                severity="warning",
+                suggestion="Review the created table",
+                portal_module="data-warehouse",
+                action_label="Do not expose as action",
+                schema_name="dwm",
+                table_name="m_customer",
+            ),
+        ]
+
+        report = {
+            "assetIssues": asset_issues,
+            "unifiedAssetIssues": asset_issues_to_unified_issues(
+                asset_issues,
+                scan_batch_id="task-structure",
+                created_at="2026-07-05 12:00:00",
+            ),
+        }
+
+        self.assertEqual(len(report["assetIssues"]), 2)
+        self.assertEqual(len(report["unifiedAssetIssues"]), 2)
+
+        required_fields = {
+            "issue_id",
+            "rule_code",
+            "rule_name",
+            "severity",
+            "asset_type",
+            "asset_key",
+            "portal_action",
+            "message",
+            "suggestion",
+            "fix_url",
+            "evidence",
+            "created_at",
+        }
+        for unified_issue in report["unifiedAssetIssues"]:
+            self.assertTrue(required_fields.issubset(unified_issue.keys()))
+
+        self.assertEqual(
+            [item["rule_code"] for item in report["unifiedAssetIssues"]],
+            ["ROOT_MISSING", "ASSET_TABLE_REVIEW"],
+        )
+        self.assertEqual(
+            [item["portal_action"] for item in report["unifiedAssetIssues"]],
+            ["edit_root", "review_table"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
