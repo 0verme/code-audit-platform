@@ -1,3 +1,13 @@
+from services.audit_metadata_service import (
+    list_function_names,
+    list_job_outfiles,
+    list_para_table_names,
+    list_recv_mapping_plans,
+    list_result_table_recv_details,
+    list_result_table_sys_names,
+    list_term_roots,
+    list_view_names,
+)
 from services.db_service import select_sql
 
 
@@ -73,9 +83,7 @@ def all_planseq():
     return planseq_lists
 
 def all_job_outfile():
-    sql = f"""select a,b from dwp.p_job_outfile"""
-    job_outfile_lists = select_sql(sql)
-    return job_outfile_lists
+    return list_job_outfiles()
 
 def all_sstb():
     sql = f"""select a from dwp.p_job_outfile"""
@@ -84,9 +92,7 @@ def all_sstb():
 
 
 def all_para_table_lists():
-    sql = """select para_table_name from dwp.p_para_table_lists"""
-    para_table_lists = select_sql(sql)
-    return para_table_lists
+    return list_para_table_names()
 
 
 def all_disabled_result_tables():
@@ -103,54 +109,27 @@ where substr(p.k,5) is not null
 
 
 def all_result_table_sys_names():
-    sql = """
-select d.table_name, m.sys_name
-from dwp.p_recv_dwf d
-inner join dwp.p_recv_ops_mapping m
-on d.recv_plan = m.recv_plan
-where d.table_name is not null
-  and m.sys_name is not null
-"""
-    result_tables = select_sql(sql)
-    return result_tables
+    return list_result_table_sys_names()
+
+
+def all_result_table_recv_details():
+    return list_result_table_recv_details()
 
 
 def all_recv_mapping_plans():
-    sql = """
-select distinct recv_plan
-from dwp.p_recv_ops_mapping
-where recv_plan is not null
-"""
-    recv_plan_lists = select_sql(sql)
-    return recv_plan_lists
+    return list_recv_mapping_plans()
 
 
 def all_view_names():
-    sql = """
-SELECT upper(table_schema) || '.' || upper(table_name)
-FROM information_schema.views
-WHERE upper(table_schema) NOT IN ('PG_CATALOG', 'INFORMATION_SCHEMA')
-"""
-    return select_sql(sql)
+    return list_view_names()
 
 
 def all_function_names():
-    sql = """
-SELECT upper(n.nspname) || '.' || upper(p.proname)
-FROM pg_proc p
-JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE upper(n.nspname) NOT IN ('PG_CATALOG', 'INFORMATION_SCHEMA')
-"""
-    return select_sql(sql)
+    return list_function_names()
 
 
 def all_term_roots():
-    sql = """
-SELECT DISTINCT upper(root_code)
-FROM dwp.p_term_root
-WHERE root_code IS NOT NULL
-"""
-    return select_sql(sql)
+    return list_term_roots()
 
 def all_tab_partitions(tb_name):
     schema_name, table_name = tb_name.upper().split('.', 1)
