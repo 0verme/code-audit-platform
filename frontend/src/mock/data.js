@@ -160,6 +160,34 @@ const HCYT_FAIL = {
       portalUrl: "",
     },
   ],
+  lineageSummary: {
+    resultTables: [
+      { tableName: "dwp.demo_result_table" },
+      "dwp.demo_result_table_daily",
+    ],
+    jobs: [
+      { jobName: "JOB_DEMO_001" },
+      "JOB_DEMO_002",
+    ],
+    recvPlans: [
+      { planName: "PLAN_DEMO_RECV" },
+    ],
+    sysNames: [
+      { sysName: "DEMO_SYS" },
+    ],
+    outfiles: [
+      { outfile: "demo_outfile.dat" },
+    ],
+    warnings: [
+      "DEMO lineage metadata incomplete; using placeholder fallback.",
+    ],
+    stats: {
+      resultTableCount: 2,
+      jobCount: 2,
+      recvPlanCount: 1,
+      outfileCount: 1,
+    },
+  },
   schedule: {
     summary: { plan: 1, seq: 3, job: 12, cycles: 1, missing: 2 },
     tables: {
@@ -286,6 +314,20 @@ const HCYT_PASS = {
   configFiles: [],
   recv: [],
   assetIssues: [],
+  lineageSummary: {
+    resultTables: ["dwp.demo_result_table"],
+    jobs: ["JOB_DEMO_001"],
+    recvPlans: [],
+    sysNames: ["DEMO_SYS"],
+    outfiles: ["demo_outfile.dat"],
+    warnings: [],
+    stats: {
+      resultTableCount: 1,
+      jobCount: 1,
+      recvPlanCount: 0,
+      outfileCount: 1,
+    },
+  },
   schedule: {
     summary: { plan: 1, seq: 3, job: 9, cycles: 0, missing: 0 },
     tables: {

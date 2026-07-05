@@ -239,6 +239,133 @@ export function AssetIssuesSection({ d, reg }) {
   );
 }
 
+const LINEAGE_LISTS = [
+  { key: "resultTables", label: "结果表" },
+  { key: "jobs", label: "作业" },
+  { key: "recvPlans", label: "上游卸数计划" },
+  { key: "sysNames", label: "来源系统" },
+  { key: "outfiles", label: "下游 outfile" },
+];
+
+const LINEAGE_VALUE_KEYS = ["name", "tableName", "jobName", "planName", "sysName", "outfile", "value"];
+const SENSITIVE_KEY_RE = /(password|passwd|pwd|token|secret|credential|account|username|user|conn|connect|jdbc|dsn|url|host|ip|addr|address)/i;
+const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
+const CONNECTION_TEXT_RE = /\b(jdbc|odbc|oracle|mysql|postgresql|postgres|gaussdb|mongodb|redis|sqlserver):|:\/\/|(\b(user|username|account)\s*[:=])/i;
+
+function maskLineageText(value) {
+  const text = String(value ?? "");
+  if (CONNECTION_TEXT_RE.test(text)) return "[masked-connection]";
+  return text
+    .replace(IPV4_RE, "[masked-ip]")
+    .replace(/(password|passwd|pwd|token|secret)\s*[:=]\s*[^,\s;}]+/gi, "$1=[masked]");
+}
+
+function shortenLineageText(value, maxLength = 120) {
+  const text = maskLineageText(value).trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function lineageArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function formatLineageItem(item) {
+  if (item == null) return "-";
+  if (typeof item !== "object") return shortenLineageText(item);
+
+  for (const key of LINEAGE_VALUE_KEYS) {
+    if (!SENSITIVE_KEY_RE.test(key) && item[key] != null && item[key] !== "") {
+      return shortenLineageText(item[key]);
+    }
+  }
+
+  const safeObject = Object.fromEntries(
+    Object.entries(item)
+      .filter(([key, value]) => !SENSITIVE_KEY_RE.test(key) && value != null && value !== "")
+      .slice(0, 4)
+  );
+  return Object.keys(safeObject).length ? shortenLineageText(JSON.stringify(safeObject), 160) : "-";
+}
+
+function LineageList({ label, items }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div className="subhead" style={{ marginBottom: 7 }}>{label}</div>
+      {items.length ? (
+        <div className="chips">
+          {items.map((item, index) => (
+            <span
+              key={`${label}-${index}-${formatLineageItem(item)}`}
+              className="chip src"
+              style={{ maxWidth: "100%", whiteSpace: "normal", overflowWrap: "anywhere" }}
+            >
+              <span className="cdot" />
+              {formatLineageItem(item)}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="sd-empty">暂无数据</div>
+      )}
+    </div>
+  );
+}
+
+export function LineageSummarySection({ d, reg }) {
+  const lineage = d.lineageSummary && typeof d.lineageSummary === "object" ? d.lineageSummary : {};
+  const stats = lineage.stats && typeof lineage.stats === "object" && !Array.isArray(lineage.stats) ? lineage.stats : {};
+  const warnings = lineageArray(lineage.warnings);
+  const totalCount = LINEAGE_LISTS.reduce((total, item) => total + lineageArray(lineage[item.key]).length, 0);
+  const statEntries = Object.entries(stats).filter(([key]) => !SENSITIVE_KEY_RE.test(key));
+
+  return (
+    <Panel
+      id="lineage-summary"
+      icon="flow"
+      title="宽表链路摘要"
+      registerRef={reg}
+      count={totalCount || "暂无数据"}
+      countTone={warnings.length ? "warn" : "info"}
+      defaultOpen={totalCount > 0 || warnings.length > 0 || statEntries.length > 0}
+    >
+      <div className="panel-body">
+        <div className="sched-tables">
+          {LINEAGE_LISTS.map((item) => (
+            <LineageList key={item.key} label={item.label} items={lineageArray(lineage[item.key])} />
+          ))}
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <div className="subhead" style={{ marginBottom: 7 }}>统计信息</div>
+          {statEntries.length ? (
+            <div className="metrics">
+              {statEntries.map(([key, value]) => (
+                <Metric key={key} label={shortenLineageText(key, 40)} value={shortenLineageText(value, 40)} />
+              ))}
+            </div>
+          ) : (
+            <div className="sd-empty">暂无数据</div>
+          )}
+        </div>
+
+        {warnings.length ? (
+          <div style={{ marginTop: 14 }}>
+            <div className="subhead" style={{ marginBottom: 7 }}><Icon name="alert" size={12} /> 警告</div>
+            <div className="flist">
+              {warnings.map((warning, index) => (
+                <div key={`lineage-warning-${index}`} className="frow warn-row" style={{ height: "auto", padding: "8px 12px", whiteSpace: "normal", overflowWrap: "anywhere" }}>
+                  <Badge tone="warn">提示</Badge>
+                  <span>{formatLineageItem(warning)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
 const SCHED_TABLE_ORDER = ["plan", "seq", "cale", "job"];
 
 function ScheduleListTables({ tables }) {
@@ -591,6 +718,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} scriptMeta={mergedData.sqlChecks?.dws} />
       <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} scriptMeta={mergedData.sqlChecks?.hive} />
       <AssetIssuesSection d={mergedData} reg={reg} />
+      <LineageSummarySection d={mergedData} reg={reg} />
       <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
       <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="config" icon="cog" title="配置文件检查" rows={mergedData.config} reg={reg} okMsg="Schema 配置文件校验通过" />
