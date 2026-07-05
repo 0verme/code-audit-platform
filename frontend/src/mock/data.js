@@ -356,6 +356,83 @@ const HCYT_PASS = {
 // FineReport 报表审查 mock（目录/权限表格、引擎/sheet、预览链接、结果表标注）
 // ===========================================================================
 
+const HCYT_EDGE = {
+  ...HCYT_PASS,
+  task: {
+    ...HCYT_PASS.task,
+    status: "warn",
+    repo: "svn://demo.example/hcyt/edge",
+    revision: "r-demo-edge",
+    author: "demo_user",
+    startedAt: "2026-06-07 18:00:00",
+    duration: "12秒",
+    changedFiles: 1,
+    checks: 1,
+    errors: 0,
+    warnings: 2,
+    conflicts: 0,
+  },
+  svn: { branchChanged: ["hcyt/demo/sql/demo_lineage_edge.sql"], trunkConflict: [] },
+  changes: [
+    { type: "M", path: "hcyt/demo/sql/demo_lineage_edge.sql", add: 8, del: 1, cat: "DWS SQL", downloadUrl: "#" },
+  ],
+  conflicts: [],
+  dws: [],
+  hive: [],
+  python: [],
+  sbin: [],
+  config: [],
+  configFiles: [],
+  recv: [],
+  assetIssues: [],
+  lineageSummaryEmptyReplay: {},
+  lineageSummary: {
+    resultTables: [
+      "demo.result_table_alpha",
+      { tableName: "demo.result_table_beta" },
+      null,
+      "demo.result_table_with_extra_long_suffix_for_frontend_wrapping_check_demo_demo_demo_demo_demo_demo_demo_demo_demo_demo_demo",
+    ],
+    jobs: [
+      "JOB_DEMO_EDGE_001",
+      { jobName: "JOB_DEMO_EDGE_002" },
+      { name: "JOB_DEMO_EDGE_003", token: "***" },
+    ],
+    recvPlans: [
+      "PLAN_DEMO_RECV_EDGE",
+      { planName: "PLAN_DEMO_RECV_OBJECT" },
+    ],
+    sysNames: [
+      "DEMO_SOURCE_SYSTEM",
+      { sysName: "DEMO_OBJECT_SOURCE" },
+      { label: "demo source with ip 10.0.0.1" },
+    ],
+    outfiles: [
+      "demo_outfile_edge.dat",
+      { outfile: "demo_outfile_object.dat" },
+      { note: "jdbc:demo://*** password=*** token=***" },
+    ],
+    warnings: [
+      "DEMO lineage warning: placeholder metadata was incomplete.",
+      { message: "DEMO masked text check password=*** token=*** jdbc:demo://*** 10.0.0.1" },
+    ],
+  },
+  schedule: {
+    summary: { plan: 0, seq: 0, job: 0, cycles: 0, missing: 0 },
+    tables: {},
+    rows: [],
+  },
+  pyScripts: [],
+  refTables: [],
+  deps: [],
+  ai: {
+    model: "mock",
+    verdict: "warn",
+    summary: "DEMO lineageSummary edge replay.",
+    findings: [],
+  },
+};
+
 const FR_FAIL = {
   task: {
     status: "fail",
@@ -669,6 +746,6 @@ const NUPS_PASS = {
   },
 };
 
-export const HCYT_DATA = { FAIL: HCYT_FAIL, PASS: HCYT_PASS };
+export const HCYT_DATA = { FAIL: HCYT_FAIL, PASS: HCYT_PASS, EDGE: HCYT_EDGE };
 export const FINEREPORT_DATA = { FAIL: FR_FAIL, PASS: FR_PASS };
 export const NUPS_DATA = { FAIL: NUPS_FAIL, PASS: NUPS_PASS };

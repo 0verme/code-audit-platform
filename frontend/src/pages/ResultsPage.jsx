@@ -250,26 +250,36 @@ const LINEAGE_LISTS = [
 const LINEAGE_VALUE_KEYS = ["name", "tableName", "jobName", "planName", "sysName", "outfile", "value"];
 const SENSITIVE_KEY_RE = /(password|passwd|pwd|token|secret|credential|account|username|user|conn|connect|jdbc|dsn|url|host|ip|addr|address)/i;
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
-const CONNECTION_TEXT_RE = /\b(jdbc|odbc|oracle|mysql|postgresql|postgres|gaussdb|mongodb|redis|sqlserver):|:\/\/|(\b(user|username|account)\s*[:=])/i;
+const CONNECTION_TEXT_RE = /\b(?:jdbc|odbc|oracle|mysql|postgresql|postgres|gaussdb|mongodb|redis|sqlserver):[^\s,;)}]+/gi;
+const DSN_TEXT_RE = /\b(?:dsn|conn|connection|connectionString|url)\s*[:=]\s*[^\s,;)}]+/gi;
+const SECRET_TEXT_RE = /\b(password|passwd|pwd|token|secret|credential)\s*[:=]\s*[^\s,;)}]+/gi;
 
-function maskLineageText(value) {
+export function maskSensitiveText(value) {
   const text = String(value ?? "");
-  if (CONNECTION_TEXT_RE.test(text)) return "[masked-connection]";
   return text
+    .replace(CONNECTION_TEXT_RE, "[masked-connection]")
+    .replace(DSN_TEXT_RE, "[masked-connection]")
     .replace(IPV4_RE, "[masked-ip]")
-    .replace(/(password|passwd|pwd|token|secret)\s*[:=]\s*[^,\s;}]+/gi, "$1=[masked]");
+    .replace(SECRET_TEXT_RE, "$1=[masked]");
 }
 
 function shortenLineageText(value, maxLength = 120) {
-  const text = maskLineageText(value).trim();
+  const text = maskSensitiveText(value).trim();
   return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
 }
 
-function lineageArray(value) {
+export function normalizeLineageList(value) {
   return Array.isArray(value) ? value : [];
 }
 
-function formatLineageItem(item) {
+export function normalizeLineageStats(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value)
+    .filter(([key]) => !SENSITIVE_KEY_RE.test(key))
+    .map(([key, statValue]) => [shortenLineageText(key, 40), shortenLineageText(statValue, 40)]);
+}
+
+export function formatLineageItem(item) {
   if (item == null) return "-";
   if (typeof item !== "object") return shortenLineageText(item);
 
@@ -312,11 +322,11 @@ function LineageList({ label, items }) {
 }
 
 export function LineageSummarySection({ d, reg }) {
-  const lineage = d.lineageSummary && typeof d.lineageSummary === "object" ? d.lineageSummary : {};
-  const stats = lineage.stats && typeof lineage.stats === "object" && !Array.isArray(lineage.stats) ? lineage.stats : {};
-  const warnings = lineageArray(lineage.warnings);
-  const totalCount = LINEAGE_LISTS.reduce((total, item) => total + lineageArray(lineage[item.key]).length, 0);
-  const statEntries = Object.entries(stats).filter(([key]) => !SENSITIVE_KEY_RE.test(key));
+  const lineage = d.lineageSummary && typeof d.lineageSummary === "object" && !Array.isArray(d.lineageSummary) ? d.lineageSummary : {};
+  const lists = Object.fromEntries(LINEAGE_LISTS.map((item) => [item.key, normalizeLineageList(lineage[item.key])]));
+  const warnings = normalizeLineageList(lineage.warnings);
+  const totalCount = LINEAGE_LISTS.reduce((total, item) => total + lists[item.key].length, 0);
+  const statEntries = normalizeLineageStats(lineage.stats);
 
   return (
     <Panel
@@ -331,7 +341,7 @@ export function LineageSummarySection({ d, reg }) {
       <div className="panel-body">
         <div className="sched-tables">
           {LINEAGE_LISTS.map((item) => (
-            <LineageList key={item.key} label={item.label} items={lineageArray(lineage[item.key])} />
+            <LineageList key={item.key} label={item.label} items={lists[item.key]} />
           ))}
         </div>
 
@@ -340,7 +350,7 @@ export function LineageSummarySection({ d, reg }) {
           {statEntries.length ? (
             <div className="metrics">
               {statEntries.map(([key, value]) => (
-                <Metric key={key} label={shortenLineageText(key, 40)} value={shortenLineageText(value, 40)} />
+                <Metric key={key} label={key} value={value} />
               ))}
             </div>
           ) : (
