@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
-import { AiSection, STATUS_META } from "./ResultsPage";
+import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 
 const FR_CAT = {
   dataset: { label: "Dataset", icon: "db" },
@@ -399,6 +399,7 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
       <ReportListSection d={mergedData} reg={reg} onOpen={setOpenReport} />
       <FrRefTablesSection d={mergedData} reg={reg} />
+      <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
       {openReport ? <ReportDetailDrawer report={openReport} onClose={() => setOpenReport(null)} /> : null}
     </div>

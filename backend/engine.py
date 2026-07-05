@@ -71,6 +71,10 @@ def _load_real_modules():
             import core.nups_rule as nups_rule
             import core.fine_rule as fine_rule
             import core.public_data as public_data
+            from core.asset_issue import dedupe_issues
+            from core.hcyt import ddl_rule as hcyt_ddl_rule
+            from core.hcyt import python_rule as hcyt_python_rule
+            from core.hcyt import sql_rule as hcyt_sql_rule
             from shared.lineage.mapping_sqlite import load_registered_result_tables
 
             _mods = _types.SimpleNamespace(
@@ -78,9 +82,13 @@ def _load_real_modules():
                 call_sql_llm=call_sql_llm,
                 re_service=re_service,
                 hcyt=hcyt,
+                hcyt_ddl_rule=hcyt_ddl_rule,
+                hcyt_sql_rule=hcyt_sql_rule,
+                hcyt_python_rule=hcyt_python_rule,
                 nups_rule=nups_rule,
                 fine_rule=fine_rule,
                 public_data=public_data,
+                dedupe_issues=dedupe_issues,
                 load_registered_result_tables=load_registered_result_tables,
             )
         except Exception:
@@ -184,6 +192,38 @@ def dedupe_tables(names):
             seen.add(normalized)
             result.append(normalized)
     return result
+
+
+def asset_issue_to_dict(issue):
+    return {
+        "issueType": getattr(issue, "issue_type", ""),
+        "issueTitle": getattr(issue, "issue_title", ""),
+        "issueDesc": getattr(issue, "issue_desc", ""),
+        "assetType": getattr(issue, "asset_type", ""),
+        "sourceModule": getattr(issue, "source_module", ""),
+        "sourceFile": getattr(issue, "source_file", ""),
+        "severity": getattr(issue, "severity", ""),
+        "suggestion": getattr(issue, "suggestion", ""),
+        "portalModule": getattr(issue, "portal_module", ""),
+        "actionLabel": getattr(issue, "action_label", ""),
+        "schemaName": getattr(issue, "schema_name", ""),
+        "tableName": getattr(issue, "table_name", ""),
+        "fieldName": getattr(issue, "field_name", ""),
+        "rootWord": getattr(issue, "root_word", ""),
+        "objectName": ".".join(
+            value
+            for value in (
+                getattr(issue, "schema_name", ""),
+                getattr(issue, "table_name", ""),
+                getattr(issue, "field_name", ""),
+            )
+            if value
+        ) or getattr(issue, "root_word", ""),
+        "issueKey": getattr(issue, "issue_key", ""),
+        "hashKey": getattr(issue, "issue_hash_key", ""),
+        "portalUrl": getattr(issue, "portal_url", ""),
+        "sourceRule": getattr(issue, "portal_module", "") or getattr(issue, "issue_type", ""),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -434,10 +474,23 @@ class TaskRun:
         # --- SQL / 脚本 / 配置类规则 ---
         self.update(progress=35, step="SQL 与配置规则检查")
         sql_checks = {}
+        asset_issues = []
         if dws_url:
             result = self.safe("dws.sql 规则", lambda: m.hcyt.rule_dws(dws_url), ("", "", 0))
             grouped["dws"] += text_to_rows(result[0], result[1], m.re_service.get_filename(dws_url), warn_level="info")
             sql_checks["dws"] = {"script": m.re_service.get_filename(dws_url), "downloadUrl": self.download_url(dws_url)}
+            dws_file_name = m.re_service.get_filename(dws_url)
+            dws_sql_text = self.safe("dws.sql 内容读取", lambda: m.re_service.read_data_from_file(dws_url), "")
+            asset_issues += self.safe(
+                "dws.sql 词根结构化 issue",
+                lambda: m.hcyt_ddl_rule.collect_root_missing_issues(dws_sql_text, "hcyt", dws_file_name),
+                [],
+            )
+            asset_issues += self.safe(
+                "dws.sql 资产表待核对 issue",
+                lambda: m.hcyt_sql_rule.collect_created_table_review_issues(dws_url, "hcyt", dws_file_name),
+                [],
+            )
         if hive_url:
             result = self.safe("hive.sql 规则", lambda: m.hcyt.rule_hive(hive_url), ("", "", 0))
             grouped["hive"] += text_to_rows(result[0], result[1], m.re_service.get_filename(hive_url), warn_level="info")
@@ -473,9 +526,11 @@ class TaskRun:
 
         # --- 加工程序 ---
         self.update(progress=65, step="加工程序检查")
-        py_scripts, py_rows, ref_tables, deps = self.run_hcyt_programs(
+        py_scripts, py_rows, ref_tables, deps, py_asset_issues = self.run_hcyt_programs(
             py_lists, job_df, program_xls, db_job_rows)
         grouped["python"] += py_rows
+        asset_issues += py_asset_issues
+        asset_issues = [asset_issue_to_dict(issue) for issue in m.dedupe_issues(asset_issues)]
 
         errors, warnings = self.count_levels(list(grouped.values()) + [schedule["rows"]])
         self.update(progress=85, step="AI 分析" if self.ai_enabled else "汇总报告")
@@ -509,6 +564,7 @@ class TaskRun:
             "pyScripts": py_scripts,
             "refTables": ref_tables,
             "deps": deps,
+            "assetIssues": asset_issues,
         }
         if ai:
             report["ai"] = ai
@@ -641,9 +697,9 @@ class TaskRun:
 
     def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows):
         m = _mods
-        py_scripts, py_rows, ref_tables, deps = [], [], [], []
+        py_scripts, py_rows, ref_tables, deps, asset_issues = [], [], [], [], []
         if not py_lists:
-            return py_scripts, py_rows, ref_tables, deps
+            return py_scripts, py_rows, ref_tables, deps, asset_issues
 
         # 调度关联（JOB/PROGRAM Excel + 线上库）
         program_lookup = dependency_lookup = None
@@ -680,6 +736,21 @@ class TaskRun:
             lint = text_to_rows(result[0], result[1], file_name)
             sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
             table_name = self.safe("表名解析", lambda p=path: m.hcyt.get_program_table_name(p), "")
+            source_text = self.safe(f"加工程序内容读取({file_name})", lambda p=path: m.re_service.read_data_from_file(p), "")
+            asset_issues += self.safe(
+                f"加工程序资产表待核对 issue({file_name})",
+                lambda names=sql_tables, source=file_name: m.hcyt_python_rule.build_asset_table_review_issues(
+                    names, "hcyt", source
+                ),
+                [],
+            )
+            asset_issues += self.safe(
+                f"加工程序词根结构化 issue({file_name})",
+                lambda text=source_text, source=file_name: m.hcyt_ddl_rule.collect_root_missing_issues(
+                    text, "hcyt", source
+                ),
+                [],
+            )
 
             job_name, freq, yilai_tables = "", "", None
             if program_lookup is not None:
@@ -745,7 +816,7 @@ class TaskRun:
                 {"lane": "上游 / 调度依赖表", "nodes": [{"name": n, "q": ""} for n in upstream_tables]},
                 {"lane": "本次作业", "nodes": [{"name": n, "q": "", "focus": True} for n in sorted(set(job_names))]},
             ]
-        return py_scripts, py_rows, ref_tables, deps
+        return py_scripts, py_rows, ref_tables, deps, asset_issues
 
     # ===================================================================
     # NUPS 工作流
@@ -807,6 +878,7 @@ class TaskRun:
             "conflicts": conflicts,
             "sqlChecks": sql_checks,
             "pyScripts": py_scripts,
+            "assetIssues": [],
         }
         if ai:
             report["ai"] = ai
@@ -946,6 +1018,7 @@ class TaskRun:
             "authority": authority_section,
             "reports": reports,
             "refTables": all_ref_tables,
+            "assetIssues": [],
         }
         if ai:
             report["ai"] = ai

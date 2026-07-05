@@ -1,5 +1,5 @@
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
-import { AiSection, STATUS_META } from "./ResultsPage";
+import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 
 export const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
@@ -136,6 +136,7 @@ export function NupsResultsPage({ d, aiEnabled, reg }) {
       <ChangesSection d={d} reg={reg} />
       <NupsSqlSection d={d} reg={reg} />
       <NupsPySection d={d} reg={reg} />
+      <AssetIssuesSection d={d} reg={reg} />
       {aiEnabled && d.ai ? <AiSection d={d} reg={reg} /> : null}
     </div>
   );

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import re
+from dataclasses import replace
 
+from core.asset_issue import create_audit_asset_issue
 from core.hcyt._sql_parser import (
     is_temp_table_statement,
     normalize_sql_identifier,
@@ -9,6 +11,7 @@ from core.hcyt._sql_parser import (
     split_top_level_commas,
 )
 from core.public_data import all_term_roots
+from services.portal_link_builder import build_portal_link
 
 DWS_TABLE_PREFIX_RULES = {
     'DWF': ('F_',),
@@ -215,6 +218,84 @@ def check_column_root_rule(column_item, term_roots):
     if missing_roots:
         return f'字段 {full_column_name} 存在未维护词根: {",".join(missing_roots)}，规范命名或联系一审在词根平台加上'
     return ''
+
+
+def _build_root_missing_issue(
+    *,
+    root_word,
+    issue_desc,
+    source_module,
+    source_file,
+    schema_name='',
+    table_name='',
+    field_name='',
+):
+    issue = create_audit_asset_issue(
+        issue_type='ROOT_MISSING',
+        issue_title='词根待维护',
+        issue_desc=issue_desc,
+        asset_type='root',
+        source_module=source_module,
+        source_file=source_file,
+        severity='warning',
+        suggestion='建议前往资产门户词根管理页核对并维护词根',
+        portal_module='root-management',
+        action_label='去维护词根',
+        schema_name=schema_name,
+        table_name=table_name,
+        field_name=field_name,
+        root_word=root_word,
+    )
+    return replace(issue, portal_url=build_portal_link(issue))
+
+
+def collect_root_missing_issues(sql_text, source_module, source_file):
+    issues = []
+    try:
+        created_tables = extract_create_table_objects(sql_text or '')
+        column_items = extract_create_table_column_defs(sql_text or '') + extract_alter_table_add_columns(sql_text or '')
+        term_roots = load_metadata_name_set(all_term_roots())
+    except Exception:
+        return issues
+
+    for item in created_tables:
+        schema_name, table_name = split_schema_table(item['table_name'])
+        if schema_name not in ROOT_CHECK_REQUIRED_SCHEMAS:
+            continue
+        pure_table_name = strip_table_prefix(schema_name, table_name, is_temp=item['is_temp'])
+        missing_roots = [token for token in extract_root_tokens(pure_table_name) if token not in term_roots]
+        for root_word in missing_roots:
+            issues.append(
+                _build_root_missing_issue(
+                    root_word=root_word,
+                    issue_desc=f"表名 {item['table_name']} 存在未维护词根：{root_word}",
+                    source_module=source_module,
+                    source_file=source_file,
+                    schema_name=schema_name,
+                    table_name=table_name,
+                )
+            )
+
+    for column_item in column_items:
+        schema_name, table_name = split_schema_table(column_item['table_name'])
+        if schema_name not in ROOT_CHECK_REQUIRED_SCHEMAS:
+            continue
+        missing_roots = [token for token in extract_root_tokens(column_item['column_name']) if token not in term_roots]
+        full_column_name = f"{column_item['table_name']}.{column_item['column_name']}"
+        for root_word in missing_roots:
+            issues.append(
+                _build_root_missing_issue(
+                    root_word=root_word,
+                    issue_desc=f"字段 {full_column_name} 存在未维护词根：{root_word}",
+                    source_module=source_module,
+                    source_file=source_file,
+                    schema_name=schema_name,
+                    table_name=table_name,
+                    field_name=column_item['column_name'],
+                )
+            )
+
+    return issues
 
 
 def run_dws_ddl_rules(sql_text):

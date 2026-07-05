@@ -1,8 +1,49 @@
 # -*- coding: utf-8 -*-
+from dataclasses import replace
+
+from core.asset_issue import create_audit_asset_issue
 from core.hcyt._sql_parser import detect_created_functions, detect_created_views, detect_used_functions
-from core.hcyt.ddl_rule import load_metadata_name_set, run_dws_ddl_rules
+from core.hcyt._sql_parser import split_schema_table
+from core.hcyt.ddl_rule import extract_create_table_objects, load_metadata_name_set, run_dws_ddl_rules
 from core.public_data import all_function_names, all_view_names
+from services.portal_link_builder import build_portal_link
 from services.re_service import find_dot_strings, read_data_from_file
+
+
+def _build_asset_table_review_issue(full_table_name, source_module, source_file, issue_desc):
+    schema_name, table_name = split_schema_table(full_table_name)
+    issue = create_audit_asset_issue(
+        issue_type='ASSET_TABLE_REVIEW',
+        issue_title='资产表待核对',
+        issue_desc=issue_desc,
+        asset_type='table',
+        source_module=source_module,
+        source_file=source_file,
+        severity='warning',
+        suggestion='请到资产门户核对该表是否已登记，必要时补充资产表和字段信息',
+        portal_module='data-warehouse',
+        action_label='去核对资产表',
+        schema_name=schema_name,
+        table_name=table_name or full_table_name,
+    )
+    return replace(issue, portal_url=build_portal_link(issue))
+
+
+def collect_created_table_review_issues(dws_url, source_module='hcyt', source_file=None):
+    data = read_data_from_file(dws_url)
+    source_file = source_file or dws_url
+    issues = []
+    for item in extract_create_table_objects(data):
+        full_table_name = item['table_name']
+        issues.append(
+            _build_asset_table_review_issue(
+                full_table_name=full_table_name,
+                source_module=source_module,
+                source_file=source_file,
+                issue_desc=f"建表语句涉及资产表待核对：{full_table_name}",
+            )
+        )
+    return issues
 
 
 def rule_dws(dws_url):

@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 import re
+from dataclasses import replace
 from pathlib import Path
 
+from core.asset_issue import create_audit_asset_issue
 from core.hcyt._sql_parser import detect_created_functions, detect_created_views, detect_used_functions
 from core.hcyt.ddl_rule import check_table_name_rule, run_dws_ddl_rules
 from core.public_data import all_function_names, all_sstb, all_tab_partitions, all_view_names
+from services.portal_link_builder import build_portal_link
 from services.re_service import (
     detect_file_format,
     extract_tables,
@@ -25,6 +28,36 @@ gjz_lists = [
     'UTILS.DIDP_BASE_FRAME',
     'UTILS.DIDP_PROCESS_TOOLS',
 ]
+
+
+def build_asset_table_review_issues(table_names, source_module, source_file, issue_desc_prefix='SQL中识别到资产表待核对'):
+    issues = []
+    seen = set()
+    for table_name in table_names or []:
+        normalized_table_name = str(table_name).strip().upper()
+        if not normalized_table_name or normalized_table_name in seen:
+            continue
+        seen.add(normalized_table_name)
+        if '.' in normalized_table_name:
+            schema_name, simple_table_name = normalized_table_name.split('.', 1)
+        else:
+            schema_name, simple_table_name = '', normalized_table_name
+        issue = create_audit_asset_issue(
+            issue_type='ASSET_TABLE_REVIEW',
+            issue_title='资产表待核对',
+            issue_desc=f"{issue_desc_prefix}：{normalized_table_name}",
+            asset_type='table',
+            source_module=source_module,
+            source_file=source_file,
+            severity='warning',
+            suggestion='请到资产门户核对该表是否已登记，必要时补充资产表和字段信息',
+            portal_module='data-warehouse',
+            action_label='去核对资产表',
+            schema_name=schema_name,
+            table_name=simple_table_name,
+        )
+        issues.append(replace(issue, portal_url=build_portal_link(issue)))
+    return issues
 
 
 def get_program_table_name(py_url):

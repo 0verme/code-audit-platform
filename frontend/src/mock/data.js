@@ -131,6 +131,35 @@ const HCYT_FAIL = {
   recv: [
     { file: "cust_asset_recv.json", line: 3, rule: "编码格式未声明", level: "warn", msg: "未指定 charset，存在乱码风险。" },
   ],
+  assetIssues: [
+    {
+      issueType: "ROOT_MISSING",
+      issueTitle: "词根待维护",
+      issueDesc: "字段 DWM.M_CUST_ASSET_D.CUST_RISK_TAG 存在未维护词根：RISK",
+      objectName: "DWM.M_CUST_ASSET_D.CUST_RISK_TAG",
+      rootWord: "RISK",
+      sourceRule: "root-management",
+      severity: "warning",
+      actionLabel: "去维护词根",
+      issueKey: "ROOT_MISSING|HCYT|dws_cust_asset_d.sql|DWM|M_CUST_ASSET_D|CUST_RISK_TAG|RISK",
+      hashKey: "mock-root-01",
+      portalUrl: "",
+    },
+    {
+      issueType: "ASSET_TABLE_REVIEW",
+      issueTitle: "资产表待核对",
+      issueDesc: "SQL中识别到资产表待核对：DWM.M_LOAN_ACCT_INFO",
+      objectName: "DWM.M_LOAN_ACCT_INFO",
+      schemaName: "DWM",
+      tableName: "M_LOAN_ACCT_INFO",
+      sourceRule: "data-warehouse",
+      severity: "warning",
+      actionLabel: "去核对资产表",
+      issueKey: "ASSET_TABLE_REVIEW|HCYT|load_loan_daily.py|DWM|M_LOAN_ACCT_INFO||",
+      hashKey: "mock-table-01",
+      portalUrl: "",
+    },
+  ],
   schedule: {
     summary: { plan: 1, seq: 3, job: 12, cycles: 1, missing: 2 },
     tables: {
@@ -256,6 +285,7 @@ const HCYT_PASS = {
   config: [],
   configFiles: [],
   recv: [],
+  assetIssues: [],
   schedule: {
     summary: { plan: 1, seq: 3, job: 9, cycles: 0, missing: 0 },
     tables: {
@@ -393,6 +423,7 @@ const FR_FAIL = {
     { name: "DWS.DWS_LOAN_BAL_SUM", type: "result", disabled: true, sysNames: [], highlight: true },
     { name: "DWS.CUST_ASSET_D", type: "result", disabled: false, sysNames: ["押品系统"], highlight: true },
   ],
+  assetIssues: [],
   ai: {
     model: "Qwen2.5-Coder-32B (本地)",
     verdict: "warn",
@@ -457,6 +488,7 @@ const FR_PASS = {
     { name: "DWS.CUST_ASSET_D", type: "result", disabled: false, sysNames: [], highlight: false },
     { name: "DWS.LOAN_BAL_SUM", type: "result", disabled: false, sysNames: [], highlight: false },
   ],
+  assetIssues: [],
   ai: {
     model: "Qwen2.5-Coder-32B (本地)",
     verdict: "ok",
@@ -541,6 +573,7 @@ const NUPS_FAIL = {
       sqlRefs: ["NUPS_DATA.SRC_EAST"],
     },
   ],
+  assetIssues: [],
   ai: {
     model: "Qwen2.5-Coder-32B (本地)",
     verdict: "err",
@@ -583,6 +616,7 @@ const NUPS_PASS = {
       sqlRefs: ["NUPS_DATA.SRC_CBRC", "NUPS_DATA.CODE_ORG"],
     },
   ],
+  assetIssues: [],
   ai: {
     model: "Qwen2.5-Coder-32B (本地)",
     verdict: "ok",

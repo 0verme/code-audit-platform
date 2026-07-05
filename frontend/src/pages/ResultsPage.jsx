@@ -14,6 +14,7 @@ export const SECTION_NAV = [
   { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
   { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
   { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
+  { id: "asset-issues", label: "资产问题", icon: "link", get: (data) => data.assetIssues, neutral: true },
   { id: "python", label: "Python 脚本", icon: "python", get: (data) => data.pyScripts, neutral: true },
   { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
@@ -182,6 +183,57 @@ function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
       ) : null}
       <div className={rows.length ? "panel-body flush" : "panel-body"}>
         {rows.length ? <ViolationTable rows={rows} /> : <OkState>{okMsg || "未发现违规项"}</OkState>}
+      </div>
+    </Panel>
+  );
+}
+
+export function AssetIssuesSection({ d, reg }) {
+  const issues = d.assetIssues || [];
+  if (!issues.length) return null;
+
+  return (
+    <Panel
+      id="asset-issues"
+      icon="link"
+      title="资产问题"
+      registerRef={reg}
+      count={issues.length}
+      countTone="warn"
+      defaultOpen
+    >
+      <div className="panel-body flush">
+        <div className="table-wrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th>类型</th>
+                <th>对象</th>
+                <th>说明</th>
+                <th>门户</th>
+              </tr>
+            </thead>
+            <tbody>
+              {issues.map((issue) => {
+                const objectName = issue.objectName || [issue.schemaName, issue.tableName, issue.fieldName].filter(Boolean).join(".") || issue.rootWord || "-";
+                return (
+                  <tr key={issue.issueKey || issue.hashKey || `${issue.issueType}-${objectName}`} className="warn-row">
+                    <td><Badge tone="warn">{issue.issueTitle || issue.issueType}</Badge></td>
+                    <td className="mono" style={{ fontSize: "var(--fs-xs)" }}>{objectName}</td>
+                    <td>{issue.issueDesc}</td>
+                    <td>
+                      {issue.portalUrl ? (
+                        <a className="dl-link" href={issue.portalUrl} target="_blank" rel="noreferrer">
+                          <Icon name="link" size={12} /> {issue.actionLabel || "打开"}
+                        </a>
+                      ) : <span style={{ color: "var(--text-3)" }}>未配置</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </Panel>
   );
@@ -538,6 +590,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <ConflictSection d={mergedData} reg={reg} />
       <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} scriptMeta={mergedData.sqlChecks?.dws} />
       <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} scriptMeta={mergedData.sqlChecks?.hive} />
+      <AssetIssuesSection d={mergedData} reg={reg} />
       <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
       <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="config" icon="cog" title="配置文件检查" rows={mergedData.config} reg={reg} okMsg="Schema 配置文件校验通过" />
