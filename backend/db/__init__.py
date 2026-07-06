@@ -8,6 +8,7 @@ from .profiles import (
     resolve_config_path,
     resolve_profile,
 )
+from .sql_runner import SQLRunner, TransactionRunner
 
 __all__ = [
     "CONFIG_PATH_ENV",
@@ -18,4 +19,6 @@ __all__ = [
     "load_database_config",
     "resolve_config_path",
     "resolve_profile",
+    "SQLRunner",
+    "TransactionRunner",
 ]

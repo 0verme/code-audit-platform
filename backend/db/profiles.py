@@ -114,11 +114,15 @@ def resolve_profile(
         sqlite_path = config.get("path") or config.get("database")
         if not sqlite_path:
             raise ProfileConfigError(f"SQLite profile requires 'path': {selected_name}")
-        path = Path(str(sqlite_path))
-        if not path.is_absolute():
-            path = PROJECT_ROOT / path
-        config["path"] = str(path)
-        config["database"] = str(path)
+        if str(sqlite_path) == ":memory:":
+            resolved_path = ":memory:"
+        else:
+            path = Path(str(sqlite_path))
+            if not path.is_absolute():
+                path = PROJECT_ROOT / path
+            resolved_path = str(path)
+        config["path"] = resolved_path
+        config["database"] = resolved_path
         return DatabaseProfile(name=selected_name, type=db_type, config=config)
 
     missing = [key for key in ("host", "port", "database", "username", "password") if not config.get(key)]
