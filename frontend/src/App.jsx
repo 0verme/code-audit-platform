@@ -47,13 +47,30 @@ const DEBUG_LINES = [
 ];
 
 const TWEAK_DEFAULTS = {
-  dark: true,
   density: "standard",
   sampleState: "fail",
   variant: "standard",
   showAi: true,
   accent: "#3358d4",
 };
+
+const showTweakControls =
+  import.meta.env.DEV || import.meta.env.VITE_SHOW_TWEAKS === "true";
+
+const THEME_STORAGE_KEY = "codeReviewPlatform.theme";
+
+function getInitialTheme() {
+  if (typeof window === "undefined") return "light";
+  return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
+}
+
+function ThemeToggle({ theme, onToggle }) {
+  return (
+    <button className="iconbtn" title="切换主题" onClick={onToggle}>
+      <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
+    </button>
+  );
+}
 
 function DebugConsole({ open, onClose, logs }) {
   const realLines = logs?.length
@@ -184,8 +201,8 @@ function PageFallback() {
 }
 
 export default function App() {
-  const showTweaksPanel = import.meta.env.DEV;
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [theme, setTheme] = useState(getInitialTheme);
   const [view, setView] = useState("home");
   const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt", taskId: null });
   const [active, setActive] = useState("overview");
@@ -217,11 +234,15 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.theme = t.dark ? "dark" : "light";
     if (t.density === "standard") root.removeAttribute("data-density");
     else root.dataset.density = t.density;
     root.style.setProperty("--accent", t.accent);
   }, [t]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
 
   function reg(id, ref, setOpen) {
     registry.current.set(id, { ref, setOpen });
@@ -389,9 +410,10 @@ export default function App() {
               <Icon name="terminal" size={16} />
             </button>
           ) : null}
-          <button className="iconbtn" title="切换主题" onClick={() => setTweak("dark", !t.dark)}>
-            <Icon name={t.dark ? "sun" : "moon"} size={16} />
-          </button>
+          <ThemeToggle
+            theme={theme}
+            onToggle={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+          />
         </header>
 
         <div className="content" ref={contentRef}>
@@ -408,9 +430,8 @@ export default function App() {
         ) : null}
       </div>
 
-      {showTweaksPanel ? <TweaksPanel title="Tweaks">
+      {showTweakControls ? <TweaksPanel title="Tweaks">
         <TweakSection label="主题" />
-        <TweakToggle label="深色模式" value={t.dark} onChange={(value) => setTweak("dark", value)} />
         <TweakColor label="主题色" value={t.accent} options={["#3358d4", "#0e7d6b", "#b3531d", "#c0392f"]} onChange={(value) => setTweak("accent", value)} />
         <TweakRadio label="密度" value={t.density} options={[{ value: "compact", label: "紧凑" }, { value: "standard", label: "标准" }, { value: "comfortable", label: "宽松" }]} onChange={(value) => setTweak("density", value)} />
         <TweakSection label="示例数据" />
