@@ -126,6 +126,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
               <span className="rc-body">
                 <span className="rc-name">{workflow.name}</span>
                 <span className="rc-kw mono">{workflow.matchKeywords.join(" / ")}</span>
+                <span className="rc-desc">{workflow.description || workflow.desc}</span>
               </span>
               {detected === workflow.id ? <span className="rc-flag"><Icon name="check" size={13} stroke={2.6} /></span> : null}
             </div>
