@@ -9,6 +9,7 @@ from .profiles import (
     resolve_profile,
 )
 from .sql_runner import SQLRunner, TransactionRunner
+from .schema import RUNTIME_TABLES, initialize_schema, load_schema_sql, schema_statements
 
 __all__ = [
     "CONFIG_PATH_ENV",
@@ -21,4 +22,8 @@ __all__ = [
     "resolve_profile",
     "SQLRunner",
     "TransactionRunner",
+    "RUNTIME_TABLES",
+    "initialize_schema",
+    "load_schema_sql",
+    "schema_statements",
 ]
