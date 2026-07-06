@@ -24,8 +24,8 @@ flowchart TD
 
 - `frontend/src/App.jsx`：前端路由、任务状态和结果页组合。
 - `frontend/src/services/apiClient.js`：统一 API 请求封装。
-- `frontend/src/config/api.js`：读取 `VITE_API_BASE_URL`，默认指向本地 Flask API。
-- `frontend/src/mock/data.js`：后端不可用或无实时任务时的演示数据。
+- `frontend/src/config/api.js`：读取 `VITE_AUDIT_DATA_MODE` 和 `VITE_API_BASE_URL`，决定前端使用 mock 还是后端任务 API。
+- `frontend/src/mock/data.js`：mock 模式下的本地演示数据。
 - `backend/app.py`：Flask API 入口，提供健康检查、项目列表、任务创建、任务查询、报告和结果查询。
 - `backend/database.py`：SQLite 平台运行库初始化，创建 `projects`、`audit_tasks`、`task_reports`、`audit_results`、`fine_report_items`。
 - `backend/engine.py`：审计任务编排层，负责加载 `svn_check` 真实规则模块、拉取 SVN 或读取本地目录、执行工作流、生成报告 JSON。
@@ -93,7 +93,7 @@ flowchart TD
 - 没有内置 Dockerfile、docker-compose 或 Helm chart。
 - 没有统一 lint 配置。
 - 元数据同步脚本未内置，需要按目标环境补充。
-- 前端 mock/API 模式没有显式开关，主要通过 API 可用性和任务 ID 触发回退。
+- 前端 mock/API 模式由 `VITE_AUDIT_DATA_MODE=mock|api` 在启动或构建时确定；API 模式下接口失败不自动降级为 mock。
 - 历史原型和 mock 数据仍需在公开发布前复核脱敏。
 
 ## 未来规划

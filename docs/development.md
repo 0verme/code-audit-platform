@@ -40,15 +40,15 @@ npm install
 npm run dev
 ```
 
-`frontend/src/config/api.js` 会读取 `VITE_API_BASE_URL`，默认值是 `http://127.0.0.1:5000/api`。
+`frontend/src/config/api.js` 会读取 `VITE_AUDIT_DATA_MODE` 和 `VITE_API_BASE_URL`。`VITE_AUDIT_DATA_MODE` 默认值是 `mock`，`VITE_API_BASE_URL` 默认值是 `http://127.0.0.1:5000/api`。
 
 ## mock 模式/API 模式
 
-前端当前没有单独的 `VITE_USE_MOCK` 开关。
+mock/API 是前端启动或构建时的部署配置，不是页面运行时开关。页面不提供后端执行模式切换开关。
 
-- 首页、结果页和报表页会优先请求后端 API。
-- 当 API 不可用、没有任务 ID 或没有实时报告时，页面会使用 `frontend/src/mock/data.js` 中的演示数据。
-- `frontend/src/hooks/useAuditRun.js` 注明：`taskId` 为空时不发起请求，适合纯原型或 mock 演示。
+- `VITE_AUDIT_DATA_MODE=mock`：提交审查直接使用 `frontend/src/mock/data.js` 中的演示数据，不依赖后端任务接口。
+- `VITE_AUDIT_DATA_MODE=api`：提交审查调用后端 `POST /api/audit-tasks` 创建真实任务，并轮询任务和报告接口。
+- API 模式下接口失败会显示明确错误，不会自动降级展示 mock 结果。
 - 创建真实任务时，后端 `POST /api/audit-tasks` 支持 `sourceType=svn` 或 `sourceType=local`；本地目录模式当前只支持 `hcyt` 工作流键。
 
 ## 常用测试命令

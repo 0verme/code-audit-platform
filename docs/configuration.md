@@ -6,7 +6,7 @@
 
 | 文件 | 用途 | 是否应提交真实值 |
 | --- | --- | --- |
-| `frontend/.env.example` | 前端 API 地址模板 | 可以提交模板 |
+| `frontend/.env.example` | 前端 mock/API 模式和 API 地址模板 | 可以提交模板 |
 | `frontend/.env` | 前端本地配置 | 不提交 |
 | `backend/svn_check/configs/database.example.yaml` | 规则元数据库模板 | 可以提交模板 |
 | `backend/svn_check/configs/database.yaml` | 真实数据库配置 | 不提交 |
@@ -26,12 +26,16 @@
 `frontend/.env.example`:
 
 ```text
+VITE_AUDIT_DATA_MODE=mock
 VITE_API_BASE_URL=http://127.0.0.1:5000/api
 ```
+
+`VITE_AUDIT_DATA_MODE=mock` 时前端使用本地演示数据，不请求后端任务接口。设置为 `api` 时，前端会调用 `VITE_API_BASE_URL` 指向的任务接口；接口失败会显示错误，不自动降级为 mock。
 
 如前后端经 Nginx 同域部署，可设置：
 
 ```text
+VITE_AUDIT_DATA_MODE=api
 VITE_API_BASE_URL=/api
 ```
 

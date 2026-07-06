@@ -19,11 +19,11 @@
 - **元数据辅助检查**：`backend/svn_check/services/audit_metadata_service.py` 和 `shared/db` 提供元数据访问边界；外部数据库不可用时部分检查会降级。
 - **上游/下游依赖分析**：`shared/graph`、`shared/lineage` 和 `services/re_service.py` 负责依赖汇总、引用表识别和血缘摘要。
 - **统一风险输出**：后端报告中包含 `assetIssues` 与 `unifiedAssetIssues`，用于描述资产问题和未来外部系统适配边界；当前平台运行不强依赖外部资产门户。
-- **前端结果展示**：React/Vite 前端展示任务、进度、日志、风险分组、报表检查和 mock 回退数据。
+- **前端结果展示**：React/Vite 前端展示任务、进度、日志、风险分组和报表检查；mock/API 执行模式由构建环境配置决定。
 
 ## 架构概览
 
-- **前端**：`frontend/`，React 18 + Vite，通过 `VITE_API_BASE_URL` 访问后端 API，后端不可用时部分页面回退到 `frontend/src/mock/data.js`。
+- **前端**：`frontend/`，React 18 + Vite，通过 `VITE_AUDIT_DATA_MODE=mock|api` 决定使用本地演示数据或后端任务 API，API 地址由 `VITE_API_BASE_URL` 配置。
 - **后端**：`backend/`，Flask 提供 REST API，`backend/engine.py` 编排真实规则引擎并异步执行审计任务。
 - **平台运行库**：默认使用 SQLite，文件位于 `backend/data/app.db`，首次启动由 `backend/database.py` 自动建表并写入演示数据。
 - **规则元数据库**：规则引擎可连接 Postgres 或 GaussDB 类元数据库；Postgres 初始化脚本位于 `backend/svn_check/migrate/postgres_schema.sql`。
@@ -128,8 +128,11 @@ GET http://127.0.0.1:5000/api/health
 ```powershell
 cd frontend
 npm install
+Copy-Item .env.example .env
 npm run dev
 ```
+
+`.env` 中 `VITE_AUDIT_DATA_MODE=mock` 时前端使用本地演示数据，可不启动后端；设置为 `api` 时，“提交审查”会调用 `VITE_API_BASE_URL` 指向的后端任务接口，接口失败会显示错误且不会自动降级为 mock。
 
 默认访问 Vite 输出地址，通常是 `http://127.0.0.1:5173`。
 

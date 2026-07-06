@@ -119,7 +119,7 @@ cd frontend
 npm install
 ```
 
-配置 API 地址：
+配置前端任务接口模式和 API 地址：
 
 ```bash
 cp .env.example .env
@@ -128,14 +128,18 @@ cp .env.example .env
 本地开发示例：
 
 ```text
+VITE_AUDIT_DATA_MODE=api
 VITE_API_BASE_URL=http://127.0.0.1:5000/api
 ```
 
 单机 Nginx 同域代理可设置：
 
 ```text
+VITE_AUDIT_DATA_MODE=api
 VITE_API_BASE_URL=/api
 ```
+
+如果只需要前端独立演示，设置 `VITE_AUDIT_DATA_MODE=mock`。mock 模式不会请求后端任务接口；api 模式会提交真实任务，接口失败会在页面显示错误且不会降级为 mock。
 
 本地启动：
 
@@ -243,7 +247,7 @@ systemctl reload nginx
 ## 常见问题排查
 
 - 后端启动失败：检查 Python 版本、虚拟环境、`pip install -r requirements.txt` 是否成功。
-- 前端请求失败：检查 `VITE_API_BASE_URL`、Nginx `/api/` 代理和后端健康检查。
+- 前端请求失败：先确认 `VITE_AUDIT_DATA_MODE` 是否为预期模式；api 模式下检查 `VITE_API_BASE_URL`、Nginx `/api/` 代理和后端健康检查。
 - SVN 任务失败：确认 `svn` 命令在 PATH 中，且 `svn.yaml` 使用的是部署环境真实可访问地址。
 - 数据库连接失败：先用数据库客户端验证 host、port、库名、用户、schema，再检查 `SVN_CHECK_*` 环境变量覆盖。
 - 元数据为空：确认 `init_pg.py` 只建表不导入业务数据；需要另行准备元数据快照。

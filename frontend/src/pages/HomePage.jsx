@@ -27,35 +27,33 @@ function mapTaskToRecent(task) {
   };
 }
 
-export default function HomePage({ onSubmit, projectsState, tasksState, onCreateTask }) {
+export default function HomePage({ onSubmit, projectsState, tasksState, onCreateTask, dataMode, apiBaseUrl }) {
   const [sourceType, setSourceType] = useState("svn");
   const [path, setPath] = useState("svn://example.com/repos/branches/demo-hcyt");
   const [ai, setAi] = useState(false);
   const [dbg, setDbg] = useState(false);
-  const [live, setLive] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const isApiMode = dataMode === "api";
 
   const detected = sourceType === "local" ? "hcyt" : detectWorkflow(path);
   const recentList = useMemo(() => {
     if (tasksState.data?.length) {
       return tasksState.data.map(mapTaskToRecent);
     }
-    return DEFAULT_RECENT;
-  }, [tasksState.data]);
+    return isApiMode ? [] : DEFAULT_RECENT;
+  }, [isApiMode, tasksState.data]);
 
   async function submit() {
     setSubmitError("");
     if (!path.trim()) return;
     const payload = { path: path.trim(), sourceType, ai, dbg, workflow: detected || "hcyt" };
-    if (!live) {
-      onSubmit({ ...payload, taskId: null });
-      // 默认走演示数据（mock），不依赖后端
+    if (!isApiMode) {
       onSubmit({ ...payload, taskId: null });
       return;
     }
     const created = await onCreateTask(payload);
     if (created?.error) {
-      setSubmitError(created.error);
+      setSubmitError(`API 模式提交失败：${created.error}`);
       return;
     }
     onSubmit({ ...payload, taskId: created?.id ?? null, workflow: created?.workflow || payload.workflow });
@@ -135,8 +133,9 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         {submitError ? <p className="route-hint" style={{ color: "var(--err)" }}>{submitError}</p> : null}
         <p className="route-hint"><Icon name="info" size={12} /> 根据路径中的关键字自动路由到对应工作流</p>
 
-        {projectsState.loading ? <p className="route-hint">正在加载后端项目列表...</p> : null}
-        {projectsState.error ? <p className="route-hint">项目列表接口不可用，当前仍可使用本地原型流程。</p> : null}
+        <p className="route-hint"><Icon name="info" size={12} /> 当前任务接口模式：{isApiMode ? `API（${apiBaseUrl}）` : "mock（本地演示数据）"}</p>
+        {isApiMode && projectsState.loading ? <p className="route-hint">正在加载后端项目列表...</p> : null}
+        {isApiMode && projectsState.error ? <p className="route-hint" style={{ color: "var(--err)" }}>项目列表接口不可用，请检查 API 服务或 VITE_API_BASE_URL。</p> : null}
         {projectsState.data?.length ? (
           <div className="chips" style={{ marginBottom: 12 }}>
             {projectsState.data.map((project) => (
@@ -150,7 +149,6 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         <div className="toggles">
           <Toggle on={ai} onChange={setAi} icon="sparkle" label="接入本地 AI 大模型" desc="启用后追加 AI 语义分析与修复建议（默认关闭）" />
           <Toggle on={dbg} onChange={setDbg} icon="terminal" label="调试日志" desc="输出检测、分类与规则执行的详细日志（默认关闭）" />
-          <Toggle on={live} onChange={setLive} icon="git" label="真实后端执行" desc="关闭时使用演示数据；开启后连接后端拉取 SVN 并执行真实审查" />
         </div>
 
         <div className="home-actions">
@@ -180,7 +178,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
             );
           }) : <div className="recent-row">暂无审查任务</div>}
         </div>
-        {tasksState.error ? <p className="route-hint">任务接口不可用，当前展示 mock 数据。</p> : null}
+        {isApiMode && tasksState.error ? <p className="route-hint" style={{ color: "var(--err)" }}>任务接口不可用，无法加载真实任务列表。</p> : null}
       </div>
     </div>
   );

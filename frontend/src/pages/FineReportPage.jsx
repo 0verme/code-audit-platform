@@ -393,7 +393,7 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
   return (
     <div className="results-page fade-in">
       {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>Loading FineReport items...</div> : null}
-      {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--warn)" }}>FineReport API is unavailable. Mock data is being used.</div> : null}
+      {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--err)" }}>FineReport API 不可用，请检查任务接口配置。</div> : null}
       <FrStatusHeader d={mergedData} />
       <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />

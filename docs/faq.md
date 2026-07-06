@@ -14,7 +14,7 @@
 
 ## 如何切换 mock/API 模式？
 
-当前没有独立开关。前端优先请求 API；当 API 不可用、没有任务 ID 或实时报告不存在时，页面会回退到 `frontend/src/mock/data.js`。需要强制 mock 时，可以不启动后端或访问无任务 ID 的演示页面。
+通过前端启动或构建环境变量切换：`VITE_AUDIT_DATA_MODE=mock` 使用 `frontend/src/mock/data.js` 演示数据；`VITE_AUDIT_DATA_MODE=api` 调用后端任务接口。页面上不提供 mock/API 运行时开关。API 模式下接口失败会显示错误，不会自动降级为 mock。
 
 ## 数据库连接失败怎么排查？
 

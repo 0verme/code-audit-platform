@@ -714,7 +714,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
   return (
     <div className="results-page fade-in">
       {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>正在加载审查结果...</div> : null}
-      {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--warn)" }}>审查结果接口不可用，已回退到本地 mock 数据。</div> : null}
+      {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--err)" }}>审查结果接口不可用，请检查任务接口配置。</div> : null}
       {variant !== "issues" ? <StatusHeader d={mergedData} /> : null}
       {variant === "board" ? (
         <div className="card" style={{ padding: "var(--pad-card)", marginBottom: "var(--gap)" }}>

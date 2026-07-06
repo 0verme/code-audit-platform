@@ -1,6 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
+import { API_BASE_URL, AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
@@ -120,6 +121,21 @@ function FailedView({ task, onBack }) {
   );
 }
 
+function ApiErrorView({ error, onBack }) {
+  return (
+    <div className="card fade-in" style={{ padding: 24, borderColor: "var(--err)" }}>
+      <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--err-fg)" }}>
+        <Icon name="x" size={16} /> 任务接口不可用
+      </div>
+      <p className="muted" style={{ margin: "10px 0 14px" }}>
+        API 模式不会自动降级为 mock。请检查后端服务、网络连接或 VITE_API_BASE_URL。
+      </p>
+      {error ? <pre className="mono" style={{ fontSize: "var(--fs-xs)", color: "var(--err-fg)", whiteSpace: "pre-wrap", margin: "0 0 14px" }}>{error.message || String(error)}</pre> : null}
+      <button className="btn primary" onClick={onBack}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 返回首页</button>
+    </div>
+  );
+}
+
 function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
@@ -183,17 +199,20 @@ export default function App() {
   const run = useAuditRun(view === "results" ? params.taskId : null);
   const liveData = run.report;
   const mockDataset = isNups ? NUPS_DATA : (isFR ? FINEREPORT_DATA : HCYT_DATA);
-  const data = liveData || (t.sampleState === "pass" ? mockDataset.PASS : mockDataset.FAIL);
+  const mockData = t.sampleState === "pass" ? mockDataset.PASS : mockDataset.FAIL;
+  const data = liveData || mockData;
   const navList = isNups ? NUPS_NAV : (isFR ? FR_NAV : SECTION_NAV);
   const workflowName = WORKFLOWS.find((workflow) => workflow.key === params.workflow)?.name || params.workflow;
   const aiEnabled = liveData ? Boolean(liveData.ai) : (params.ai || t.showAi);
-  const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: view === "home" });
-  const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [view], { enabled: view === "home" });
+  const canShowRail = view !== "home" && (!IS_API_MODE || !!liveData);
+  const currentRevision = liveData?.task?.revision || run.task?.revision || (IS_API_MODE ? `task-${params.taskId || "pending"}` : data.task.revision);
+  const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: IS_API_MODE && view === "home" });
+  const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [view], { enabled: IS_API_MODE && view === "home" });
   const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), [], {
-    enabled: view === "results" && !isFR && !params.taskId,
+    enabled: IS_API_MODE && view === "results" && !isFR && !params.taskId,
   });
   const fineReportItemsState = useAsyncResource(() => reviewService.getFineReportItems(), [], {
-    enabled: view === "results" && isFR && !params.taskId,
+    enabled: IS_API_MODE && view === "results" && isFR && !params.taskId,
   });
 
   useEffect(() => {
@@ -279,9 +298,14 @@ export default function App() {
             projectsState={projectsState}
             tasksState={tasksState}
             onCreateTask={handleCreateTask}
+            dataMode={AUDIT_DATA_MODE}
+            apiBaseUrl={API_BASE_URL}
           />
         </Suspense>
       );
+    }
+    if (IS_API_MODE && params.taskId && run.error && !liveData) {
+      return <ApiErrorView error={run.error} onBack={() => setView("home")} />;
     }
     if (params.taskId && (run.running || (!run.task && !run.error))) {
       return <RunningView task={run.task} />;
@@ -324,7 +348,7 @@ export default function App() {
 
   return (
     <div className={`app${view === "home" ? " no-rail" : ""}`}>
-      {view !== "home" ? (
+      {canShowRail ? (
         <>
           <div
             className={`rail-overlay${railOpen ? " shown" : ""}`}
@@ -351,7 +375,7 @@ export default function App() {
               <div className="crumb">
                 <span className="seg">{workflowName}</span>
                 <span className="sep">/</span>
-                <span className="seg cur mono">{liveData ? liveData.task.revision : data.task.revision}</span>
+                <span className="seg cur mono">{currentRevision}</span>
                 <span className="path">{params.path || data.task.repo}</span>
               </div>
             </>
@@ -372,6 +396,11 @@ export default function App() {
         <div className="content" ref={contentRef}>
           {view === "home" ? page : <div className="content-inner">{page}</div>}
         </div>
+
+        <footer className="app-footer">
+          <span>任务接口模式：<strong>{AUDIT_DATA_MODE}</strong></span>
+          <span>{IS_API_MODE ? `API_BASE_URL=${API_BASE_URL}` : "使用本地演示数据，不请求任务接口"}</span>
+        </footer>
 
         {view === "results" && (params.dbg || run.task?.logs?.length) ? (
           <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} logs={run.task?.logs} />

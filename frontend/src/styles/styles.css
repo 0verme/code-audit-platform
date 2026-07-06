@@ -191,6 +191,20 @@ body {
 
 .content { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
 .content-inner { max-width: 1180px; margin: 0 auto; padding: 22px 26px 80px; }
+.app-footer {
+  min-height: 32px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 6px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.app-footer strong { color: var(--text-2); font-weight: 600; }
 
 /* ============================================================
    Buttons

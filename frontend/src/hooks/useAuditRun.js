@@ -4,8 +4,8 @@ import { reviewService } from "../services/reviewService";
 const POLL_INTERVAL_MS = 2000;
 
 /**
- * 跟踪一次真实审查任务：轮询任务状态，结束后拉取结构化报告。
- * taskId 为空时不发起任何请求（纯原型 / mock 模式）。
+ * 跟踪一次 API 审查任务：轮询任务状态，结束后拉取结构化报告。
+ * taskId 为空时不发起任何请求，由调用方的 mock/api 配置决定是否使用演示数据。
  */
 export function useAuditRun(taskId) {
   const [state, setState] = useState({ task: null, report: null, error: null });
@@ -27,12 +27,15 @@ export function useAuditRun(taskId) {
           return;
         }
         let report = null;
+        let reportError = null;
         try {
           report = await reviewService.getAuditTaskReport(taskId);
-        } catch {
-          // 报告未生成（任务失败），保留 task.error 供页面展示
+        } catch (error) {
+          if (task.status !== "fail") {
+            reportError = error;
+          }
         }
-        if (!cancelled) setState({ task, report, error: null });
+        if (!cancelled) setState({ task, report, error: reportError });
       } catch (error) {
         if (!cancelled) setState((current) => ({ ...current, error }));
       }
