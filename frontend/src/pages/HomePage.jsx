@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { Dot, Icon } from "../components/ui";
-import { DEFAULT_RECENT, WORKFLOWS, detectWorkflow } from "../mock/data";
+import {
+  AUDIT_WORKFLOWS,
+  UNKNOWN_WORKFLOW_MESSAGE,
+  buildAuditSubmitPayload,
+  detectAuditWorkflow,
+} from "../config/auditWorkflows";
+import { DEFAULT_RECENT } from "../mock/data";
 
 function Toggle({ on, onChange, label, desc, icon }) {
   return (
@@ -35,7 +41,9 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
   const [submitError, setSubmitError] = useState("");
   const isApiMode = dataMode === "api";
 
-  const detected = sourceType === "local" ? "hcyt" : detectWorkflow(path);
+  const detectedWorkflow = detectAuditWorkflow(path);
+  const detected = detectedWorkflow?.id || null;
+  const canSubmit = Boolean(path.trim() && detectedWorkflow);
   const recentList = useMemo(() => {
     if (tasksState.data?.length) {
       return tasksState.data.map(mapTaskToRecent);
@@ -45,8 +53,11 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
 
   async function submit() {
     setSubmitError("");
-    if (!path.trim()) return;
-    const payload = { path: path.trim(), sourceType, ai, dbg, workflow: detected || "hcyt" };
+    const payload = buildAuditSubmitPayload({ path, sourceType, ai, dbg });
+    if (!payload) {
+      setSubmitError(UNKNOWN_WORKFLOW_MESSAGE);
+      return;
+    }
     if (!isApiMode) {
       onSubmit({ ...payload, taskId: null });
       return;
@@ -105,33 +116,24 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
           {detected ? <span className="pi-detect"><Dot tone="ok" /> 已识别</span> : <span className="pi-detect muted"><Dot /> 待识别</span>}
         </div>
 
-        {sourceType === "svn" ? <div className="route-grid">
-          {WORKFLOWS.map((workflow) => (
+        <div className="route-grid" aria-label="自动识别的审查工作流">
+          {AUDIT_WORKFLOWS.map((workflow) => (
             <div
-              key={workflow.key}
-              className={`route-card${detected === workflow.key ? " active" : ""}`}
-              onClick={() =>
-                setPath(
-                  workflow.key === "hcyt"
-                    ? "svn://example.com/repos/branches/demo-hcyt"
-                    : workflow.key === "fine-report"
-                      ? "svn://example.com/repos/branches/demo-fine-report"
-                      : "svn://example.com/repos/branches/demo-nups",
-                )
-              }
+              key={workflow.id}
+              className={`route-card readonly${detected === workflow.id ? " active" : " muted"}`}
             >
               <span className="rc-ico" style={{ color: workflow.color }}><Icon name={workflow.icon} size={18} /></span>
               <span className="rc-body">
                 <span className="rc-name">{workflow.name}</span>
-                <span className="rc-kw mono">{workflow.kw}</span>
+                <span className="rc-kw mono">{workflow.matchKeywords.join(" / ")}</span>
               </span>
-              {detected === workflow.key ? <span className="rc-flag"><Icon name="check" size={13} stroke={2.6} /></span> : null}
+              {detected === workflow.id ? <span className="rc-flag"><Icon name="check" size={13} stroke={2.6} /></span> : null}
             </div>
           ))}
-        </div> : null}
-        {sourceType === "local" ? <p className="route-hint"><Icon name="info" size={12} /> 本地目录模式当前仅接入 HCYT 审计流程。</p> : null}
+        </div>
+        {!detectedWorkflow ? <p className="route-hint" style={{ color: "var(--err)" }}><Icon name="info" size={12} /> {UNKNOWN_WORKFLOW_MESSAGE}</p> : null}
         {submitError ? <p className="route-hint" style={{ color: "var(--err)" }}>{submitError}</p> : null}
-        <p className="route-hint"><Icon name="info" size={12} /> 根据路径中的关键字自动路由到对应工作流</p>
+        {detectedWorkflow ? <p className="route-hint"><Icon name="info" size={12} /> 已自动识别为：{detectedWorkflow.name}</p> : null}
 
         <p className="route-hint"><Icon name="info" size={12} /> 当前任务接口模式：{isApiMode ? `API（${apiBaseUrl}）` : "mock（本地演示数据）"}</p>
         {isApiMode && projectsState.loading ? <p className="route-hint">正在加载后端项目列表...</p> : null}
@@ -152,8 +154,8 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         </div>
 
         <div className="home-actions">
-          <span className="ha-meta mono">{detected ? WORKFLOWS.find((workflow) => workflow.key === detected)?.name : "未识别工作流"}</span>
-          <button className="btn primary lg" onClick={submit} disabled={!path.trim()}>
+          <span className="ha-meta mono">{detectedWorkflow ? detectedWorkflow.name : "未识别工作流"}</span>
+          <button className="btn primary lg" onClick={submit} disabled={!canSubmit}>
             <Icon name="play" size={15} stroke={2.2} /> 提交审查
           </button>
         </div>
@@ -164,10 +166,10 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         {tasksState.loading ? <div className="card recent-list">正在加载任务列表...</div> : null}
         <div className="card recent-list">
           {recentList.length ? recentList.map((item, index) => {
-            const workflow = WORKFLOWS.find((entry) => entry.key === item.wf) || WORKFLOWS[0];
+            const workflow = AUDIT_WORKFLOWS.find((entry) => entry.id === item.wf) || AUDIT_WORKFLOWS[0];
             const tone = item.status === "pass" ? "ok" : item.status === "fail" ? "err" : "warn";
             return (
-              <div key={`${item.rev}-${index}`} className="recent-row" onClick={() => onSubmit({ path: item.repo, ai: false, dbg: false, workflow: item.wf, taskId: item.id ?? null })}>
+              <div key={`${item.rev}-${index}`} className="recent-row" onClick={() => onSubmit({ path: item.repo, ai: false, dbg: false, workflow: item.wf, type: item.wf, taskId: item.id ?? null })}>
                 <Dot tone={tone} />
                 <span className="rr-rev mono">{item.rev}</span>
                 <span className="rr-repo mono">{item.repo}</span>

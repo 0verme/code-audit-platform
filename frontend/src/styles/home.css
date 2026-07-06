@@ -26,10 +26,10 @@
 .route-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
 .route-card {
   display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
-  background: var(--surface-2); cursor: pointer; position: relative; transition: border-color .14s, background .14s, transform .05s;
+  background: var(--surface-2); position: relative; transition: border-color .14s, background .14s, opacity .14s;
 }
-.route-card:hover { border-color: var(--border-strong); background: var(--surface); }
-.route-card:active { transform: translateY(1px); }
+.route-card.readonly { cursor: default; }
+.route-card.muted { opacity: .48; }
 .route-card.active { border-color: var(--accent-line); background: var(--accent-weak); }
 .rc-ico { width: 34px; height: 34px; border-radius: 8px; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border); flex: none; }
 .route-card.active .rc-ico { background: var(--surface); }

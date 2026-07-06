@@ -270,6 +270,7 @@ export default function App() {
         repo: payload.path,
         sourceType: payload.sourceType || "svn",
         workflow: payload.workflow,
+        type: payload.type,
         ai_enabled: payload.ai,
         debug_enabled: payload.dbg,
       });
