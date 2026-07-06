@@ -6,6 +6,12 @@ import {
   buildAuditSubmitPayload,
   detectAuditWorkflow,
 } from "../config/auditWorkflows";
+import {
+  AUDIT_SOURCE_LABELS,
+  UNKNOWN_SOURCE_MESSAGE,
+  detectAuditSource,
+  isLocalSourceEnabled,
+} from "../config/auditSources";
 import { DEFAULT_RECENT } from "../mock/data";
 
 function Toggle({ on, onChange, label, desc, icon }) {
@@ -34,16 +40,17 @@ function mapTaskToRecent(task) {
 }
 
 export default function HomePage({ onSubmit, projectsState, tasksState, onCreateTask, dataMode, apiBaseUrl }) {
-  const [sourceType, setSourceType] = useState("svn");
   const [path, setPath] = useState("svn://example.com/repos/branches/demo-hcyt");
   const [ai, setAi] = useState(false);
   const [dbg, setDbg] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const isApiMode = dataMode === "api";
+  const localSourceEnabled = isLocalSourceEnabled();
+  const detectedSource = detectAuditSource(path, { enableLocalSource: localSourceEnabled });
 
   const detectedWorkflow = detectAuditWorkflow(path);
   const detected = detectedWorkflow?.id || null;
-  const canSubmit = Boolean(path.trim() && detectedWorkflow);
+  const canSubmit = Boolean(path.trim() && detectedSource.valid && detectedWorkflow);
   const recentList = useMemo(() => {
     if (tasksState.data?.length) {
       return tasksState.data.map(mapTaskToRecent);
@@ -53,7 +60,11 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
 
   async function submit() {
     setSubmitError("");
-    const payload = buildAuditSubmitPayload({ path, sourceType, ai, dbg });
+    if (!detectedSource.valid) {
+      setSubmitError(detectedSource.reason || UNKNOWN_SOURCE_MESSAGE);
+      return;
+    }
+    const payload = buildAuditSubmitPayload({ path, ai, dbg, enableLocalSource: localSourceEnabled });
     if (!payload) {
       setSubmitError(UNKNOWN_WORKFLOW_MESSAGE);
       return;
@@ -75,45 +86,27 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
       <div className="home-hero fade-in">
         <div className="hero-badge"><Dot tone="ok" pulse /> 审查引擎在线 / v3.4.2</div>
         <h1 className="hero-title">代码提交审查平台</h1>
-        <p className="hero-sub">输入 SVN / Git 仓库路径，平台将自动检测、分类并按规则集进行多维静态审查。</p>
+        <p className="hero-sub">输入 SVN / Git 仓库地址或本地目录路径，平台将自动识别来源类型与审查工作流。</p>
       </div>
 
       <div className="card home-card fade-in">
-        <label className="field-label"><Icon name={sourceType === "local" ? "folder" : "git"} size={14} /> 审计来源</label>
-        <div className="chips" style={{ marginBottom: 12 }}>
-          <button
-            type="button"
-            className={`chip src${sourceType === "svn" ? " active" : ""}`}
-            onClick={() => {
-              setSourceType("svn");
-              setPath("svn://example.com/repos/branches/demo-hcyt");
-            }}
-          >
-            SVN
-          </button>
-          <button
-            type="button"
-            className={`chip src${sourceType === "local" ? " active" : ""}`}
-            onClick={() => {
-              setSourceType("local");
-              setPath("C:\\path\\to\\local-hcyt-workspace");
-            }}
-          >
-            本地目录
-          </button>
-        </div>
-        <label className="field-label"><Icon name="git" size={14} /> 仓库路径</label>
+        <label className="field-label"><Icon name="git" size={14} /> 审查路径</label>
         <div className="path-input">
-          <span className="pi-proto mono">{sourceType === "local" ? "dir" : (path.startsWith("http") ? "https" : "svn")}</span>
+          <span className="pi-proto mono">{detectedSource.label}</span>
           <input
             className="pi-field mono"
             value={path}
             spellCheck={false}
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
-            placeholder="svn://... 或 https://..."
+            placeholder="svn://...、https://...git 或 C:\\path\\to\\workspace"
           />
-          {detected ? <span className="pi-detect"><Dot tone="ok" /> 已识别</span> : <span className="pi-detect muted"><Dot /> 待识别</span>}
+          {detectedSource.sourceType !== "unknown" ? <span className={`pi-detect${detectedSource.valid ? "" : " muted"}`}><Dot tone={detectedSource.valid ? "ok" : undefined} /> {AUDIT_SOURCE_LABELS[detectedSource.sourceType]}</span> : <span className="pi-detect muted"><Dot /> 未识别</span>}
+        </div>
+
+        <div className="source-summary">
+          <span>来源类型：<strong>{AUDIT_SOURCE_LABELS[detectedSource.sourceType]}</strong></span>
+          <span>审查工作流：<strong>{detectedWorkflow?.name || "未识别"}</strong></span>
         </div>
 
         <div className="route-grid" aria-label="自动识别的审查工作流">
@@ -132,9 +125,10 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
             </div>
           ))}
         </div>
+        {!detectedSource.valid ? <p className="route-hint" style={{ color: "var(--err)" }}><Icon name="info" size={12} /> {detectedSource.reason}</p> : null}
         {!detectedWorkflow ? <p className="route-hint" style={{ color: "var(--err)" }}><Icon name="info" size={12} /> {UNKNOWN_WORKFLOW_MESSAGE}</p> : null}
         {submitError ? <p className="route-hint" style={{ color: "var(--err)" }}>{submitError}</p> : null}
-        {detectedWorkflow ? <p className="route-hint"><Icon name="info" size={12} /> 已自动识别为：{detectedWorkflow.name}</p> : null}
+        {detectedWorkflow ? <p className="route-hint"><Icon name="info" size={12} /> 已自动识别工作流：{detectedWorkflow.name}</p> : null}
 
         <p className="route-hint"><Icon name="info" size={12} /> 当前任务接口模式：{isApiMode ? `API（${apiBaseUrl}）` : "mock（本地演示数据）"}</p>
         {isApiMode && projectsState.loading ? <p className="route-hint">正在加载后端项目列表...</p> : null}

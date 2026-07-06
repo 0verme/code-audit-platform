@@ -1,4 +1,6 @@
-export const UNKNOWN_WORKFLOW_MESSAGE = "当前仓库路径未匹配到审查工作流，请检查路径是否包含 hcyt、fine-report、nups 等关键字。";
+import { detectAuditSource } from "./auditSources.js";
+
+export const UNKNOWN_WORKFLOW_MESSAGE = "当前审查路径未匹配到审查工作流，请检查路径是否包含 hcyt、fine-report、nups 等关键字。";
 
 export const AUDIT_WORKFLOWS = [
   {
@@ -62,18 +64,20 @@ export function detectWorkflow(path) {
   return detectAuditWorkflow(path)?.id || null;
 }
 
-export function canSubmitAudit(path) {
-  return Boolean(String(path || "").trim() && detectAuditWorkflow(path));
+export function canSubmitAudit(path, options = {}) {
+  const source = detectAuditSource(path, options);
+  return Boolean(String(path || "").trim() && source.valid && detectAuditWorkflow(path));
 }
 
-export function buildAuditSubmitPayload({ path, sourceType = "svn", ai = false, dbg = false }) {
+export function buildAuditSubmitPayload({ path, ai = false, dbg = false, ...options }) {
   const repoPath = String(path || "").trim();
+  const source = detectAuditSource(repoPath, options);
   const workflow = detectAuditWorkflow(repoPath);
-  if (!repoPath || !workflow) return null;
+  if (!repoPath || !source.valid || !workflow) return null;
 
   return {
     path: repoPath,
-    sourceType,
+    sourceType: source.sourceType,
     ai,
     dbg,
     workflow: workflow.id,

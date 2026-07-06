@@ -6,6 +6,7 @@ import {
   canSubmitAudit,
   detectWorkflow,
 } from "./auditWorkflows.js";
+import { detectAuditSource } from "./auditSources.js";
 
 const homeCss = readFileSync(new URL("../styles/home.css", import.meta.url), "utf8");
 
@@ -43,19 +44,85 @@ test("recognized repository path submit payload contains workflow and type", () 
   assert.deepEqual(
     buildAuditSubmitPayload({
       path: "https://git.intra/report/fine-report.git",
-      sourceType: "svn",
       ai: true,
       dbg: true,
     }),
     {
       path: "https://git.intra/report/fine-report.git",
-      sourceType: "svn",
+      sourceType: "git",
       ai: true,
       dbg: true,
       workflow: "fine-report",
       type: "fine-report",
     },
   );
+});
+
+test("svn path is detected as svn source", () => {
+  assert.deepEqual(detectAuditSource("svn://example.com/repos/branches/demo-hcyt"), {
+    sourceType: "svn",
+    label: "svn",
+    valid: true,
+  });
+});
+
+test("https git path is detected as git source", () => {
+  assert.deepEqual(detectAuditSource("https://git.intra/report/fine-report.git"), {
+    sourceType: "git",
+    label: "git",
+    valid: true,
+  });
+});
+
+test("windows local path is detected as local directory", () => {
+  assert.equal(detectAuditSource("C:\\path\\to\\local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+});
+
+test("linux local path is detected as local directory", () => {
+  assert.equal(detectAuditSource("/home/dev/local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+});
+
+test("relative local paths are detected as local directory", () => {
+  assert.equal(detectAuditSource("./local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+  assert.equal(detectAuditSource("../local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+});
+
+test("unknown path cannot be submitted", () => {
+  const source = detectAuditSource("plain random string");
+  assert.equal(source.sourceType, "unknown");
+  assert.equal(source.valid, false);
+  assert.equal(canSubmitAudit("plain random string"), false);
+});
+
+test("local directory cannot be submitted when local source is disabled", () => {
+  assert.equal(detectAuditSource("C:\\path\\to\\local-hcyt-workspace", { enableLocalSource: false }).valid, false);
+  assert.equal(canSubmitAudit("C:\\path\\to\\local-hcyt-workspace", { enableLocalSource: false }), false);
+  assert.equal(buildAuditSubmitPayload({ path: "C:\\path\\to\\local-hcyt-workspace", enableLocalSource: false }), null);
+});
+
+test("local directory can be submitted in development or when explicitly enabled", () => {
+  assert.equal(canSubmitAudit("C:\\path\\to\\local-hcyt-workspace", { dev: true }), true);
+  assert.deepEqual(
+    buildAuditSubmitPayload({
+      path: "C:\\path\\to\\local-hcyt-workspace",
+      enableLocalSource: true,
+    }),
+    {
+      path: "C:\\path\\to\\local-hcyt-workspace",
+      sourceType: "local_dir",
+      ai: false,
+      dbg: false,
+      workflow: "hcyt",
+      type: "hcyt",
+    },
+  );
+});
+
+test("source type detection and workflow detection are independent", () => {
+  assert.equal(detectAuditSource("svn://example.com/repos/branches/demo-hcyt").sourceType, "svn");
+  assert.equal(detectWorkflow("svn://example.com/repos/branches/demo-hcyt"), "hcyt");
+  assert.equal(detectAuditSource("https://git.intra/team/nups.git").sourceType, "git");
+  assert.equal(detectWorkflow("https://git.intra/team/nups.git"), "nups");
 });
 
 test("workflow card grid uses bounded responsive columns", () => {

@@ -22,6 +22,11 @@
 .pi-field { flex: 1; border: none; outline: none; background: transparent; height: 44px; padding: 0 14px; font-size: var(--fs-sm); color: var(--text); min-width: 0; }
 .pi-detect { display: flex; align-items: center; gap: 6px; padding: 0 14px; font-size: var(--fs-xs); color: var(--ok-fg); font-weight: 600; white-space: nowrap; }
 .pi-detect.muted { color: var(--text-3); font-weight: 400; }
+.source-summary {
+  display: flex; flex-wrap: wrap; gap: 10px 18px; margin: 11px 2px 0;
+  font-size: var(--fs-xs); color: var(--text-3);
+}
+.source-summary strong { color: var(--text-2); font-weight: 600; }
 
 .route-grid {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px; margin-top: 16px;
