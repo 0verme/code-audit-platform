@@ -19,3 +19,7 @@ __pycache__/
 
 # 真实数据库连接信息（含口令），不入库；用 database.example.yaml 作模板
 backend/svn_check/configs/database.yaml
+
+# Database profile config: commit only database.example.yaml templates.
+backend/configs/database.yaml
+backend/configs/database.local*.yaml
