@@ -122,17 +122,15 @@ class LocalAuditTaskTests(unittest.TestCase):
             database.DB_PATH = db_path
             try:
                 database.init_db()
-                with database.get_connection() as connection:
-                    cursor = connection.execute(
-                        """
-                        INSERT INTO audit_tasks (
-                            repo, workflow, status, revision, author, started_at, duration, source_type
-                        )
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        ("C:\\path\\to\\local-hcyt-workspace", "hcyt", "running", "-", "tester", datetime.now().isoformat(), "0s", "local"),
+                task_id = database.execute_insert(
+                    """
+                    INSERT INTO audit_tasks (
+                        repo, workflow, status, revision, author, started_at, duration, source_type
                     )
-                    task_id = cursor.lastrowid
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    ("C:\\path\\to\\local-hcyt-workspace", "hcyt", "running", "-", "tester", datetime.now().isoformat(), "0s", "local"),
+                )
 
                 run = engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
                 workspace = {

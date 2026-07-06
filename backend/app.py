@@ -8,7 +8,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import engine
-from database import get_connection, init_db
+from database import execute_insert, get_connection, init_db
 
 
 app = Flask(__name__)
@@ -21,7 +21,7 @@ def _fail_orphan_tasks():
         connection.execute(
             """
             UPDATE audit_tasks
-            SET status = 'fail', step = '中断', error = '后端重启导致任务中断，请重新提交审查'
+            SET status = 'fail', step = 'interrupted', error = 'backend restarted while task was running'
             WHERE status IN ('running', 'queued')
             """
         )
@@ -51,7 +51,7 @@ def infer_source_type(source_ref: str | None) -> str:
     lower = value.lower()
     if not value:
         return "unknown"
-    if lower.startswith("local-selfcheck") or "selfcheck" in lower or "自检" in value:
+    if lower.startswith("local-selfcheck") or "selfcheck" in lower:
         return "selfcheck"
     if lower.startswith("svn://") or lower.startswith("svn+ssh://"):
         return "svn"
@@ -167,34 +167,32 @@ def create_audit_task():
     debug_enabled = bool(payload.get("debug_enabled"))
     started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    with get_connection() as connection:
-        cursor = connection.execute(
-            """
-            INSERT INTO audit_tasks (
-                repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
-                started_at, duration, ai_enabled, debug_enabled, progress, step, source_type
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                source_ref,
-                source_ref,
-                workflow,
-                "running",
-                revision,
-                operator_user,
-                operator_user,
-                client_ip,
-                started_at,
-                "0秒",
-                int(ai_enabled),
-                int(debug_enabled),
-                0,
-                "排队中",
-                source_type,
-            ),
+    task_id = execute_insert(
+        """
+        INSERT INTO audit_tasks (
+            repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
+            started_at, duration, ai_enabled, debug_enabled, progress, step, source_type
         )
-        task_id = cursor.lastrowid
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            source_ref,
+            source_ref,
+            workflow,
+            "running",
+            revision,
+            operator_user,
+            operator_user,
+            client_ip,
+            started_at,
+            "0s",
+            int(ai_enabled),
+            int(debug_enabled),
+            0,
+            "queued",
+            source_type,
+        ),
+    )
 
     engine.start_task(task_id, source_ref, workflow, ai_enabled, debug_enabled, operator_user, source_type)
     return jsonify(

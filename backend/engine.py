@@ -22,7 +22,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from database import get_connection
+from database import get_connection, upsert_task_report
 
 # 把拷贝进来的真实项目加入模块搜索路径，保持其内部 `from core...`、
 # `from services...`、`from shared...` 等绝对导入原样可用。
@@ -386,12 +386,12 @@ class TaskRun:
                     json.dumps(self.logs, ensure_ascii=False), self.task_id,
                 ),
             )
-            if report is not None:
-                connection.execute(
-                    "INSERT OR REPLACE INTO task_reports (task_id, report_json, created_at) VALUES (?, ?, ?)",
-                    (self.task_id, json.dumps(report, ensure_ascii=False),
-                     datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-                )
+        if report is not None:
+            upsert_task_report(
+                self.task_id,
+                json.dumps(report, ensure_ascii=False),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            )
 
     def save_category_rows(self, grouped_rows):
         """同步写 audit_results，保留 /api/audit-results 旧接口可用。"""
@@ -1096,7 +1096,7 @@ class TaskRun:
             elif result is not None:
                 issues = [{"cat": "tpl", "loc": file_name, "rule": "规则执行异常", "level": "warn", "msg": str(result)}]
 
-            preview_url = (f"http://10.133.6.11/fine/svn_check.html?viewlet={quote(viewlet, safe='')}"
+            preview_url = (f"https://fine.example.com/svn_check.html?viewlet={quote(viewlet, safe='')}"
                            if viewlet else "")
             reports.append({
                 "title": title,

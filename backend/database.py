@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 from pathlib import Path
 
 from db.connection import connect
@@ -78,9 +77,6 @@ class CompatConnection:
             self.close()
 
     def execute(self, sql, params=()):
-        if self.profile.type in {"postgresql", "dws"} and sql.lstrip().upper().startswith("INSERT OR REPLACE INTO TASK_REPORTS"):
-            return self._replace_task_report(params)
-
         cursor = self._connection.cursor()
         sql_to_execute = self._sql_for_insert_id(sql)
         cursor.execute(self._normalize_sql(sql_to_execute), tuple(params or ()))
@@ -136,19 +132,6 @@ class CompatConnection:
             return row["id"]
         return row[0]
 
-    def _replace_task_report(self, params):
-        task_id, report_json, created_at = tuple(params or ())
-        delete_cursor = self._connection.cursor()
-        delete_cursor.execute(self._normalize_sql("DELETE FROM task_reports WHERE task_id = ?"), (task_id,))
-        delete_cursor.close()
-        insert_cursor = self._connection.cursor()
-        insert_cursor.execute(
-            self._normalize_sql("INSERT INTO task_reports (task_id, report_json, created_at) VALUES (?, ?, ?)"),
-            (task_id, report_json, created_at),
-        )
-        return CompatCursor(insert_cursor, self.profile, lastrowid=task_id)
-
-
 def _runtime_profile() -> DatabaseProfile:
     profile = resolve_profile()
     if profile.type == "sqlite" and not any((os.getenv(CONFIG_PATH_ENV), os.getenv(PROFILE_ENV))):
@@ -163,7 +146,22 @@ def get_connection() -> CompatConnection:
     return CompatConnection(_runtime_profile())
 
 
-def _migrate_audit_tasks(connection: sqlite3.Connection) -> None:
+def execute_insert(sql: str, params=()) -> int:
+    with get_connection() as connection:
+        cursor = connection.execute(sql, params)
+        return cursor.lastrowid
+
+
+def upsert_task_report(task_id: int, report_json: str, created_at: str) -> None:
+    with get_connection() as connection:
+        connection.execute("DELETE FROM task_reports WHERE task_id = ?", (task_id,))
+        connection.execute(
+            "INSERT INTO task_reports (task_id, report_json, created_at) VALUES (?, ?, ?)",
+            (task_id, report_json, created_at),
+        )
+
+
+def _migrate_audit_tasks(connection: CompatConnection) -> None:
     """老库平滑升级：补齐任务进度 / 日志相关列。"""
     existing = {row[1] for row in connection.execute("PRAGMA table_info(audit_tasks)").fetchall()}
     for name, ddl in (

@@ -11,6 +11,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import database  # noqa: E402
+from database import execute_insert, upsert_task_report  # noqa: E402
 
 
 class DatabaseCompatTests(unittest.TestCase):
@@ -25,50 +26,23 @@ class DatabaseCompatTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_sqlite_profile_creates_project(self):
-        with database.get_connection() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO projects (name, project_key, repo_path, workflow, description)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                ("Demo", "demo", "https://example.com/repo.git", "hcyt", "Demo project"),
-            )
-            project_id = cursor.lastrowid
+        project_id = execute_insert(
+            """
+            INSERT INTO projects (name, project_key, repo_path, workflow, description)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("Demo", "demo", "https://example.com/repo.git", "hcyt", "Demo project"),
+        )
         self.assertGreater(project_id, 0)
 
     def test_sqlite_profile_creates_audit_task_and_returns_id(self):
-        with database.get_connection() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO audit_tasks (
-                    repo, source_ref, workflow, status, revision, author, operator_user,
-                    client_ip, started_at, duration
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    "https://example.com/repo.git",
-                    "https://example.com/repo.git",
-                    "hcyt",
-                    "running",
-                    "-",
-                    "tester",
-                    "tester",
-                    "127.0.0.1",
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "0s",
-                ),
-            )
-        self.assertGreater(cursor.lastrowid, 0)
+        task_id = self._create_task()
+        self.assertGreater(task_id, 0)
 
     def test_sqlite_profile_writes_task_report(self):
         task_id = self._create_task()
         report = {"task": {"id": task_id}, "items": ["中文", "line\nbreak"]}
-        with database.get_connection() as connection:
-            connection.execute(
-                "INSERT OR REPLACE INTO task_reports (task_id, report_json, created_at) VALUES (?, ?, ?)",
-                (task_id, json.dumps(report, ensure_ascii=False), datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-            )
+        upsert_task_report(task_id, json.dumps(report, ensure_ascii=False), datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         with database.get_connection() as connection:
             row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
         self.assertEqual(json.loads(row["report_json"]), report)
@@ -95,29 +69,27 @@ class DatabaseCompatTests(unittest.TestCase):
         self.assertEqual(rows[0]["status"], "running")
 
     def _create_task(self) -> int:
-        with database.get_connection() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO audit_tasks (
-                    repo, source_ref, workflow, status, revision, author, operator_user,
-                    client_ip, started_at, duration
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    "https://example.com/repo.git",
-                    "https://example.com/repo.git",
-                    "hcyt",
-                    "running",
-                    "-",
-                    "tester",
-                    "tester",
-                    "127.0.0.1",
-                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "0s",
-                ),
+        return execute_insert(
+            """
+            INSERT INTO audit_tasks (
+                repo, source_ref, workflow, status, revision, author, operator_user,
+                client_ip, started_at, duration
             )
-            return cursor.lastrowid
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "https://example.com/repo.git",
+                "https://example.com/repo.git",
+                "hcyt",
+                "running",
+                "-",
+                "tester",
+                "tester",
+                "127.0.0.1",
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "0s",
+            ),
+        )
 
 
 if __name__ == "__main__":
