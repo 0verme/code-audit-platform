@@ -6,7 +6,12 @@ import {
   canSubmitAudit,
   detectWorkflow,
 } from "./auditWorkflows.js";
-import { detectAuditSource } from "./auditSources.js";
+import {
+  detectAuditSource,
+  inferAuditSourceType,
+  normalizeAuditSourceType,
+  resolveAuditSourceMeta,
+} from "./auditSources.js";
 
 const homeCss = readFileSync(new URL("../styles/home.css", import.meta.url), "utf8");
 
@@ -59,32 +64,32 @@ test("recognized repository path submit payload contains workflow and type", () 
 });
 
 test("svn path is detected as svn source", () => {
-  assert.deepEqual(detectAuditSource("svn://example.com/repos/branches/demo-hcyt"), {
-    sourceType: "svn",
-    label: "svn",
-    valid: true,
-  });
+  const source = detectAuditSource("svn://example.com/repos/branches/demo-hcyt");
+  assert.equal(source.sourceType, "svn");
+  assert.equal(source.label, "SVN");
+  assert.equal(source.tag, "SVN");
+  assert.equal(source.valid, true);
 });
 
 test("https git path is detected as git source", () => {
-  assert.deepEqual(detectAuditSource("https://git.intra/report/fine-report.git"), {
-    sourceType: "git",
-    label: "git",
-    valid: true,
-  });
+  const source = detectAuditSource("https://git.intra/report/fine-report.git");
+  assert.equal(source.sourceType, "git");
+  assert.equal(source.label, "Git");
+  assert.equal(source.tag, "Git");
+  assert.equal(source.valid, true);
 });
 
 test("windows local path is detected as local directory", () => {
-  assert.equal(detectAuditSource("C:\\path\\to\\local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+  assert.equal(detectAuditSource("C:\\path\\to\\local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local");
 });
 
 test("linux local path is detected as local directory", () => {
-  assert.equal(detectAuditSource("/home/dev/local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+  assert.equal(detectAuditSource("/home/dev/local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local");
 });
 
 test("relative local paths are detected as local directory", () => {
-  assert.equal(detectAuditSource("./local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
-  assert.equal(detectAuditSource("../local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local_dir");
+  assert.equal(detectAuditSource("./local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local");
+  assert.equal(detectAuditSource("../local-hcyt-workspace", { enableLocalSource: true }).sourceType, "local");
 });
 
 test("unknown path cannot be submitted", () => {
@@ -109,13 +114,35 @@ test("local directory can be submitted in development or when explicitly enabled
     }),
     {
       path: "C:\\path\\to\\local-hcyt-workspace",
-      sourceType: "local_dir",
+      sourceType: "local",
       ai: false,
       dbg: false,
       workflow: "hcyt",
       type: "hcyt",
     },
   );
+});
+
+test("git ssh and svn+ssh paths are inferred correctly", () => {
+  assert.equal(inferAuditSourceType("git@gitlab.example.com:team/repo.git"), "git");
+  assert.equal(inferAuditSourceType("ssh://git@gitlab.example.com/team/repo.git"), "git");
+  assert.equal(inferAuditSourceType("svn+ssh://svn.example.com/project/branch"), "svn");
+});
+
+test("selfcheck and legacy source types normalize correctly", () => {
+  assert.equal(inferAuditSourceType("local-selfcheck/fine-report"), "selfcheck");
+  assert.equal(normalizeAuditSourceType("local_dir"), "local");
+});
+
+test("recent task source metadata can be resolved from legacy fields", () => {
+  const source = resolveAuditSourceMeta({
+    repo: "https://git.intra/report/fine-report.git",
+    source_type: "",
+  }, { enableLocalSource: true });
+
+  assert.equal(source.sourceRef, "https://git.intra/report/fine-report.git");
+  assert.equal(source.sourceType, "git");
+  assert.equal(source.tag, "Git");
 });
 
 test("source type detection and workflow detection are independent", () => {

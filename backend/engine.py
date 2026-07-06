@@ -445,6 +445,7 @@ class TaskRun:
                 report = self.run_hcyt(svn_result)
 
             report["sourceType"] = svn_result.get("source_type", self.source_type)
+            report["sourceRef"] = self.repo
             report["workspaceRoot"] = svn_result.get("workspace_root", "")
             report["logs"] = self.logs
             self.update(progress=100, step="完成")
@@ -468,6 +469,7 @@ class TaskRun:
         meta = {
             "status": status,
             "repo": self.repo,
+            "sourceRef": self.repo,
             "module": self.workflow,
             "workflow": WORKFLOW_NAMES.get(self.workflow, self.workflow),
             "revision": f"r{revision}" if revision else "-",

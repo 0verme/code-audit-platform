@@ -51,6 +51,7 @@
 .rc-desc { font-size: 10px; color: var(--text-3); line-height: 1.35; }
 .rc-flag { position: absolute; top: 8px; right: 8px; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; }
 .route-hint { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-3); margin: 11px 2px 0; white-space: nowrap; }
+.route-hint-runtime { flex-wrap: wrap; }
 
 .toggles { display: flex; flex-direction: column; gap: 8px; }
 .row-toggle {
@@ -74,21 +75,42 @@
 
 .recent-block { margin-top: 30px; }
 .recent-list { padding: 4px; }
+.recent-head,
 .recent-row {
-  display: grid; grid-template-columns: 12px 64px 1fr auto auto auto; gap: 14px; align-items: center;
+  display: grid; grid-template-columns: 12px 64px minmax(0, 1fr) auto 72px 150px; gap: 14px; align-items: center;
   padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: var(--fs-sm);
 }
+.recent-head {
+  cursor: default;
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.recent-head span:nth-child(5),
+.recent-head span:nth-child(6) { justify-self: end; }
 .recent-row:hover { background: var(--surface-2); }
 .rr-rev { font-size: var(--fs-xs); color: var(--accent); font-weight: 600; }
-.rr-repo { font-size: var(--fs-xs); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-source { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-xs); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-tag {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  min-width: 42px; height: 20px; padding: 0 8px; border-radius: 999px;
+  background: var(--surface-3); border: 1px solid var(--border); color: var(--text-3);
+  font-size: 10px; font-weight: 700; letter-spacing: .03em;
+}
 .rr-wf { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap; }
-.rr-who { font-size: var(--fs-xs); color: var(--text-3); }
-.rr-when { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+.rr-who { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; justify-self: end; }
+.rr-when { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; justify-self: end; }
 
 @media (max-width: 640px) {
   .route-grid { grid-template-columns: 1fr; }
-  .recent-row { grid-template-columns: 12px 1fr auto; }
-  .rr-repo, .rr-wf, .rr-who { display: none; }
+  .recent-head,
+  .recent-row { grid-template-columns: 12px minmax(0, 1fr) auto; }
+  .recent-head span:nth-child(4),
+  .recent-head span:nth-child(5),
+  .rr-wf,
+  .rr-who { display: none; }
 }
 
 @media (max-width: 480px) {

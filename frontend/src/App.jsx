@@ -1,7 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { Icon } from "./components/ui";
+import { Badge, Dot, Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
 import { API_BASE_URL, AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
+import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
+import { isLocalSourceEnabled } from "./config/auditSources";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
@@ -23,13 +25,35 @@ const SECTION_NAV = [
   { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
   { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
   { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
-  { id: "python", label: "Python 脚本", icon: "python", get: (data) => data.pyScripts, neutral: true },
-  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
+  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
-  { id: "schedule", label: "调度表", icon: "grid", get: (data) => data.schedule.rows.filter((row) => row.level !== "ok") },
-  { id: "reftables", label: "引用表汇总", icon: "db", get: (data) => data.refTables, neutral: true },
-  { id: "deps", label: "作业依赖", icon: "flow", get: (data) => data.deps, neutral: true },
+  {
+    id: "schedule",
+    label: "调度表检查",
+    icon: "grid",
+    get: (data) => [
+      ...(data.schedule?.rows?.filter((row) => row.level !== "ok") || []),
+      ...((data.deps || []).map((item) => ({ ...item, level: item.level || "warn" }))),
+    ],
+  },
+  {
+    id: "python",
+    label: "Python 脚本",
+    icon: "python",
+    get: (data) => {
+      const flaggedScripts = (data.pyScripts || []).flatMap((script) => {
+        const lint = script.lint || [];
+        const result = script.result || [];
+        const hasErr = lint.some((item) => item.level === "err") || result.some((item) => item.state === "missing");
+        const hasWarn = lint.some((item) => item.level === "warn") || result.some((item) => item.state === "extra");
+        if (!hasErr && !hasWarn) return [];
+        return [{ script: script.script, level: hasErr ? "err" : "warn" }];
+      });
+      return [...flaggedScripts, ...((data.refTables || []).map((item) => ({ ...item, level: item.level || "warn" })))];
+    },
+    neutral: true,
+  },
 ];
 const FR_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
@@ -58,6 +82,8 @@ const showTweakControls =
   import.meta.env.DEV || import.meta.env.VITE_SHOW_TWEAKS === "true";
 
 const THEME_STORAGE_KEY = "codeReviewPlatform.theme";
+const isDevBuild = import.meta.env.DEV;
+const localSourceEnabled = isLocalSourceEnabled();
 
 function getInitialTheme() {
   if (typeof window === "undefined") return "light";
@@ -103,7 +129,7 @@ function RunningView({ task }) {
   const step = task?.step || "排队中";
   const recentLogs = (task?.logs || []).slice(-12);
   return (
-    <div className="card fade-in" style={{ padding: 24 }}>
+    <div className="card fade-in task-state-card">
       <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <Icon name="clock" size={16} /> 审查任务执行中
       </div>
@@ -123,7 +149,7 @@ function RunningView({ task }) {
 function FailedView({ task, onBack }) {
   const recentLogs = (task?.logs || []).slice(-20);
   return (
-    <div className="card fade-in" style={{ padding: 24, borderColor: "var(--err)" }}>
+    <div className="card fade-in task-state-card" style={{ borderColor: "var(--err)" }}>
       <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--err-fg)" }}>
         <Icon name="x" size={16} /> 审查任务执行失败
       </div>
@@ -140,7 +166,7 @@ function FailedView({ task, onBack }) {
 
 function ApiErrorView({ error, onBack }) {
   return (
-    <div className="card fade-in" style={{ padding: 24, borderColor: "var(--err)" }}>
+    <div className="card fade-in task-state-card" style={{ borderColor: "var(--err)" }}>
       <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--err-fg)" }}>
         <Icon name="x" size={16} /> 任务接口不可用
       </div>
@@ -157,7 +183,7 @@ function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
       <div className="rail-head">
-        <div className="brand-mark">审</div>
+        <img className="brand-mark" src="/favicon.svg" alt="代码审查平台" />
         {!collapsed ? (
           <div style={{ minWidth: 0 }}>
             <div className="brand-name">代码审查平台</div>
@@ -200,6 +226,34 @@ function PageFallback() {
   );
 }
 
+function AppFooter({ apiHealth }) {
+  const apiOnline = IS_API_MODE && !apiHealth.loading && !apiHealth.error;
+  const apiPending = IS_API_MODE && apiHealth.loading;
+  const apiStatusText = !IS_API_MODE
+    ? "本地演示数据"
+    : (apiPending ? "审查引擎连接中" : (apiOnline ? "审查引擎在线" : "审查引擎离线"));
+  const runtimeLabel = IS_API_MODE ? "API 模式" : "Mock 模式";
+  const apiTitle = isDevBuild && IS_API_MODE ? API_BASE_URL : undefined;
+  const statusTone = !IS_API_MODE ? "info" : (apiPending ? "info" : (apiOnline ? "ok" : "warn"));
+
+  return (
+    <footer className="app-footer-shell">
+      <div className="app-footer">
+        <span className="app-footer-copy">{APP_NAME} {APP_EDITION} · {APP_VERSION} · {runtimeLabel}</span>
+        <span className="app-footer-divider" aria-hidden="true">·</span>
+        <span className="app-footer-status" title={apiTitle}>
+          <Dot tone={statusTone} />
+          <span>{apiStatusText}</span>
+        </span>
+        <Badge tone={statusTone} mono>
+          {IS_API_MODE ? "API" : "MOCK"}
+        </Badge>
+        {localSourceEnabled ? <Badge tone="accent" mono>LOCAL</Badge> : null}
+      </div>
+    </footer>
+  );
+}
+
 export default function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [theme, setTheme] = useState(getInitialTheme);
@@ -225,6 +279,7 @@ export default function App() {
   const currentRevision = liveData?.task?.revision || run.task?.revision || (IS_API_MODE ? `task-${params.taskId || "pending"}` : data.task.revision);
   const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: IS_API_MODE && view === "home" });
   const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [view], { enabled: IS_API_MODE && view === "home" });
+  const apiHealthState = useAsyncResource(() => reviewService.getHealth(), [], { enabled: IS_API_MODE });
   const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), [], {
     enabled: IS_API_MODE && view === "results" && !isFR && !params.taskId,
   });
@@ -288,8 +343,9 @@ export default function App() {
   async function handleCreateTask(payload) {
     try {
       return await reviewService.createAuditTask({
+        sourceRef: payload.path,
         repo: payload.path,
-        sourceType: payload.sourceType || "svn",
+        sourceType: payload.sourceType || "unknown",
         workflow: payload.workflow,
         type: payload.type,
         ai_enabled: payload.ai,
@@ -310,6 +366,13 @@ export default function App() {
   }
 
   const taskFailed = !!params.taskId && !!run.task && !run.running && !liveData;
+  const isTaskStateView =
+    !!params.taskId && (
+      (IS_API_MODE && !!run.error && !liveData) ||
+      run.running ||
+      (!run.task && !run.error) ||
+      taskFailed
+    );
 
   const page = useMemo(() => {
     if (view === "home") {
@@ -321,7 +384,6 @@ export default function App() {
             tasksState={tasksState}
             onCreateTask={handleCreateTask}
             dataMode={AUDIT_DATA_MODE}
-            apiBaseUrl={API_BASE_URL}
           />
         </Suspense>
       );
@@ -369,7 +431,7 @@ export default function App() {
   }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, liveData, params.taskId, projectsState, run.error, run.running, run.task, t.variant, taskFailed, tasksState, view]);
 
   return (
-    <div className={`app${view === "home" ? " no-rail" : ""}`}>
+    <div className={`app${canShowRail ? "" : " no-rail"}`}>
       {canShowRail ? (
         <>
           <div
@@ -416,14 +478,15 @@ export default function App() {
           />
         </header>
 
-        <div className="content" ref={contentRef}>
-          {view === "home" ? page : <div className="content-inner">{page}</div>}
+        <div className={`content${isTaskStateView ? " content-task-state" : ""}`} ref={contentRef}>
+          {view === "home"
+            ? page
+            : isTaskStateView
+              ? <div className="audit-running-main">{page}</div>
+              : <div className="content-inner">{page}</div>}
         </div>
 
-        <footer className="app-footer">
-          <span>任务接口模式：<strong>{AUDIT_DATA_MODE}</strong></span>
-          <span>{IS_API_MODE ? `API_BASE_URL=${API_BASE_URL}` : "使用本地演示数据，不请求任务接口"}</span>
-        </footer>
+        <AppFooter apiHealth={apiHealthState} />
 
         {view === "results" && (params.dbg || run.task?.logs?.length) ? (
           <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} logs={run.task?.logs} />

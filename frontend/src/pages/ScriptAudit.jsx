@@ -23,18 +23,27 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
   const flagged = scripts.filter((script) => {
     const audit = scriptAudit(script);
     return audit.err || audit.warn;
-  }).length;
+  });
   const anyErr = scripts.some((script) => scriptAudit(script).err);
+  const refTables = d.refTables || [];
+  const totalCount = flagged.length + refTables.length;
+
+  const refTypes = [
+    { key: "result", label: "结果表", cls: "result" },
+    { key: "mid", label: "中间表", cls: "mid" },
+    { key: "src", label: "源表 / 维表", cls: "src" },
+    { key: "temp", label: "临时表", cls: "temp" },
+  ];
 
   return (
     <Panel
       id="python"
       icon="python"
-      title="Python 脚本检查"
+      title="Python 脚本"
       registerRef={reg}
-      sub="规范检查 + SQL 引用表 / 调度依赖表一致性"
-      count={flagged ? `${flagged} 项待核查` : "全部通过"}
-      countTone={flagged ? (anyErr ? "err" : "warn") : "ok"}
+      sub="引用表汇总"
+      count={totalCount || "全部通过"}
+      countTone={totalCount ? (anyErr ? "err" : "warn") : "ok"}
     >
       <div className="panel-body flush">
         <div className="pas-list">
@@ -66,6 +75,32 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
               </button>
             );
           })}
+        </div>
+        <div className="panel-body" style={{ borderTop: "1px solid var(--border)" }}>
+          <div className="subhead" style={{ marginBottom: 14 }}><Icon name="db" size={12} /> 引用表汇总</div>
+          <div className="legend" style={{ marginBottom: 14 }}>
+            {refTypes.map((type) => {
+              const count = refTables.filter((item) => item.type === type.key).length;
+              return (
+                <span key={type.key} className="lg-item">
+                  <span className={`chip ${type.cls}`}><span className="cdot" />{type.label}</span>
+                  <span className="mono" style={{ color: "var(--text-3)" }}>x{count}</span>
+                </span>
+              );
+            })}
+          </div>
+          {refTables.length ? refTypes.map((type) => {
+            const items = refTables.filter((item) => item.type === type.key);
+            if (!items.length) return null;
+            return (
+              <div key={type.key} style={{ marginBottom: 12 }}>
+                <div className="subhead" style={{ marginBottom: 7 }}>{type.label} / {items.length}</div>
+                <div className="chips">
+                  {items.map((item) => <span key={item.name} className={`chip ${type.cls}`}><span className="cdot" />{item.name}</span>)}
+                </div>
+              </div>
+            );
+          }) : <OkState>未发现引用表问题</OkState>}
         </div>
       </div>
     </Panel>
@@ -176,14 +211,14 @@ export function ScriptDetailDrawer({ script, onClose }) {
               <div className="table-wrap sd-cmp">
                 <table className="tbl">
                   <thead>
-                    <tr><th className="num" style={{ width: 56 }}>行号</th><th>规则</th><th style={{ width: 64 }}>级别</th><th>说明</th></tr>
+                    <tr><th className="num" style={{ width: 56 }}>行号</th><th>规则</th><th className="severity-cell">级别</th><th>说明</th></tr>
                   </thead>
                   <tbody>
                     {lint.map((item, index) => (
                       <tr key={index} className={item.level === "err" ? "err-row" : item.level === "warn" ? "warn-row" : ""}>
                         <td className="num mono">{item.line}</td>
                         <td className="rule-cell">{item.rule}</td>
-                        <td><Sev level={item.level} /></td>
+                        <td className="severity-cell"><Sev level={item.level} /></td>
                         <td>{item.msg}</td>
                       </tr>
                     ))}

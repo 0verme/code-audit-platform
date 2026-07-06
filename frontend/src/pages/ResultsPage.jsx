@@ -14,14 +14,30 @@ export const SECTION_NAV = [
   { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
   { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
   { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
-  { id: "asset-issues", label: "资产问题", icon: "link", get: (data) => data.assetIssues, neutral: true },
-  { id: "python", label: "Python 脚本", icon: "python", get: (data) => data.pyScripts, neutral: true },
-  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
+  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
-  { id: "schedule", label: "调度表", icon: "grid", get: (data) => data.schedule.rows.filter((row) => row.level !== "ok") },
-  { id: "reftables", label: "引用表汇总", icon: "db", get: (data) => data.refTables, neutral: true },
-  { id: "deps", label: "作业依赖", icon: "flow", get: (data) => data.deps, neutral: true },
+  {
+    id: "schedule",
+    label: "调度表检查",
+    icon: "grid",
+    get: (data) => [
+      ...(data.schedule?.rows?.filter((row) => row.level !== "ok") || []),
+      ...((data.deps || []).map((item) => ({ ...item, level: item.level || "warn" }))),
+    ],
+  },
+  {
+    id: "python",
+    label: "Python 脚本",
+    icon: "python",
+    get: (data) => {
+      return [
+        ...getPythonIssueRows(data),
+        ...((data.refTables || []).map((item) => ({ ...item, level: item.level || "warn" }))),
+      ];
+    },
+    neutral: true,
+  },
 ];
 
 function StatusHeader({ d }) {
@@ -443,12 +459,14 @@ function ConfigJsonSection({ files, reg }) {
 
 function ScheduleSection({ d, reg }) {
   const schedule = d.schedule;
-  const severity = levelOf(schedule.rows);
+  const scheduleIssues = getScheduleIssueRows(d);
+  const deps = d.deps || [];
+  const severity = levelOf([...scheduleIssues, ...deps]);
   const columns = [
     { key: "table", label: "表" },
     { key: "item", label: "对象", cls: "rule-cell" },
     { key: "rule", label: "规则" },
-    { key: "level", label: "级别" },
+    { key: "level", label: "级别", cls: "severity-cell", width: 84, minWidth: 84 },
     { key: "msg", label: "说明" },
   ];
 
@@ -456,11 +474,12 @@ function ScheduleSection({ d, reg }) {
     <Panel
       id="schedule"
       icon="grid"
-      title="调度表检查（Excel）"
+      title="调度表检查"
       registerRef={reg}
-      count={schedule.summary.cycles ? "循环依赖" : (severity === "ok" ? "通过" : schedule.rows.length)}
-      countTone={schedule.summary.cycles ? "err" : (severity || "ok")}
-      defaultOpen={severity !== "ok"}
+      sub="依赖链分析"
+      count={scheduleIssues.length + deps.length || "通过"}
+      countTone={severity || "ok"}
+      defaultOpen={scheduleIssues.length > 0 || deps.length > 0}
     >
       <div className="panel-body">
         <div className="metrics" style={{ marginBottom: "var(--gap)" }}>
@@ -471,90 +490,74 @@ function ScheduleSection({ d, reg }) {
           <Metric label="缺失映射" value={schedule.summary.missing} tone={schedule.summary.missing ? "warn" : "ok"} />
         </div>
         {schedule.tables ? <ScheduleListTables tables={schedule.tables} /> : null}
-        {schedule.rows.length ? <div className="subhead" style={{ margin: "6px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div> : null}
-        {schedule.rows.length ? <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+        {scheduleIssues.length ? <div className="subhead" style={{ margin: "6px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div> : null}
+        {scheduleIssues.length ? <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
           <table className="tbl">
-            <thead><tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
+            <thead>
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={column.key}
+                    className={column.cls || ""}
+                    style={column.width || column.minWidth ? { width: column.width, minWidth: column.minWidth } : undefined}
+                  >
+                    {column.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {schedule.rows.map((row, index) => (
+              {scheduleIssues.map((row, index) => (
                 <tr key={index} className={row.level === "err" ? "err-row" : row.level === "warn" ? "warn-row" : ""}>
                   <td><Badge mono tone={row.table === "PLAN" ? "accent" : row.table === "SEQ" ? "info" : ""}>{row.table}</Badge></td>
                   <td className="rule-cell mono" style={{ fontSize: "var(--fs-xs)" }}>{row.item}</td>
                   <td>{row.rule}</td>
-                  <td><Sev level={row.level} /></td>
+                  <td className="severity-cell"><Sev level={row.level} /></td>
                   <td>{row.msg}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div> : null}
+        <div className="subhead" style={{ margin: "14px 0 7px" }}><Icon name="flow" size={12} /> 依赖链分析</div>
+        {deps.length ? (
+          <div className="dep-graph">
+            {deps.map((lane) => (
+              <div key={lane.lane} className="dep-lane">
+                <div className="dep-lane-label">{lane.lane}</div>
+                <div className="dep-nodes">
+                  {lane.nodes.map((node) => (
+                    <span key={node.name} className={`dep-node${node.focus ? " focus" : ""}`}>
+                      <Icon name={node.focus ? "play" : "db"} size={11} />
+                      {node.name}
+                      {node.q ? <span className="nq">{node.q}</span> : null}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <OkState>未发现需要关注的作业依赖问题</OkState>
+        )}
       </div>
     </Panel>
   );
 }
 
-const REF_TYPES = [
-  { key: "result", label: "结果表", cls: "result" },
-  { key: "mid", label: "中间表", cls: "mid" },
-  { key: "src", label: "源表 / 维表", cls: "src" },
-  { key: "temp", label: "临时表", cls: "temp" },
-];
-
-function RefTablesSection({ d, reg }) {
-  return (
-    <Panel id="reftables" icon="db" title="SQL 引用表汇总" registerRef={reg} count={d.refTables.length} sub="去重后按类型着色">
-      <div className="panel-body">
-        <div className="legend" style={{ marginBottom: 14 }}>
-          {REF_TYPES.map((type) => {
-            const count = d.refTables.filter((item) => item.type === type.key).length;
-            return (
-              <span key={type.key} className="lg-item">
-                <span className={`chip ${type.cls}`}><span className="cdot" />{type.label}</span>
-                <span className="mono" style={{ color: "var(--text-3)" }}>x{count}</span>
-              </span>
-            );
-          })}
-        </div>
-        {REF_TYPES.map((type) => {
-          const items = d.refTables.filter((item) => item.type === type.key);
-          if (!items.length) return null;
-          return (
-            <div key={type.key} style={{ marginBottom: 12 }}>
-              <div className="subhead" style={{ marginBottom: 7 }}>{type.label} / {items.length}</div>
-              <div className="chips">
-                {items.map((item) => <span key={item.name} className={`chip ${type.cls}`}><span className="cdot" />{item.name}</span>)}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
-  );
+function getScheduleIssueRows(data) {
+  return data.schedule?.rows?.filter((row) => row.level !== "ok") || [];
 }
 
-function DepsSection({ d, reg }) {
-  return (
-    <Panel id="deps" icon="flow" title="作业依赖分析" registerRef={reg} sub="上下游依赖关系">
-      <div className="panel-body">
-        <div className="dep-graph">
-          {d.deps.map((lane) => (
-            <div key={lane.lane} className="dep-lane">
-              <div className="dep-lane-label">{lane.lane}</div>
-              <div className="dep-nodes">
-                {lane.nodes.map((node) => (
-                  <span key={node.name} className={`dep-node${node.focus ? " focus" : ""}`}>
-                    <Icon name={node.focus ? "play" : "db"} size={11} />
-                    {node.name}
-                    {node.q ? <span className="nq">{node.q}</span> : null}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Panel>
-  );
+function getPythonIssueRows(data) {
+  return (data.pyScripts || []).flatMap((script) => {
+    const lint = script.lint || [];
+    const result = script.result || [];
+    const hasErr = lint.some((item) => item.level === "err") || result.some((item) => item.state === "missing");
+    const hasWarn = lint.some((item) => item.level === "warn") || result.some((item) => item.state === "extra");
+    if (!hasErr && !hasWarn) return [];
+    return [{ script: script.script, level: hasErr ? "err" : "warn" }];
+  });
 }
 
 export function AiSection({ d, reg }) {
@@ -594,11 +597,10 @@ function aggregateIssues(data) {
   const groups = [
     ["DWS SQL", data.dws],
     ["Hive SQL", data.hive],
-    ["Python", data.python],
-    ["后置脚本", data.sbin],
     ["配置文件", data.config],
+    ["后置脚本", data.sbin],
     ["收卸配置", data.recv],
-    ["调度表", data.schedule.rows.filter((row) => row.level !== "ok")],
+    ["调度表检查", getScheduleIssueRows(data)],
   ];
   const order = { err: 0, warn: 1, info: 2, ok: 3 };
   return groups.flatMap(([cat, rows]) => rows.map((row) => ({ cat, ...row }))).sort((left, right) => order[left.level] - order[right.level]);
@@ -618,11 +620,11 @@ function IssuesBoard({ d }) {
       <div className="ib-head"><Icon name="search" size={14} /> 问题汇总 / 按严重级别排序 <Badge tone="err" mono>{issues.filter((item) => item.level === "err").length} 错误</Badge> <Badge tone="warn" mono>{issues.filter((item) => item.level === "warn").length} 警告</Badge></div>
       <div className="table-wrap">
         <table className="tbl">
-          <thead><tr><th>级别</th><th>分类</th><th>规则</th><th>位置</th><th>说明</th></tr></thead>
+          <thead><tr><th className="severity-cell">级别</th><th>分类</th><th>规则</th><th>位置</th><th>说明</th></tr></thead>
           <tbody>
             {issues.map((item, index) => (
               <tr key={index} className={item.level === "err" ? "err-row" : "warn-row"}>
-                <td><Sev level={item.level} /></td>
+                <td className="severity-cell"><Sev level={item.level} /></td>
                 <td><Badge>{item.cat}</Badge></td>
                 <td className="rule-cell">{item.rule}</td>
                 <td className="mono" style={{ fontSize: "var(--fs-xs)" }}>{item.file ? `${item.file}${item.line ? `:${item.line}` : ""}` : item.item}</td>
@@ -640,11 +642,11 @@ const CATS = [
   { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
   { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
   { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
-  { id: "python", label: "Python 脚本", icon: "python", get: (data) => data.python },
-  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
+  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
-  { id: "schedule", label: "调度表", icon: "grid", get: (data) => data.schedule.rows.filter((row) => row.level !== "ok") },
+  { id: "schedule", label: "调度表检查", icon: "grid", get: (data) => [...getScheduleIssueRows(data), ...((data.deps || []).map((item) => ({ ...item, level: item.level || "warn" })))] },
+  { id: "python", label: "Python 脚本", icon: "python", get: (data) => [...getPythonIssueRows(data), ...((data.refTables || []).map((item) => ({ ...item, level: item.level || "warn" })))] },
 ];
 
 function CategoryBoard({ d, onJump }) {
@@ -727,16 +729,14 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <ConflictSection d={mergedData} reg={reg} />
       <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} scriptMeta={mergedData.sqlChecks?.dws} />
       <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} scriptMeta={mergedData.sqlChecks?.hive} />
-      <AssetIssuesSection d={mergedData} reg={reg} />
-      <LineageSummarySection d={mergedData} reg={reg} />
-      <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
-      <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="config" icon="cog" title="配置文件检查" rows={mergedData.config} reg={reg} okMsg="Schema 配置文件校验通过" />
       <ConfigJsonSection files={mergedData.configFiles} reg={reg} />
+      <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" />
       <ScheduleSection d={mergedData} reg={reg} />
-      <RefTablesSection d={mergedData} reg={reg} />
-      <DepsSection d={mergedData} reg={reg} />
+      <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
+      <AssetIssuesSection d={mergedData} reg={reg} />
+      <LineageSummarySection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
       {openScript ? <ScriptDetailDrawer script={openScript} onClose={() => setOpenScript(null)} /> : null}
     </div>

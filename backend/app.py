@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-from database import get_connection, init_db
-
 import engine
+from database import get_connection, init_db
 
 
 app = Flask(__name__)
@@ -17,7 +17,6 @@ init_db()
 
 
 def _fail_orphan_tasks():
-    """任务线程随进程退出（重启/热重载）后，把遗留的 running 任务标记为失败。"""
     with get_connection() as connection:
         connection.execute(
             """
@@ -32,9 +31,45 @@ _fail_orphan_tasks()
 
 
 TASK_COLUMNS = """
-    id, repo, workflow, status, revision, author, started_at, duration,
-    ai_enabled, debug_enabled, progress, step, finished_at, error, logs_json, source_type
+    id, repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
+    started_at, duration, ai_enabled, debug_enabled, progress, step, finished_at,
+    error, logs_json, source_type
 """
+
+
+def normalize_source_type(value: str | None) -> str:
+    source_type = str(value or "").strip().lower()
+    if source_type == "local_dir":
+        return "local"
+    if source_type in {"local", "svn", "git", "selfcheck", "unknown"}:
+        return source_type
+    return ""
+
+
+def infer_source_type(source_ref: str | None) -> str:
+    value = str(source_ref or "").strip()
+    lower = value.lower()
+    if not value:
+        return "unknown"
+    if lower.startswith("local-selfcheck") or "selfcheck" in lower or "自检" in value:
+        return "selfcheck"
+    if lower.startswith("svn://") or lower.startswith("svn+ssh://"):
+        return "svn"
+    if lower.startswith("git://") or re.match(r"^[^@\s]+@[^:\s]+:.+", value) or re.match(r"^ssh://[^/]+/.+", lower):
+        return "git"
+    if re.match(r"^https?://", lower):
+        if lower.endswith(".git") or "/git/" in lower or "git." in lower or "/repos/" in lower:
+            return "git"
+    if re.match(r"^[a-zA-Z]:[\\/]", value) or lower.startswith("/") or lower.startswith("./") or lower.startswith("../"):
+        return "local"
+    return "unknown"
+
+
+def extract_client_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or ""
 
 
 def task_row_to_dict(row):
@@ -43,6 +78,15 @@ def task_row_to_dict(row):
         task["logs"] = json.loads(task.pop("logs_json") or "[]")
     except (TypeError, ValueError):
         task["logs"] = []
+    task["source_ref"] = task.get("source_ref") or task.get("repo") or ""
+    inferred_source_type = infer_source_type(task["source_ref"])
+    task["source_type"] = normalize_source_type(task.get("source_type")) or inferred_source_type
+    if task["source_type"] == "svn" and inferred_source_type in {"git", "local", "selfcheck"}:
+        task["source_type"] = inferred_source_type
+    task["sourceRef"] = task["source_ref"]
+    task["sourceType"] = task["source_type"]
+    task["operator_user"] = task.get("operator_user") or task.get("author") or ""
+    task["client_ip"] = task.get("client_ip") or ""
     return task
 
 
@@ -63,18 +107,14 @@ def get_projects():
 @app.get("/api/audit-tasks")
 def get_audit_tasks():
     with get_connection() as connection:
-        rows = connection.execute(
-            f"SELECT {TASK_COLUMNS} FROM audit_tasks ORDER BY id DESC"
-        ).fetchall()
+        rows = connection.execute(f"SELECT {TASK_COLUMNS} FROM audit_tasks ORDER BY id DESC").fetchall()
     return jsonify([task_row_to_dict(row) for row in rows])
 
 
 @app.get("/api/audit-tasks/<int:task_id>")
 def get_audit_task(task_id: int):
     with get_connection() as connection:
-        row = connection.execute(
-            f"SELECT {TASK_COLUMNS} FROM audit_tasks WHERE id = ?", (task_id,)
-        ).fetchone()
+        row = connection.execute(f"SELECT {TASK_COLUMNS} FROM audit_tasks WHERE id = ?", (task_id,)).fetchone()
     if row is None:
         return jsonify({"error": "task not found"}), 404
     return jsonify(task_row_to_dict(row))
@@ -83,9 +123,7 @@ def get_audit_task(task_id: int):
 @app.get("/api/audit-tasks/<int:task_id>/report")
 def get_audit_task_report(task_id: int):
     with get_connection() as connection:
-        row = connection.execute(
-            "SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)
-        ).fetchone()
+        row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
     if row is None:
         return jsonify({"error": "report not ready"}), 404
     return app.response_class(row["report_json"], mimetype="application/json")
@@ -94,29 +132,37 @@ def get_audit_task_report(task_id: int):
 @app.post("/api/audit-tasks")
 def create_audit_task():
     payload = request.get_json(silent=True) or {}
-    source_type = (payload.get("sourceType") or payload.get("source_type") or "svn").strip().lower()
-    if source_type not in {"svn", "local"}:
-        return jsonify({"error": "sourceType must be svn or local"}), 400
-
-    repo = (
-        payload.get("repo")
+    source_ref = (
+        payload.get("sourceRef")
+        or payload.get("source_ref")
+        or payload.get("repo")
+        or payload.get("path")
         or payload.get("workspaceRoot")
         or payload.get("workspace_root")
         or payload.get("localPath")
         or payload.get("local_path")
+        or payload.get("targetPath")
+        or payload.get("target_path")
+        or payload.get("workspacePath")
+        or payload.get("workspace_path")
         or ""
     ).strip()
-    if not repo:
-        field = "localPath" if source_type == "local" else "repo"
-        return jsonify({"error": f"{field} is required"}), 400
+    source_type = normalize_source_type(payload.get("sourceType") or payload.get("source_type")) or infer_source_type(source_ref)
 
-    workflow = engine.detect_workflow(repo, payload.get("workflow", "hcyt"))
+    if not source_ref:
+        return jsonify({"error": "sourceRef is required"}), 400
+    if source_type == "unknown":
+        return jsonify({"error": "sourceType is unknown and could not be inferred"}), 400
+
+    workflow = engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
     if source_type == "local":
         workflow = (payload.get("workflow") or "hcyt").strip().lower()
         if workflow != "hcyt":
             return jsonify({"error": "local source currently supports hcyt workflow only"}), 400
+
     revision = payload.get("revision") or "-"
-    author = payload.get("author") or "local-user"
+    operator_user = (payload.get("operator_user") or payload.get("author") or "local-user").strip() or "local-user"
+    client_ip = (payload.get("client_ip") or extract_client_ip()).strip()
     ai_enabled = bool(payload.get("ai_enabled"))
     debug_enabled = bool(payload.get("debug_enabled"))
     started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -125,21 +171,46 @@ def create_audit_task():
         cursor = connection.execute(
             """
             INSERT INTO audit_tasks (
-                repo, workflow, status, revision, author, started_at, duration,
-                ai_enabled, debug_enabled, progress, step, source_type
+                repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
+                started_at, duration, ai_enabled, debug_enabled, progress, step, source_type
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                repo, workflow, "running", revision, author, started_at, "0秒",
-                int(ai_enabled), int(debug_enabled), 0, "排队中", source_type,
+                source_ref,
+                source_ref,
+                workflow,
+                "running",
+                revision,
+                operator_user,
+                operator_user,
+                client_ip,
+                started_at,
+                "0秒",
+                int(ai_enabled),
+                int(debug_enabled),
+                0,
+                "排队中",
+                source_type,
             ),
         )
         task_id = cursor.lastrowid
 
-    # 后台线程跑真实审查引擎（pytools_new/apps/svn_check）
-    engine.start_task(task_id, repo, workflow, ai_enabled, debug_enabled, author, source_type)
-    return jsonify({"id": task_id, "repo": repo, "workflow": workflow, "sourceType": source_type, "status": "running"}), 201
+    engine.start_task(task_id, source_ref, workflow, ai_enabled, debug_enabled, operator_user, source_type)
+    return jsonify(
+        {
+            "id": task_id,
+            "repo": source_ref,
+            "source_ref": source_ref,
+            "source_type": source_type,
+            "sourceRef": source_ref,
+            "sourceType": source_type,
+            "workflow": workflow,
+            "operator_user": operator_user,
+            "client_ip": client_ip,
+            "status": "running",
+        }
+    ), 201
 
 
 @app.get("/api/audit-results")

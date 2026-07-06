@@ -297,7 +297,7 @@ function ReportDetailDrawer({ report, onClose }) {
                     <th style={{ width: 110 }}>Category</th>
                     <th style={{ width: 120 }}>Location</th>
                     <th>Rule</th>
-                    <th style={{ width: 70 }}>Level</th>
+                    <th className="severity-cell">Level</th>
                     <th>Message</th>
                   </tr>
                 </thead>
@@ -309,7 +309,7 @@ function ReportDetailDrawer({ report, onClose }) {
                         <td><span className="fr-cat"><Icon name={category.icon} size={12} />{category.label}</span></td>
                         <td className="mono" style={{ fontSize: "var(--fs-xs)" }}>{issue.loc}</td>
                         <td className="rule-cell">{issue.rule}</td>
-                        <td><Sev level={issue.level} /></td>
+                        <td className="severity-cell"><Sev level={issue.level} /></td>
                         <td>{issue.msg}</td>
                       </tr>
                     );

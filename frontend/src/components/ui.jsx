@@ -110,7 +110,7 @@ export function ViolationTable({ rows, cols }) {
     { key: "file", label: "文件", cls: "file-cell" },
     { key: "line", label: "行号", cls: "num" },
     { key: "rule", label: "规则", cls: "rule-cell" },
-    { key: "level", label: "级别" },
+    { key: "level", label: "级别", cls: "severity-cell", width: 84, minWidth: 84 },
     { key: "msg", label: "说明" },
   ];
   return (
@@ -119,7 +119,11 @@ export function ViolationTable({ rows, cols }) {
         <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className={column.cls === "num" ? "num" : ""}>
+              <th
+                key={column.key}
+                className={column.cls === "num" ? "num" : column.cls || ""}
+                style={column.width || column.minWidth ? { width: column.width, minWidth: column.minWidth } : undefined}
+              >
                 {column.label}
               </th>
             ))}

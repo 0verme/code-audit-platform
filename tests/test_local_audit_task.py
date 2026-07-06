@@ -53,12 +53,19 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 201)
                 body = response.get_json()
                 self.assertEqual(body["sourceType"], "local")
+                self.assertEqual(body["sourceRef"], "C:\\path\\to\\local-hcyt-workspace")
                 self.assertEqual(captured["source_type"], "local")
                 self.assertEqual(captured["workflow"], "hcyt")
 
                 with database.get_connection() as connection:
-                    row = connection.execute("SELECT source_type FROM audit_tasks WHERE id = ?", (body["id"],)).fetchone()
+                    row = connection.execute(
+                        "SELECT source_type, source_ref, operator_user, client_ip FROM audit_tasks WHERE id = ?",
+                        (body["id"],),
+                    ).fetchone()
                 self.assertEqual(row["source_type"], "local")
+                self.assertEqual(row["source_ref"], "C:\\path\\to\\local-hcyt-workspace")
+                self.assertEqual(row["operator_user"], "local-user")
+                self.assertTrue(row["client_ip"])
             finally:
                 database.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
@@ -82,6 +89,28 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 201)
                 self.assertEqual(response.get_json()["sourceType"], "svn")
                 self.assertEqual(captured["args"][6], "svn")
+            finally:
+                database.DB_PATH = old_db_path
+                sys.modules.pop("app", None)
+
+    def test_create_audit_task_accepts_git_source_and_infers_type(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = database.DB_PATH
+            database.DB_PATH = db_path
+            sys.modules.pop("app", None)
+            try:
+                app_module = importlib.import_module("app")
+                with patch.object(app_module.engine, "start_task", lambda *args, **kwargs: None):
+                    response = app_module.app.test_client().post(
+                        "/api/audit-tasks",
+                        json={"sourceRef": "git@gitlab.example.com:team/repo.git", "workflow": "hcyt"},
+                    )
+
+                self.assertEqual(response.status_code, 201)
+                body = response.get_json()
+                self.assertEqual(body["sourceType"], "git")
+                self.assertEqual(body["sourceRef"], "git@gitlab.example.com:team/repo.git")
             finally:
                 database.DB_PATH = old_db_path
                 sys.modules.pop("app", None)

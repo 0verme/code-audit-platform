@@ -26,9 +26,16 @@ def _migrate_audit_tasks(connection: sqlite3.Connection) -> None:
         ("error", "ALTER TABLE audit_tasks ADD COLUMN error TEXT"),
         ("logs_json", "ALTER TABLE audit_tasks ADD COLUMN logs_json TEXT NOT NULL DEFAULT '[]'"),
         ("source_type", "ALTER TABLE audit_tasks ADD COLUMN source_type TEXT NOT NULL DEFAULT 'svn'"),
+        ("source_ref", "ALTER TABLE audit_tasks ADD COLUMN source_ref TEXT NOT NULL DEFAULT ''"),
+        ("operator_user", "ALTER TABLE audit_tasks ADD COLUMN operator_user TEXT NOT NULL DEFAULT ''"),
+        ("client_ip", "ALTER TABLE audit_tasks ADD COLUMN client_ip TEXT NOT NULL DEFAULT ''"),
     ):
         if name not in existing:
             connection.execute(ddl)
+    if "source_ref" not in existing:
+        connection.execute("UPDATE audit_tasks SET source_ref = repo WHERE source_ref = ''")
+    if "operator_user" not in existing:
+        connection.execute("UPDATE audit_tasks SET operator_user = author WHERE operator_user = ''")
 
 
 def init_db() -> None:
@@ -49,10 +56,13 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS audit_tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 repo TEXT NOT NULL,
+                source_ref TEXT NOT NULL DEFAULT '',
                 workflow TEXT NOT NULL,
                 status TEXT NOT NULL,
                 revision TEXT NOT NULL,
                 author TEXT NOT NULL,
+                operator_user TEXT NOT NULL DEFAULT '',
+                client_ip TEXT NOT NULL DEFAULT '',
                 started_at TEXT NOT NULL,
                 duration TEXT NOT NULL,
                 ai_enabled INTEGER NOT NULL DEFAULT 0,
@@ -176,10 +186,11 @@ def init_db() -> None:
                     "1m12s",
                     1,
                     0,
-                    "svn",
+                    "git",
                 ),
             ],
         )
+        connection.execute("UPDATE audit_tasks SET source_ref = repo, operator_user = author WHERE source_ref = '' OR operator_user = ''")
 
         connection.executemany(
             """
