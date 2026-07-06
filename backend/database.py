@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 from pathlib import Path
+
+from db.connection import connect
+from db.profiles import CONFIG_PATH_ENV, PROFILE_ENV, DatabaseProfile, resolve_profile
+from db.schema import initialize_schema
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -10,10 +15,152 @@ DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "app.db"
 
 
-def get_connection() -> sqlite3.Connection:
-    connection = sqlite3.connect(DB_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+class CompatRow(dict):
+    def __init__(self, columns, values):
+        super().__init__(zip(columns, values))
+        self._values = tuple(values)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._values[key]
+        return super().__getitem__(key)
+
+
+class CompatCursor:
+    def __init__(self, cursor, profile: DatabaseProfile, lastrowid=None):
+        self._cursor = cursor
+        self._profile = profile
+        self.lastrowid = lastrowid if lastrowid is not None else getattr(cursor, "lastrowid", None)
+        self.rowcount = getattr(cursor, "rowcount", None)
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        if row is None:
+            return None
+        return self._convert_row(row)
+
+    def fetchall(self):
+        return [self._convert_row(row) for row in self._cursor.fetchall()]
+
+    def close(self):
+        close = getattr(self._cursor, "close", None)
+        if close:
+            close()
+
+    def _convert_row(self, row):
+        if isinstance(row, CompatRow):
+            return row
+        if hasattr(row, "keys"):
+            return CompatRow(list(row.keys()), [row[key] for key in row.keys()])
+        columns = [description[0] for description in (self._cursor.description or [])]
+        return CompatRow(columns, row)
+
+
+class CompatConnection:
+    def __init__(self, profile: DatabaseProfile):
+        self.profile = profile
+        self._connection = connect(profile)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if exc_type is None:
+                self._connection.commit()
+            else:
+                self._connection.rollback()
+        finally:
+            self.close()
+
+    def execute(self, sql, params=()):
+        if self.profile.type in {"postgresql", "dws"} and sql.lstrip().upper().startswith("INSERT OR REPLACE INTO TASK_REPORTS"):
+            return self._replace_task_report(params)
+
+        cursor = self._connection.cursor()
+        sql_to_execute = self._sql_for_insert_id(sql)
+        cursor.execute(self._normalize_sql(sql_to_execute), tuple(params or ()))
+        lastrowid = self._extract_insert_id(cursor, sql_to_execute)
+        return CompatCursor(cursor, self.profile, lastrowid=lastrowid)
+
+    def executemany(self, sql, seq_of_params):
+        cursor = self._connection.cursor()
+        cursor.executemany(self._normalize_sql(sql), [tuple(params) for params in seq_of_params])
+        return CompatCursor(cursor, self.profile)
+
+    def executescript(self, sql_script):
+        if self.profile.type == "sqlite":
+            return self._connection.executescript(sql_script)
+        cursor = self._connection.cursor()
+        for statement in [part.strip() for part in sql_script.split(";") if part.strip()]:
+            cursor.execute(self._normalize_sql(statement))
+        return CompatCursor(cursor, self.profile)
+
+    def commit(self):
+        self._connection.commit()
+
+    def rollback(self):
+        self._connection.rollback()
+
+    def close(self):
+        self._connection.close()
+
+    def _normalize_sql(self, sql):
+        if self.profile.type in {"postgresql", "dws"}:
+            return sql.replace("?", "%s")
+        return sql
+
+    def _sql_for_insert_id(self, sql):
+        if self.profile.type == "sqlite":
+            return sql
+        lowered = sql.lower()
+        if lowered.lstrip().startswith("insert") and " returning " not in lowered:
+            return f"{sql.rstrip()} RETURNING id"
+        return sql
+
+    def _extract_insert_id(self, cursor, sql):
+        if self.profile.type == "sqlite":
+            return getattr(cursor, "lastrowid", None)
+        if " returning " not in sql.lower():
+            return None
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        if isinstance(row, dict):
+            return row.get("id")
+        if hasattr(row, "keys"):
+            return row["id"]
+        return row[0]
+
+    def _replace_task_report(self, params):
+        task_id, report_json, created_at = tuple(params or ())
+        delete_cursor = self._connection.cursor()
+        delete_cursor.execute(self._normalize_sql("DELETE FROM task_reports WHERE task_id = ?"), (task_id,))
+        delete_cursor.close()
+        insert_cursor = self._connection.cursor()
+        insert_cursor.execute(
+            self._normalize_sql("INSERT INTO task_reports (task_id, report_json, created_at) VALUES (?, ?, ?)"),
+            (task_id, report_json, created_at),
+        )
+        return CompatCursor(insert_cursor, self.profile, lastrowid=task_id)
+
+
+def _runtime_profile() -> DatabaseProfile:
+    profile = resolve_profile()
+    if profile.type == "sqlite" and not any((os.getenv(CONFIG_PATH_ENV), os.getenv(PROFILE_ENV))):
+        config = dict(profile.config)
+        config["path"] = str(DB_PATH)
+        config["database"] = str(DB_PATH)
+        return DatabaseProfile(profile.name, profile.type, config)
+    return profile
+
+
+def get_connection() -> CompatConnection:
+    return CompatConnection(_runtime_profile())
 
 
 def _migrate_audit_tasks(connection: sqlite3.Connection) -> None:
@@ -41,76 +188,11 @@ def _migrate_audit_tasks(connection: sqlite3.Connection) -> None:
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+    initialize_schema(_runtime_profile())
+
     with get_connection() as connection:
-        connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS projects (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                project_key TEXT NOT NULL,
-                repo_path TEXT NOT NULL,
-                workflow TEXT NOT NULL,
-                description TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS audit_tasks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                repo TEXT NOT NULL,
-                source_ref TEXT NOT NULL DEFAULT '',
-                workflow TEXT NOT NULL,
-                status TEXT NOT NULL,
-                revision TEXT NOT NULL,
-                author TEXT NOT NULL,
-                operator_user TEXT NOT NULL DEFAULT '',
-                client_ip TEXT NOT NULL DEFAULT '',
-                started_at TEXT NOT NULL,
-                duration TEXT NOT NULL,
-                ai_enabled INTEGER NOT NULL DEFAULT 0,
-                debug_enabled INTEGER NOT NULL DEFAULT 0,
-                progress INTEGER NOT NULL DEFAULT 0,
-                step TEXT NOT NULL DEFAULT '',
-                finished_at TEXT,
-                error TEXT,
-                logs_json TEXT NOT NULL DEFAULT '[]',
-                source_type TEXT NOT NULL DEFAULT 'svn'
-            );
-
-            CREATE TABLE IF NOT EXISTS task_reports (
-                task_id INTEGER PRIMARY KEY,
-                report_json TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (task_id) REFERENCES audit_tasks(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS audit_results (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                task_id INTEGER NOT NULL,
-                category TEXT NOT NULL,
-                file_name TEXT NOT NULL,
-                line_no INTEGER NOT NULL,
-                rule_name TEXT NOT NULL,
-                level TEXT NOT NULL,
-                message TEXT NOT NULL,
-                FOREIGN KEY (task_id) REFERENCES audit_tasks(id)
-            );
-
-            CREATE TABLE IF NOT EXISTS fine_report_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                file_path TEXT NOT NULL,
-                report_type TEXT NOT NULL,
-                change_type TEXT NOT NULL,
-                connection_name TEXT NOT NULL,
-                focus TEXT NOT NULL,
-                dataset_sql TEXT NOT NULL,
-                dataset_rows TEXT NOT NULL,
-                issues_json TEXT NOT NULL,
-                ref_tables_json TEXT NOT NULL
-            );
-            """
-        )
-
-        _migrate_audit_tasks(connection)
+        if connection.profile.type == "sqlite":
+            _migrate_audit_tasks(connection)
 
         project_count = connection.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
         if project_count:
@@ -125,21 +207,21 @@ def init_db() -> None:
                 (
                     "HCYT Lakehouse Review",
                     "hcyt",
-                    "svn://10.18.32.7/datawh/branches/2026Q2/hcyt",
+                    "svn://example.com/repos/datawh/branches/demo-hcyt",
                     "hcyt",
                     "DWS / Hive SQL / Python / Scheduling",
                 ),
                 (
                     "FineReport Review",
                     "fine-report",
-                    "https://git.intra/report/fine-report.git",
+                    "https://git.example.com/report/fine-report.git",
                     "fine-report",
                     "Templates / Datasets / Permissions",
                 ),
                 (
                     "NUPS Unified Payment Review",
                     "nups",
-                    "svn://10.18.32.7/pay/nups/trunk",
+                    "svn://example.com/repos/pay/nups/trunk",
                     "nups",
                     "Contracts / Config / Integration Checks",
                 ),
@@ -153,7 +235,7 @@ def init_db() -> None:
             """,
             [
                 (
-                    "svn://10.18.32.7/datawh/branches/2026Q2/hcyt",
+                    "svn://example.com/repos/datawh/branches/demo-hcyt",
                     "hcyt",
                     "fail",
                     "r48217",
@@ -165,7 +247,7 @@ def init_db() -> None:
                     "svn",
                 ),
                 (
-                    "svn://10.18.32.7/datawh/branches/2026Q2/hcyt",
+                    "svn://example.com/repos/datawh/branches/demo-hcyt",
                     "hcyt",
                     "pass",
                     "r48231",
@@ -177,7 +259,7 @@ def init_db() -> None:
                     "svn",
                 ),
                 (
-                    "https://git.intra/report/fine-report.git",
+                    "https://git.example.com/report/fine-report.git",
                     "fine-report",
                     "fail",
                     "8f1c2ad",
