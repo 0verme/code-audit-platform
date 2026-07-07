@@ -1,5 +1,0 @@
-{
-  "name": "demo_recv_job",
-  "sql": "select * from dwuprr.ijep_demo_asset",
-  "target": "demo_target"
-}

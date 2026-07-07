@@ -1,5 +1,5 @@
 backend/__pycache__/
-backend/data/*.db
+backend/data/
 *.py[cod]
 
 frontend/node_modules/
@@ -23,3 +23,15 @@ backend/svn_check/configs/database.yaml
 # Database profile config: commit only database.example.yaml templates.
 backend/configs/database.yaml
 backend/configs/database.local*.yaml
+
+# Codex local state
+.codex/
+
+# Runtime logs
+*.log
+
+# Local HCYT test workspace
+hcyt/
+
+# Static prototype workspace
+静态原型代码/
