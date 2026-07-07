@@ -78,6 +78,9 @@ class FakeModules:
     def dedupe_issues(self, issues):
         return list(issues or [])
 
+    def asset_issues_to_unified_issues(self, issues, scan_batch_id=None):
+        return []
+
 
 class EngineLineageSummaryTests(unittest.TestCase):
     def _run_empty_hcyt_report(self, metadata_service=None):
