@@ -307,7 +307,7 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
             result_text += f'{job_name} 实时作业的优先级需要设置 99\n'
             cnt += 1
         if ifmiaoshu(miaoshu, job_name):
-            result_text += f'{job_name} 第四列作业描述必须要明确加工作用 参考： http://10.129.134.159/#/kaifa/sharkdata_miaoshu\n'
+            result_text += f'{job_name} 第四列作业描述必须要明确加工作用 参考： https://example.com/docs/schedule-description\n'
             cnt += 1
         if plan_name in ('PLAN_DWS_DWM_MODEL', 'PLAN_DWS_DWM_DWS_DWM_DAY') and cale != 'SYS_EVERYDAY_CALENDAR':
             result_text += f'{job_name} 的执行日历 {cale} 不对  实际应该是每日跑批 SYS_EVERYDAY_CALENDAR\n'

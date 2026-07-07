@@ -1,10 +1,10 @@
 export { AUDIT_WORKFLOWS as WORKFLOWS, detectWorkflow } from "../config/auditWorkflows";
 
 export const DEFAULT_RECENT = [
-  { repo: "svn://10.18.32.7/datawh/branches/2026Q2/hcyt", wf: "hcyt", rev: "r48217", status: "fail", when: "10 分钟前", who: "zhanglei" },
-  { repo: "svn://10.18.32.7/datawh/branches/2026Q2/hcyt", wf: "hcyt", rev: "r48231", status: "pass", when: "32 分钟前", who: "wangmin" },
-  { repo: "https://git.intra/report/fine-report.git", wf: "fine-report", rev: "8f1c2ad", status: "fail", when: "1 小时前", who: "liyang" },
-  { repo: "svn://10.18.32.7/pay/nups/trunk", wf: "nups", rev: "r9021", status: "warn", when: "2 小时前", who: "chenhao" },
+  { repo: "svn+ssh://svn.example.com/example/repo/branches/demo/hcyt", wf: "hcyt", rev: "r48217", status: "fail", when: "10 分钟前", who: "zhanglei" },
+  { repo: "svn+ssh://svn.example.com/example/repo/branches/demo/hcyt", wf: "hcyt", rev: "r48231", status: "pass", when: "32 分钟前", who: "wangmin" },
+  { repo: "https://git.example.com/report/fine-report.git", wf: "fine-report", rev: "8f1c2ad", status: "fail", when: "1 小时前", who: "liyang" },
+  { repo: "svn+ssh://svn.example.com/example/repo/trunk/nups", wf: "nups", rev: "r9021", status: "warn", when: "2 小时前", who: "chenhao" },
 ];
 
 // ===========================================================================
@@ -15,7 +15,7 @@ export const DEFAULT_RECENT = [
 const HCYT_FAIL = {
   task: {
     status: "fail",
-    repo: "svn://10.18.32.7/datawh/branches/2026Q2/hcyt",
+    repo: "svn+ssh://svn.example.com/example/repo/branches/demo/hcyt",
     module: "hcyt",
     workflow: "HCYT 湖仓审查",
     revision: "r48217",
@@ -323,7 +323,7 @@ const HCYT_EDGE = {
   task: {
     ...HCYT_PASS.task,
     status: "warn",
-    repo: "svn://demo.example/hcyt/edge",
+    repo: "svn+ssh://svn.example.com/example/repo/branches/demo-hcyt/edge",
     revision: "r-demo-edge",
     author: "demo_user",
     startedAt: "2026-06-07 18:00:00",
@@ -367,7 +367,7 @@ const HCYT_EDGE = {
     sysNames: [
       "DEMO_SOURCE_SYSTEM",
       { sysName: "DEMO_OBJECT_SOURCE" },
-      { label: "demo source with ip 10.0.0.1" },
+      { label: "demo source with ip 192.0.2.10" },
     ],
     outfiles: [
       "demo_outfile_edge.dat",
@@ -376,7 +376,7 @@ const HCYT_EDGE = {
     ],
     warnings: [
       "DEMO lineage warning: placeholder metadata was incomplete.",
-      { message: "DEMO masked text check password=*** token=*** jdbc:demo://*** 10.0.0.1" },
+      { message: "DEMO masked text check password=*** token=*** jdbc:demo://*** 192.0.2.10" },
     ],
   },
   schedule: {
@@ -398,7 +398,7 @@ const HCYT_EDGE = {
 const FR_FAIL = {
   task: {
     status: "fail",
-    repo: "https://git.intra/report/fine-report.git",
+    repo: "https://git.example.com/report/fine-report.git",
     module: "fine-report",
     workflow: "FineReport 报表审查",
     revision: "8f1c2ad",
@@ -588,7 +588,7 @@ const FR_PASS = {
 const NUPS_FAIL = {
   task: {
     status: "fail",
-    repo: "svn://10.18.32.7/pay/nups/trunk",
+    repo: "svn+ssh://svn.example.com/example/repo/trunk/nups",
     module: "nups",
     workflow: "NUPS 统一支付审查",
     revision: "r9021",

@@ -31,7 +31,7 @@ def get_export_base():
     return Path(r"E:\svn测试")
 
 def get_export_http_root():
-    return os.getenv("SVN_CHECK_DOWNLOAD_ROOT", "http://10.133.6.11/svn_check_tmp")
+    return os.getenv("SVN_CHECK_DOWNLOAD_ROOT", "https://example.com/downloads")
 
 def build_export_download_url(path_str):
     export_base = get_export_base()

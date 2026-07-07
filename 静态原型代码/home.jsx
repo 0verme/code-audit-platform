@@ -7,10 +7,10 @@ const WORKFLOWS = [
 ];
 
 const RECENT = [
-  { repo: "svn://10.18.32.7/datawh/branches/2026Q2", wf: "hcyt", rev: "r48217", status: "fail", when: "10 分钟前", who: "zhanglei" },
-  { repo: "svn://10.18.32.7/datawh/branches/2026Q2", wf: "hcyt", rev: "r48231", status: "pass", when: "32 分钟前", who: "wangmin" },
-  { repo: "https://git.intra/report/fine-report.git", wf: "fine-report", rev: "8f1c2ad", status: "pass", when: "1 小时前", who: "liyang" },
-  { repo: "svn://10.18.32.7/pay/nups/trunk", wf: "nups", rev: "r9021", status: "warn", when: "2 小时前", who: "chenhao" },
+  { repo: "svn+ssh://svn.example.com/example/repo/branches/demo", wf: "hcyt", rev: "r48217", status: "fail", when: "10 分钟前", who: "zhanglei" },
+  { repo: "svn+ssh://svn.example.com/example/repo/branches/demo", wf: "hcyt", rev: "r48231", status: "pass", when: "32 分钟前", who: "wangmin" },
+  { repo: "https://git.example.com/report/fine-report.git", wf: "fine-report", rev: "8f1c2ad", status: "pass", when: "1 小时前", who: "liyang" },
+  { repo: "svn+ssh://svn.example.com/example/repo/trunk/nups", wf: "nups", rev: "r9021", status: "warn", when: "2 小时前", who: "chenhao" },
 ];
 
 function detectWorkflow(path) {
@@ -36,7 +36,7 @@ function Toggle({ on, onChange, label, desc, icon }) {
 }
 
 function HomePage({ onSubmit }) {
-  const [path, setPath] = React.useState("svn://10.18.32.7/datawh/branches/2026Q2/hcyt");
+  const [path, setPath] = React.useState("svn+ssh://svn.example.com/example/repo/branches/demo/hcyt");
   const [ai, setAi] = React.useState(false);
   const [dbg, setDbg] = React.useState(false);
   const detected = detectWorkflow(path);
@@ -61,7 +61,7 @@ function HomePage({ onSubmit }) {
             <input className="pi-field mono" value={path} spellCheck={false}
               onChange={e => setPath(e.target.value)}
               onKeyDown={e => e.key === "Enter" && submit()}
-              placeholder="svn://… 或 https://…" />
+              placeholder="https://svn.example.com/... or https://git.example.com/..." />
             {detected
               ? <span className="pi-detect"><Dot tone="ok" /> 已识别</span>
               : <span className="pi-detect muted"><Dot /> 待识别</span>}
@@ -71,10 +71,10 @@ function HomePage({ onSubmit }) {
             {WORKFLOWS.map(w => (
               <div key={w.key} className={"route-card" + (detected === w.key ? " active" : "")}
                 onClick={() => setPath(p => {
-                  const base = "svn://10.18.32.7/datawh/branches/2026Q2";
+                  const base = "svn+ssh://svn.example.com/example/repo/branches/demo";
                   return w.key === "hcyt" ? base + "/hcyt"
-                    : w.key === "fine-report" ? "https://git.intra/report/fine-report.git"
-                    : "svn://10.18.32.7/pay/nups/trunk";
+                    : w.key === "fine-report" ? "https://git.example.com/report/fine-report.git"
+                    : "svn+ssh://svn.example.com/example/repo/trunk/nups";
                 })}>
                 <span className="rc-ico" style={{ color: w.color }}><Icon name={w.icon} size={18} /></span>
                 <span className="rc-body">

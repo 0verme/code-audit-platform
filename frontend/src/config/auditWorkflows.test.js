@@ -23,37 +23,37 @@ function cssRule(selector) {
 }
 
 test("hcyt repository path is detected as HCYT", () => {
-  assert.equal(detectWorkflow("svn://10.18.32.7/datawh/branches/202602/hcyt"), "hcyt");
-  assert.equal(detectWorkflow("svn://example.com/repos/branches/demo-hcyt"), "hcyt");
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/example/repo/branches/demo-hcyt"), "hcyt");
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/repos/branches/demo-hcyt"), "hcyt");
 });
 
 test("fine-report repository path is detected as FineReport", () => {
-  assert.equal(detectWorkflow("https://git.intra/report/fine-report.git"), "fine-report");
+  assert.equal(detectWorkflow("https://git.example.com/report/fine-report.git"), "fine-report");
 });
 
 test("nups repository path is detected as NUPS", () => {
-  assert.equal(detectWorkflow("svn://10.18.32.7/pay/nups/trunk"), "nups");
-  assert.equal(detectWorkflow("svn://example.com/NUPS"), "nups");
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/example/repo/trunk/nups"), "nups");
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/NUPS"), "nups");
 });
 
 test("unmatched repository path returns null", () => {
-  assert.equal(detectWorkflow("svn://example.com/repos/branches/unknown-module"), null);
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/repos/branches/unknown-module"), null);
 });
 
 test("unmatched repository path cannot be submitted", () => {
-  assert.equal(canSubmitAudit("svn://example.com/repos/branches/unknown-module"), false);
-  assert.equal(buildAuditSubmitPayload({ path: "svn://example.com/repos/branches/unknown-module" }), null);
+  assert.equal(canSubmitAudit("svn+ssh://svn.example.com/repos/branches/unknown-module"), false);
+  assert.equal(buildAuditSubmitPayload({ path: "svn+ssh://svn.example.com/repos/branches/unknown-module" }), null);
 });
 
 test("recognized repository path submit payload contains workflow and type", () => {
   assert.deepEqual(
     buildAuditSubmitPayload({
-      path: "https://git.intra/report/fine-report.git",
+      path: "https://git.example.com/report/fine-report.git",
       ai: true,
       dbg: true,
     }),
     {
-      path: "https://git.intra/report/fine-report.git",
+      path: "https://git.example.com/report/fine-report.git",
       sourceType: "git",
       ai: true,
       dbg: true,
@@ -64,7 +64,7 @@ test("recognized repository path submit payload contains workflow and type", () 
 });
 
 test("svn path is detected as svn source", () => {
-  const source = detectAuditSource("svn://example.com/repos/branches/demo-hcyt");
+  const source = detectAuditSource("svn+ssh://svn.example.com/repos/branches/demo-hcyt");
   assert.equal(source.sourceType, "svn");
   assert.equal(source.label, "SVN");
   assert.equal(source.tag, "SVN");
@@ -72,7 +72,7 @@ test("svn path is detected as svn source", () => {
 });
 
 test("https git path is detected as git source", () => {
-  const source = detectAuditSource("https://git.intra/report/fine-report.git");
+  const source = detectAuditSource("https://git.example.com/report/fine-report.git");
   assert.equal(source.sourceType, "git");
   assert.equal(source.label, "Git");
   assert.equal(source.tag, "Git");
@@ -124,8 +124,8 @@ test("local directory can be submitted in development or when explicitly enabled
 });
 
 test("git ssh and svn+ssh paths are inferred correctly", () => {
-  assert.equal(inferAuditSourceType("git@gitlab.example.com:team/repo.git"), "git");
-  assert.equal(inferAuditSourceType("ssh://git@gitlab.example.com/team/repo.git"), "git");
+  assert.equal(inferAuditSourceType("ssh://git.example.com/team/repo.git"), "git");
+  assert.equal(inferAuditSourceType("ssh://git.example.com/team/repo.git"), "git");
   assert.equal(inferAuditSourceType("svn+ssh://svn.example.com/project/branch"), "svn");
 });
 
@@ -136,20 +136,20 @@ test("selfcheck and legacy source types normalize correctly", () => {
 
 test("recent task source metadata can be resolved from legacy fields", () => {
   const source = resolveAuditSourceMeta({
-    repo: "https://git.intra/report/fine-report.git",
+    repo: "https://git.example.com/report/fine-report.git",
     source_type: "",
   }, { enableLocalSource: true });
 
-  assert.equal(source.sourceRef, "https://git.intra/report/fine-report.git");
+  assert.equal(source.sourceRef, "https://git.example.com/report/fine-report.git");
   assert.equal(source.sourceType, "git");
   assert.equal(source.tag, "Git");
 });
 
 test("source type detection and workflow detection are independent", () => {
-  assert.equal(detectAuditSource("svn://example.com/repos/branches/demo-hcyt").sourceType, "svn");
-  assert.equal(detectWorkflow("svn://example.com/repos/branches/demo-hcyt"), "hcyt");
-  assert.equal(detectAuditSource("https://git.intra/team/nups.git").sourceType, "git");
-  assert.equal(detectWorkflow("https://git.intra/team/nups.git"), "nups");
+  assert.equal(detectAuditSource("svn+ssh://svn.example.com/repos/branches/demo-hcyt").sourceType, "svn");
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/repos/branches/demo-hcyt"), "hcyt");
+  assert.equal(detectAuditSource("https://git.example.com/team/nups.git").sourceType, "git");
+  assert.equal(detectWorkflow("https://git.example.com/team/nups.git"), "nups");
 });
 
 test("workflow card grid uses bounded responsive columns", () => {

@@ -4,7 +4,7 @@
   const FAIL = {
     task: {
       status: "fail",
-      repo: "svn://10.18.32.7/datawh/branches/2026Q2",
+      repo: "svn+ssh://svn.example.com/example/repo/branches/demo",
       module: "hcyt",
       workflow: "HCYT 湖仓审查",
       revision: "r48217",
@@ -209,7 +209,7 @@
   const FAIL = {
     task: {
       status: "fail",
-      repo: "https://git.intra/report/fine-report.git",
+      repo: "https://git.example.com/report/fine-report.git",
       module: "fine-report",
       workflow: "FineReport 报表审查",
       revision: "8f1c2ad",
