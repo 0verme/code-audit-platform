@@ -31,6 +31,14 @@ test("deriveAuditRunPageStatus tracks running and terminal states", () => {
   assert.equal(deriveAuditRunPageStatus({ status: "running", taskStatus: "running" }, null, null), "running");
   assert.equal(deriveAuditRunPageStatus({ status: "success", taskStatus: "pass" }, null, null), "completed");
   assert.equal(deriveAuditRunPageStatus({ status: "failed", taskStatus: "fail" }, null, null), "failed");
+  assert.equal(
+    deriveAuditRunPageStatus(
+      { status: "success", taskStatus: "fail", finalReportReady: true },
+      { finalReportReady: true },
+      null,
+    ),
+    "completed",
+  );
 });
 
 test("mergePartialReport keeps partial sections and real progress metadata", () => {

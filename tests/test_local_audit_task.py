@@ -206,6 +206,59 @@ class LocalAuditTaskTests(unittest.TestCase):
                 database.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
+    def test_audit_run_partial_result_preserves_final_report_compatibility_fields(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = database.DB_PATH
+            database.DB_PATH = db_path
+            sys.modules.pop("app", None)
+            try:
+                app_module = importlib.import_module("app")
+                task_id = database.execute_insert(
+                    """
+                    INSERT INTO audit_tasks (
+                        repo, source_ref, workflow, status, revision, author, started_at, duration, progress
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "svn://example.com/repos/branches/demo-hcyt",
+                        "svn://example.com/repos/branches/demo-hcyt",
+                        "hcyt",
+                        "fail",
+                        "r2",
+                        "tester",
+                        datetime.now().isoformat(),
+                        "3s",
+                        100,
+                    ),
+                )
+                final_report = {
+                    "task": {"status": "fail", "errors": 1, "warnings": 0, "conflicts": 0},
+                    "changes": [{"path": "demo.sql"}],
+                    "dws": [{"level": "err", "file": "demo.sql", "rule": "rule", "msg": "bad"}],
+                    "assetIssues": [{"issueType": "missing-root", "objectName": "DM.TABLE_A"}],
+                    "unifiedAssetIssues": [{"rule_code": "missing-root", "object_name": "DM.TABLE_A"}],
+                    "lineageSummary": {"resultTables": ["DM.TABLE_A"], "jobs": [], "recvPlans": [], "sysNames": [], "outfiles": [], "warnings": [], "stats": {}},
+                }
+                database.upsert_task_report(task_id, json.dumps(final_report), datetime.now().isoformat())
+
+                response = app_module.app.test_client().get(f"/api/audit-runs/{task_id}/partial-result")
+                self.assertEqual(response.status_code, 200)
+                body = response.get_json()
+
+                self.assertTrue(body["finalReportReady"])
+                self.assertEqual(body["status"], "success")
+                self.assertEqual(body["taskStatus"], "fail")
+                self.assertEqual(body["report"], final_report)
+                self.assertEqual(body["partialReport"]["finalReport"], final_report)
+                self.assertEqual(body["report"]["assetIssues"], final_report["assetIssues"])
+                self.assertEqual(body["report"]["unifiedAssetIssues"], final_report["unifiedAssetIssues"])
+                self.assertEqual(body["report"]["lineageSummary"], final_report["lineageSummary"])
+            finally:
+                database.DB_PATH = old_db_path
+                sys.modules.pop("app", None)
+
     def test_report_meta_contains_local_source_fields(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"

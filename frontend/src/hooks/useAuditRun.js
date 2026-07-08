@@ -18,8 +18,9 @@ export function deriveAuditRunPageStatus(statusPayload, partialResult, error, st
   const taskStatus = statusPayload?.taskStatus || partialResult?.taskStatus;
   const finalReportReady = Boolean(statusPayload?.finalReportReady || partialResult?.finalReportReady);
 
-  if (runStatus === "failed" || taskStatus === "fail") return "failed";
-  if (finalReportReady || runStatus === "success" || TERMINAL_TASK_STATUSES.has(taskStatus)) return "completed";
+  if (runStatus === "failed") return "failed";
+  if (finalReportReady || runStatus === "success" || (taskStatus !== "fail" && TERMINAL_TASK_STATUSES.has(taskStatus))) return "completed";
+  if (taskStatus === "fail") return "failed";
   if (runStatus === "running" || taskStatus === "running" || taskStatus === "queued") return "running";
   return statusPayload || partialResult ? "running" : "idle";
 }
