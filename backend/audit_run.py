@@ -147,6 +147,7 @@ class AuditTaskState:
             "finishedAt": _json_safe(self.finished_at),
             "durationMs": self.duration_ms,
             "error": self.error,
+            "errorMessage": self.error,
             "summary": _json_safe(self.summary),
         }
         if include_result:
@@ -164,6 +165,7 @@ class AuditRunState:
     logs: list[dict[str, Any]] = field(default_factory=list)
     started_at: datetime = field(default_factory=_utc_now)
     finished_at: datetime | None = None
+    duration_ms: int | None = None
     error: str | None = None
 
     def add_task(self, task: AuditTask) -> AuditTaskState:
@@ -184,6 +186,7 @@ class AuditRunState:
 
     def mark_finished(self, error: Exception | str | None = None) -> None:
         self.finished_at = _utc_now()
+        self.duration_ms = max(0, int((self.finished_at - self.started_at).total_seconds() * 1000))
         self.error = str(error) if error else None
         self.status = AuditTaskStatus.FAILED if error else AuditTaskStatus.SUCCESS
 
@@ -219,6 +222,8 @@ class AuditRunState:
         return {
             "total": len(self.tasks),
             "completed": sum(1 for state in self.tasks.values() if state.is_terminal),
+            "failed": sum(1 for state in self.tasks.values() if state.status == AuditTaskStatus.FAILED),
+            "skipped": sum(1 for state in self.tasks.values() if state.status == AuditTaskStatus.SKIPPED),
             "totalWeight": total_weight,
             "completedWeight": completed_weight,
             "percent": 100 if total_weight == 0 else int(completed_weight * 100 / total_weight),
@@ -232,7 +237,9 @@ class AuditRunState:
             "status": self.status.value,
             "startedAt": _json_safe(self.started_at),
             "finishedAt": _json_safe(self.finished_at),
+            "durationMs": self.duration_ms,
             "error": self.error,
+            "errorMessage": self.error,
             "progress": self.progress,
             "tasks": {
                 key: state.to_dict(include_result=include_results)

@@ -206,6 +206,31 @@ class LocalAuditTaskTests(unittest.TestCase):
                 database.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
+    def test_task_run_marks_audit_run_state_running_immediately(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = database.DB_PATH
+            database.DB_PATH = db_path
+            try:
+                database.init_db()
+                task_id = database.execute_insert(
+                    """
+                    INSERT INTO audit_tasks (
+                        repo, workflow, status, revision, author, started_at, duration, progress
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    ("C:\\path\\to\\local-hcyt-workspace", "hcyt", "running", "-", "tester", datetime.now().isoformat(), "0s", 0),
+                )
+
+                run = engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
+
+                self.assertEqual(run.run_state.status.value, "running")
+                self.assertEqual(engine.get_audit_run_status(task_id)["status"], "running")
+            finally:
+                engine._run_states.pop(task_id, None)
+                database.DB_PATH = old_db_path
+
     def test_audit_run_partial_result_preserves_final_report_compatibility_fields(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"

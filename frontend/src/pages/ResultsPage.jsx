@@ -127,8 +127,8 @@ function ProgressiveRunPanel({ d }) {
   const completed = taskValues.filter((task) => ["success", "skipped", "failed"].includes(task.status)).length;
   const total = run.progress?.total || taskValues.length || MODULE_TASKS.length;
   const percent = Math.max(0, Math.min(100, Number(run.progress?.percent || 0)));
-  const failed = taskValues.filter((task) => task.status === "failed").length;
-  const skipped = taskValues.filter((task) => task.status === "skipped").length;
+  const failed = run.progress?.failed ?? taskValues.filter((task) => task.status === "failed").length;
+  const skipped = run.progress?.skipped ?? taskValues.filter((task) => task.status === "skipped").length;
   const elapsed = elapsedSince(run.statusPayload?.startedAt || run.statusPayload?.task?.started_at || d.task.startedAt);
 
   return (
@@ -155,7 +155,7 @@ function ProgressiveRunPanel({ d }) {
 
 function ModuleProgressBoard({ d, onJump }) {
   const run = d.__auditRun;
-  if (!run || run.finalReportReady) return null;
+  if (!run) return null;
   const tasks = run.tasks || {};
 
   return (

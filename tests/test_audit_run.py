@@ -33,6 +33,7 @@ class AuditRunModelTest(unittest.TestCase):
         self.assertEqual(payload["status"], "success")
         self.assertEqual(payload["summary"], {"warnings": 1})
         self.assertEqual(payload["result"], {"rows": [{"level": "warn"}]})
+        self.assertEqual(payload["errorMessage"], None)
 
     def test_failed_and_skipped_tasks_are_terminal_without_blocking_dependents(self):
         run = AuditRunState(run_id="run-1", workflow="hcyt")
@@ -50,6 +51,7 @@ class AuditRunModelTest(unittest.TestCase):
         self.assertTrue(dependent.is_terminal)
         self.assertEqual(dependent.to_dict()["status"], "skipped")
         self.assertEqual(dependent.to_dict()["error"], "metadata unavailable")
+        self.assertEqual(dependent.to_dict()["errorMessage"], "metadata unavailable")
 
     def test_weighted_progress_uses_terminal_tasks(self):
         run = AuditRunState(run_id=8, workflow="hcyt")
@@ -62,6 +64,8 @@ class AuditRunModelTest(unittest.TestCase):
 
         self.assertEqual(run.progress["total"], 3)
         self.assertEqual(run.progress["completed"], 1)
+        self.assertEqual(run.progress["failed"], 0)
+        self.assertEqual(run.progress["skipped"], 0)
         self.assertEqual(run.progress["totalWeight"], 6)
         self.assertEqual(run.progress["completedWeight"], 1)
         self.assertEqual(run.progress["percent"], 16)
@@ -79,6 +83,8 @@ class AuditRunModelTest(unittest.TestCase):
         payload = run.to_dict()
         self.assertEqual(payload["runId"], 9)
         self.assertEqual(payload["status"], "success")
+        self.assertIsNotNone(payload["durationMs"])
+        self.assertIsNone(payload["errorMessage"])
         self.assertEqual(payload["partialReport"], {"changes": [{"path": "demo.sql"}]})
         self.assertEqual(payload["tasks"]["changes"]["summary"], {"files": 1})
         self.assertEqual(payload["logs"][0]["msg"], "changes ready")

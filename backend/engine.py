@@ -468,12 +468,14 @@ class TaskRun:
         self.logs = []
         self.start_ts = time.time()
         self.run_state = create_audit_run_state(task_id, workflow)
+        self.run_state.mark_running()
 
     # ---- 日志 / 进度 ----
 
     def _ensure_run_state(self):
         if not hasattr(self, "run_state"):
             self.run_state = create_audit_run_state(self.task_id, self.workflow)
+            self.run_state.mark_running()
         return self.run_state
 
     def log(self, msg, level="INFO"):
