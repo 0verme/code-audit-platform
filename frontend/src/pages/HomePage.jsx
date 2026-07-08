@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AdvancedSettingsPanel } from "../components/advancedSettingsPanel";
+import { RecentAuditHistoryPanel } from "../components/RecentAuditHistoryPanel";
 import { Dot, Icon } from "../components/ui";
 import {
   AUDIT_WORKFLOWS,
@@ -94,6 +95,17 @@ export default function HomePage({
       path: created?.source_ref || created?.sourceRef || payload.path,
       taskId: created?.id ?? null,
       workflow: created?.workflow || payload.workflow,
+    });
+  }
+
+  function handleRecentSelect(item) {
+    onSubmit({
+      path: item.sourceRef,
+      ai: false,
+      dbg: false,
+      workflow: item.wf,
+      type: item.wf,
+      taskId: item.id ?? null,
     });
   }
 
@@ -238,77 +250,12 @@ export default function HomePage({
       </div>
 
       <div className="recent-block fade-in">
-        <div className="subhead">
-          <Icon name="clock" size={12} /> 最近审查
-        </div>
-        {tasksState.loading ? (
-          <div className="card recent-list">正在加载任务列表...</div>
-        ) : null}
-        <div className="card recent-list">
-          {recentList.length ? (
-            <div className="recent-head">
-              <span />
-              <span>版本</span>
-              <span>审查来源</span>
-              <span>审查类型</span>
-              <span>IP</span>
-              <span>时间</span>
-            </div>
-          ) : null}
-          {recentList.length ? (
-            recentList.map((item, index) => {
-              const workflow =
-                AUDIT_WORKFLOWS.find((entry) => entry.id === item.wf) ||
-                AUDIT_WORKFLOWS[0];
-              const tone =
-                item.status === "pass"
-                  ? "ok"
-                  : item.status === "fail"
-                    ? "err"
-                    : "warn";
-              return (
-                <div
-                  key={`${item.rev}-${index}`}
-                  className="recent-row"
-                  onClick={() =>
-                    onSubmit({
-                      path: item.sourceRef,
-                      ai: false,
-                      dbg: false,
-                      workflow: item.wf,
-                      type: item.wf,
-                      taskId: item.id ?? null,
-                    })
-                  }
-                >
-                  <Dot tone={tone} />
-                  <span className="rr-rev mono">{item.rev}</span>
-                  <span className="rr-source mono">
-                    <span className="rr-tag">{item.sourceTag}</span>
-                    {item.sourceRef}
-                  </span>
-                  <span className="rr-wf">
-                    <Icon
-                      name={workflow.icon}
-                      size={12}
-                      style={{ color: workflow.color }}
-                    />{" "}
-                    {workflow.name}
-                  </span>
-                  <span className="rr-who">{item.who}</span>
-                  <span className="rr-when">{item.when}</span>
-                </div>
-              );
-            })
-          ) : (
-            <div className="recent-row">暂无审查任务</div>
-          )}
-        </div>
-        {isApiMode && tasksState.error ? (
-          <p className="route-hint" style={{ color: "var(--err)" }}>
-            任务接口不可用，无法加载真实任务列表。
-          </p>
-        ) : null}
+        <RecentAuditHistoryPanel
+          items={recentList}
+          loading={tasksState.loading}
+          error={isApiMode ? tasksState.error : null}
+          onSelect={handleRecentSelect}
+        />
       </div>
     </div>
   );
