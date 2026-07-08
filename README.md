@@ -196,4 +196,4 @@ npm run build
 
 ## License
 
-待补充。当前仓库尚未声明开源协议，公开发布前必须由项目所有者确认许可证文本。
+本项目采用 [Apache License 2.0](LICENSE) 开源协议，完整协议文本见仓库根目录 [LICENSE](LICENSE) 文件。
