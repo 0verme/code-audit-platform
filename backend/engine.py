@@ -24,6 +24,11 @@ from pathlib import Path
 
 from database import get_connection, upsert_task_report
 
+try:
+    from audit_run import AuditRunState, AuditTask, AuditTaskStatus
+except ImportError:  # pragma: no cover - package-style imports in tests/tools
+    from .audit_run import AuditRunState, AuditTask, AuditTaskStatus
+
 # 把拷贝进来的真实项目加入模块搜索路径，保持其内部 `from core...`、
 # `from services...`、`from shared...` 等绝对导入原样可用。
 SVN_CHECK_DIR = Path(__file__).resolve().parent / "svn_check"
@@ -50,6 +55,24 @@ WORKFLOW_NAMES = {
 _load_lock = threading.Lock()
 _mods = None
 _import_error: str | None = None
+_run_state_lock = threading.RLock()
+_run_states: dict[int, AuditRunState] = {}
+
+
+DEFAULT_AUDIT_TASKS = (
+    AuditTask("source_load", "读取工作区 / SVN"),
+    AuditTask("classify_files", "文件分类", dependencies=("source_load",)),
+    AuditTask("trunk_conflicts", "trunk 冲突检查", dependencies=("classify_files",)),
+    AuditTask("dws_sql", "DWS SQL 检查", dependencies=("classify_files",), weight=2),
+    AuditTask("hive_sql", "Hive SQL 检查", dependencies=("classify_files",), weight=2),
+    AuditTask("config_files", "配置文件检查", dependencies=("classify_files",)),
+    AuditTask("post_scripts", "后置脚本检查", dependencies=("classify_files",)),
+    AuditTask("recv_config", "收卸配置检查", dependencies=("classify_files",)),
+    AuditTask("schedule", "调度表检查", dependencies=("classify_files",), weight=2),
+    AuditTask("python_scripts", "Python 脚本检查", dependencies=("schedule",), weight=2),
+    AuditTask("lineage", "依赖链分析", dependencies=("schedule", "python_scripts"), weight=2),
+    AuditTask("summary", "汇总审查结果", dependencies=("trunk_conflicts", "dws_sql", "hive_sql", "config_files", "post_scripts", "recv_config", "schedule", "python_scripts", "lineage")),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +284,111 @@ def _empty_lineage_summary(warnings=None):
     }
 
 
+def create_audit_run_state(task_id: int, workflow: str) -> AuditRunState:
+    run_state = AuditRunState(run_id=task_id, workflow=workflow)
+    for task in DEFAULT_AUDIT_TASKS:
+        run_state.add_task(task)
+    with _run_state_lock:
+        _run_states[int(task_id)] = run_state
+    return run_state
+
+
+def get_audit_run_state(task_id: int) -> AuditRunState | None:
+    with _run_state_lock:
+        return _run_states.get(int(task_id))
+
+
+def _task_row_payload(task_id: int) -> dict | None:
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT id, repo, source_ref, workflow, status, revision, author, operator_user,
+                   client_ip, started_at, duration, ai_enabled, debug_enabled, progress,
+                   step, finished_at, error, logs_json, source_type
+            FROM audit_tasks
+            WHERE id = ?
+            """,
+            (task_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    payload = dict(row)
+    try:
+        payload["logs"] = json.loads(payload.pop("logs_json") or "[]")
+    except (TypeError, ValueError):
+        payload["logs"] = []
+    return payload
+
+
+def _task_report_payload(task_id: int) -> dict | None:
+    with get_connection() as connection:
+        row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
+    if row is None:
+        return None
+    try:
+        return json.loads(row["report_json"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _status_from_task_status(status: str) -> str:
+    if status in {"running", "queued"}:
+        return "running"
+    if status in {"pass", "warn", "fail"}:
+        return "success"
+    return "failed"
+
+
+def get_audit_run_status(task_id: int) -> dict | None:
+    task = _task_row_payload(task_id)
+    if task is None:
+        return None
+
+    run_state = get_audit_run_state(task_id)
+    if run_state is not None:
+        payload = run_state.to_dict(include_results=False)
+    else:
+        payload = {
+            "runId": task_id,
+            "workflow": task.get("workflow", ""),
+            "status": _status_from_task_status(task.get("status", "")),
+            "progress": {
+                "percent": int(task.get("progress") or 0),
+                "running": [task.get("step")] if task.get("step") else [],
+            },
+            "tasks": {},
+            "partialReport": {},
+            "logs": task.get("logs", []),
+        }
+
+    payload["task"] = task
+    payload["taskStatus"] = task.get("status")
+    payload["finalReportReady"] = _task_report_payload(task_id) is not None
+    return payload
+
+
+def get_audit_run_partial_result(task_id: int) -> dict | None:
+    status_payload = get_audit_run_status(task_id)
+    if status_payload is None:
+        return None
+    final_report = _task_report_payload(task_id)
+    partial_report = dict(status_payload.get("partialReport") or {})
+    if final_report is not None:
+        partial_report.setdefault("finalReport", final_report)
+    return {
+        "runId": task_id,
+        "workflow": status_payload.get("workflow", ""),
+        "status": status_payload.get("status", ""),
+        "taskStatus": status_payload.get("taskStatus"),
+        "progress": status_payload.get("progress", {}),
+        "tasks": status_payload.get("tasks", {}),
+        "partialReport": partial_report,
+        "finalReportReady": final_report is not None,
+        "report": final_report,
+        "logs": status_payload.get("logs", []),
+    }
+
+
 def _lineage_warning(label, exc):
     return f"{label} unavailable: {type(exc).__name__}"
 
@@ -339,12 +467,19 @@ class TaskRun:
         self.source_type = (source_type or "svn").lower()
         self.logs = []
         self.start_ts = time.time()
+        self.run_state = create_audit_run_state(task_id, workflow)
 
     # ---- 日志 / 进度 ----
+
+    def _ensure_run_state(self):
+        if not hasattr(self, "run_state"):
+            self.run_state = create_audit_run_state(self.task_id, self.workflow)
+        return self.run_state
 
     def log(self, msg, level="INFO"):
         entry = {"ts": datetime.now().strftime("%H:%M:%S"), "level": level, "msg": str(msg)}
         self.logs.append(entry)
+        self._ensure_run_state().add_log(str(msg), level=level)
         print(f"[task {self.task_id}] {level} {msg}", flush=True)
 
     def update(self, progress=None, step=None):
@@ -361,6 +496,24 @@ class TaskRun:
         if step:
             self.log(f"当前步骤：{step}")
 
+    def task_running(self, key):
+        state = self._ensure_run_state().get_task(key)
+        if state.status == AuditTaskStatus.QUEUED:
+            state.mark_running()
+
+    def task_success(self, key, result=None, summary=None):
+        state = self._ensure_run_state().get_task(key)
+        if not state.is_terminal:
+            state.mark_success(result=result, summary=summary)
+
+    def task_skipped(self, key, reason=""):
+        state = self._ensure_run_state().get_task(key)
+        if not state.is_terminal:
+            state.mark_skipped(reason)
+
+    def set_partial(self, key, value):
+        self._ensure_run_state().set_section(key, value)
+
     def safe(self, label, fn, default):
         """外部依赖（行内库/血缘库/Excel 读取）的降级封装。"""
         try:
@@ -373,6 +526,12 @@ class TaskRun:
 
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
+        if report is not None:
+            self.set_partial("finalReport", report)
+            self.task_success("summary", summary={"status": status})
+            self._ensure_run_state().mark_finished()
+        else:
+            self._ensure_run_state().mark_finished(error=error or status)
         with get_connection() as connection:
             connection.execute(
                 """
@@ -423,6 +582,7 @@ class TaskRun:
             self.workflow = workflow
             source_label = self.repo if self.source_type == "svn" else "local workspace"
             self.log(f"开始处理：{source_label}（工作流 {workflow}，来源 {self.source_type}）")
+            self.task_running("source_load")
             self.update(progress=5, step="拉取 SVN" if self.source_type == "svn" else "读取本地目录")
 
             if self.source_type == "local":
@@ -435,6 +595,7 @@ class TaskRun:
                 svn_result["source_type"] = "svn"
                 svn_result["workspace_root"] = ""
                 self.log(f"SVN 拉取完成，导出 {len(svn_result['exported_paths'])} 个变更文件")
+            self.task_success("source_load", summary={"files": len(svn_result.get("exported_paths", []))})
             self.update(progress=25, step="分析文件")
 
             if workflow == "fine-report":
@@ -577,6 +738,7 @@ class TaskRun:
     def run_hcyt(self, svn_result):
         m = _mods
         exported = svn_result["exported_paths"]
+        self.task_running("classify_files")
         path_map = {m.re_service.safe_remove_prefix(p): p for p in exported}
         (dws_url, hive_url, schame_config_lists, sbin_lists, recv_lists,
          dwo_lists, dwf_lists, _dlo_meta, _dlo, py_lists,
@@ -584,12 +746,19 @@ class TaskRun:
 
         grouped = {"dws": [], "hive": [], "python": [], "sbin": [], "config": [], "recv": []}
         report = {}
+        changes = self.build_changes(svn_result, path_map)
+        conflicts = self.build_conflicts(svn_result)
+        self.set_partial("changes", changes)
+        self.set_partial("conflicts", conflicts)
+        self.task_success("classify_files", summary={"changedFiles": len(changes)})
+        self.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
 
         # --- SQL / 脚本 / 配置类规则 ---
         self.update(progress=35, step="SQL 与配置规则检查")
         sql_checks = {}
         asset_issues = []
         if dws_url:
+            self.task_running("dws_sql")
             result = self.safe("dws.sql 规则", lambda: m.hcyt.rule_dws(dws_url), ("", "", 0))
             grouped["dws"] += text_to_rows(result[0], result[1], m.re_service.get_filename(dws_url), warn_level="info")
             sql_checks["dws"] = {"script": m.re_service.get_filename(dws_url), "downloadUrl": self.download_url(dws_url)}
@@ -605,23 +774,48 @@ class TaskRun:
                 lambda: m.hcyt_sql_rule.collect_created_table_review_issues(dws_url, "hcyt", dws_file_name),
                 [],
             )
+            self.set_partial("dws", grouped["dws"])
+            self.task_success("dws_sql", result=grouped["dws"], summary={"issues": len(grouped["dws"])})
+        else:
+            self.task_skipped("dws_sql", "no dws.sql file")
         if hive_url:
+            self.task_running("hive_sql")
             result = self.safe("hive.sql 规则", lambda: m.hcyt.rule_hive(hive_url), ("", "", 0))
             grouped["hive"] += text_to_rows(result[0], result[1], m.re_service.get_filename(hive_url), warn_level="info")
             sql_checks["hive"] = {"script": m.re_service.get_filename(hive_url), "downloadUrl": self.download_url(hive_url)}
+            self.set_partial("hive", grouped["hive"])
+            self.task_success("hive_sql", result=grouped["hive"], summary={"issues": len(grouped["hive"])})
+        else:
+            self.task_skipped("hive_sql", "no hive.sql file")
         if sbin_lists:
+            self.task_running("post_scripts")
             result = self.safe("sbin 规则", lambda: m.hcyt.rule_sbin(sbin_lists), ("", "", 0))
             grouped["sbin"] += text_to_rows(result[0], result[1], "sbin")
+            self.set_partial("sbin", grouped["sbin"])
+            self.task_success("post_scripts", result=grouped["sbin"], summary={"issues": len(grouped["sbin"])})
+        else:
+            self.task_skipped("post_scripts", "no post script files")
         if recv_lists:
+            self.task_running("recv_config")
             result = self.safe("recv 卸数规则", lambda: m.hcyt.rule_recv_json(recv_lists), ("", "", 0))
             grouped["recv"] += text_to_rows(result[0], result[1], "recv_json")
+            self.set_partial("recv", grouped["recv"])
+            self.task_success("recv_config", result=grouped["recv"], summary={"issues": len(grouped["recv"])})
+        else:
+            self.task_skipped("recv_config", "no recv config files")
 
         # schema_config：规则告警 + JSON 表格化（Streamlit render_schema_config_tables）
         config_files = []
         if schame_config_lists:
+            self.task_running("config_files")
             result = self.safe("schema_config 规则", lambda: m.hcyt.rule_config(schame_config_lists), ("", "", 0))
             grouped["config"] += text_to_rows(result[0], result[1], "SCHEMA_CONFIG", err_level="warn")
             config_files = self.build_config_files(schame_config_lists)
+            self.set_partial("config", grouped["config"])
+            self.set_partial("configFiles", config_files)
+            self.task_success("config_files", result=grouped["config"], summary={"issues": len(grouped["config"])})
+        else:
+            self.task_skipped("config_files", "no schema config files")
 
         # dwo / dwf
         for path in dwo_lists or []:
@@ -633,22 +827,32 @@ class TaskRun:
 
         # --- 调度 Excel：清单表格 + 规则 ---
         self.update(progress=50, step="调度规范检查")
+        self.task_running("schedule")
         schedule = self.run_hcyt_schedule(plan_xls, seq_xls, cale_xls, job_xls)
+        self.set_partial("schedule", schedule)
+        self.task_success("schedule", result=schedule, summary={"issues": len(schedule.get("rows", []))})
         job_df = schedule.pop("_job_df")
         r_plan = schedule.pop("_r_plan")
         db_job_rows = schedule.pop("_db_job_rows")
 
         # --- 加工程序 ---
         self.update(progress=65, step="加工程序检查")
+        self.task_running("python_scripts")
         py_scripts, py_rows, ref_tables, deps, py_asset_issues = self.run_hcyt_programs(
             py_lists, job_df, program_xls, db_job_rows)
         grouped["python"] += py_rows
+        self.set_partial("python", grouped["python"])
+        self.set_partial("pyScripts", py_scripts)
+        self.set_partial("refTables", ref_tables)
+        self.set_partial("deps", deps)
+        self.task_success("python_scripts", result=grouped["python"], summary={"issues": len(grouped["python"])})
         asset_issues += py_asset_issues
         asset_issues = [asset_issue_to_dict(issue) for issue in m.dedupe_issues(asset_issues)]
         unified_asset_issues = m.asset_issues_to_unified_issues(
             asset_issues,
             scan_batch_id=self.task_id,
         )
+        self.task_running("lineage")
         lineage_summary = _build_lineage_summary_payload(
             m,
             job_df=job_df,
@@ -656,13 +860,15 @@ class TaskRun:
             py_lists=py_lists,
             db_job_rows=db_job_rows,
         )
+        self.set_partial("assetIssues", asset_issues)
+        self.set_partial("unifiedAssetIssues", unified_asset_issues)
+        self.set_partial("lineageSummary", lineage_summary)
+        self.task_success("lineage", result=lineage_summary, summary=lineage_summary.get("stats", {}))
 
         errors, warnings = self.count_levels(list(grouped.values()) + [schedule["rows"]])
         self.update(progress=85, step="AI 分析" if self.ai_enabled else "汇总报告")
         ai = self.build_ai(py_lists or ([dws_url] if dws_url else []), errors, warnings)
 
-        changes = self.build_changes(svn_result, path_map)
-        conflicts = self.build_conflicts(svn_result)
         status = self.status_of(errors + len(conflicts), warnings)
         checks = sum(1 for flag in (dws_url, hive_url, sbin_lists, schame_config_lists, recv_lists,
                                     dwo_lists or dwf_lists, plan_xls, seq_xls, job_xls, py_lists) if flag)

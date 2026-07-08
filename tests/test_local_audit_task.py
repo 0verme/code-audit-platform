@@ -76,6 +76,7 @@ class LocalAuditTaskTests(unittest.TestCase):
             old_db_path = database.DB_PATH
             database.DB_PATH = db_path
             sys.modules.pop("app", None)
+            body = {}
             try:
                 app_module = importlib.import_module("app")
                 captured = {}
@@ -111,6 +112,96 @@ class LocalAuditTaskTests(unittest.TestCase):
                 body = response.get_json()
                 self.assertEqual(body["sourceType"], "git")
                 self.assertEqual(body["sourceRef"], "git@gitlab.example.com:team/repo.git")
+            finally:
+                database.DB_PATH = old_db_path
+                sys.modules.pop("app", None)
+
+    def test_create_audit_run_alias_returns_run_id_and_partial_status(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = database.DB_PATH
+            database.DB_PATH = db_path
+            sys.modules.pop("app", None)
+            try:
+                app_module = importlib.import_module("app")
+
+                def fake_start_task(task_id, _repo, workflow, *_args, **_kwargs):
+                    state = app_module.engine.create_audit_run_state(task_id, workflow)
+                    state.mark_running()
+                    state.set_section("changes", [{"path": "demo.sql"}])
+                    state.get_task("source_load").mark_success(summary={"files": 1})
+
+                with patch.object(app_module.engine, "start_task", fake_start_task):
+                    response = app_module.app.test_client().post(
+                        "/api/audit-runs",
+                        json={"repo": "svn://example.com/repos/branches/demo-hcyt", "workflow": "hcyt"},
+                    )
+
+                self.assertEqual(response.status_code, 201)
+                body = response.get_json()
+                self.assertEqual(body["run_id"], body["id"])
+                self.assertEqual(body["runId"], body["id"])
+
+                status_response = app_module.app.test_client().get(f"/api/audit-runs/{body['run_id']}/status")
+                self.assertEqual(status_response.status_code, 200)
+                status = status_response.get_json()
+                self.assertEqual(status["runId"], body["id"])
+                self.assertEqual(status["taskStatus"], "running")
+                self.assertEqual(status["tasks"]["source_load"]["status"], "success")
+
+                partial_response = app_module.app.test_client().get(
+                    f"/api/audit-runs/{body['run_id']}/partial-result"
+                )
+                self.assertEqual(partial_response.status_code, 200)
+                partial = partial_response.get_json()
+                self.assertFalse(partial["finalReportReady"])
+                self.assertEqual(partial["partialReport"]["changes"], [{"path": "demo.sql"}])
+            finally:
+                if body.get("id"):
+                    app_module.engine._run_states.pop(body["id"], None)
+                database.DB_PATH = old_db_path
+                sys.modules.pop("app", None)
+
+    def test_audit_run_status_falls_back_to_database_report(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = database.DB_PATH
+            database.DB_PATH = db_path
+            sys.modules.pop("app", None)
+            try:
+                app_module = importlib.import_module("app")
+                task_id = database.execute_insert(
+                    """
+                    INSERT INTO audit_tasks (
+                        repo, source_ref, workflow, status, revision, author, started_at, duration, progress
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "svn://example.com/repos/branches/demo-hcyt",
+                        "svn://example.com/repos/branches/demo-hcyt",
+                        "hcyt",
+                        "pass",
+                        "r1",
+                        "tester",
+                        datetime.now().isoformat(),
+                        "2s",
+                        100,
+                    ),
+                )
+                database.upsert_task_report(
+                    task_id,
+                    json.dumps({"task": {"status": "pass"}, "changes": [{"path": "demo.sql"}]}),
+                    datetime.now().isoformat(),
+                )
+
+                response = app_module.app.test_client().get(f"/api/audit-runs/{task_id}/partial-result")
+                self.assertEqual(response.status_code, 200)
+                body = response.get_json()
+                self.assertTrue(body["finalReportReady"])
+                self.assertEqual(body["status"], "success")
+                self.assertEqual(body["report"]["changes"], [{"path": "demo.sql"}])
+                self.assertEqual(body["partialReport"]["finalReport"]["task"]["status"], "pass")
             finally:
                 database.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
