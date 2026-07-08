@@ -828,7 +828,24 @@ class TaskRun:
         # --- 调度 Excel：清单表格 + 规则 ---
         self.update(progress=50, step="调度规范检查")
         self.task_running("schedule")
-        schedule = self.run_hcyt_schedule(plan_xls, seq_xls, cale_xls, job_xls)
+        try:
+            schedule = self.run_hcyt_schedule(plan_xls, seq_xls, cale_xls, job_xls)
+        except IndexError as exc:
+            self.log(f"调度 Excel 结构异常，已跳过调度规则检查: {exc}", "WARN")
+            schedule = {
+                "summary": {"plan": 0, "seq": 0, "job": 0, "cycles": 0, "missing": 0},
+                "rows": [{
+                    "table": "SCHEDULE",
+                    "item": "",
+                    "rule": "column-check",
+                    "level": "warn",
+                    "msg": f"schedule artifact shape mismatch: {exc}",
+                }],
+                "tables": {},
+                "_job_df": None,
+                "_r_plan": None,
+                "_db_job_rows": None,
+            }
         self.set_partial("schedule", schedule)
         self.task_success("schedule", result=schedule, summary={"issues": len(schedule.get("rows", []))})
         job_df = schedule.pop("_job_df")

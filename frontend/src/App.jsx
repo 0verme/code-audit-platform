@@ -1,9 +1,8 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Dot, Icon } from "./components/ui";
+﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
-import { API_BASE_URL, AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
+import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
 import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
-import { isLocalSourceEnabled } from "./config/auditSources";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
@@ -82,9 +81,6 @@ const showTweakControls =
   import.meta.env.DEV || import.meta.env.VITE_SHOW_TWEAKS === "true";
 
 const THEME_STORAGE_KEY = "codeReviewPlatform.theme";
-const isDevBuild = import.meta.env.DEV;
-const localSourceEnabled = isLocalSourceEnabled();
-
 function getInitialTheme() {
   if (typeof window === "undefined") return "light";
   return window.localStorage.getItem(THEME_STORAGE_KEY) === "dark" ? "dark" : "light";
@@ -183,10 +179,10 @@ function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
       <div className="rail-head">
-        <img className="brand-mark" src="/favicon.svg" alt="代码审查平台" />
+        <img className="brand-mark" src="/favicon.svg" alt="代码提交审查平台" />
         {!collapsed ? (
           <div style={{ minWidth: 0 }}>
-            <div className="brand-name">代码审查平台</div>
+            <div className="brand-name">代码提交审查平台</div>
             <div className="brand-sub">Code Review</div>
           </div>
         ) : null}
@@ -226,29 +222,11 @@ function PageFallback() {
   );
 }
 
-function AppFooter({ apiHealth }) {
-  const apiOnline = IS_API_MODE && !apiHealth.loading && !apiHealth.error;
-  const apiPending = IS_API_MODE && apiHealth.loading;
-  const apiStatusText = !IS_API_MODE
-    ? "本地演示数据"
-    : (apiPending ? "审查引擎连接中" : (apiOnline ? "审查引擎在线" : "审查引擎离线"));
-  const runtimeLabel = IS_API_MODE ? "API 模式" : "Mock 模式";
-  const apiTitle = isDevBuild && IS_API_MODE ? API_BASE_URL : undefined;
-  const statusTone = !IS_API_MODE ? "info" : (apiPending ? "info" : (apiOnline ? "ok" : "warn"));
-
+function AppFooter() {
   return (
     <footer className="app-footer-shell">
       <div className="app-footer">
-        <span className="app-footer-copy">{APP_NAME} {APP_EDITION} · {APP_VERSION} · {runtimeLabel}</span>
-        <span className="app-footer-divider" aria-hidden="true">·</span>
-        <span className="app-footer-status" title={apiTitle}>
-          <Dot tone={statusTone} />
-          <span>{apiStatusText}</span>
-        </span>
-        <Badge tone={statusTone} mono>
-          {IS_API_MODE ? "API" : "MOCK"}
-        </Badge>
-        {localSourceEnabled ? <Badge tone="accent" mono>LOCAL</Badge> : null}
+        <span className="app-footer-copy">{APP_NAME} {APP_EDITION} · {APP_VERSION}</span>
       </div>
     </footer>
   );
@@ -279,7 +257,6 @@ export default function App() {
   const currentRevision = liveData?.task?.revision || run.task?.revision || (IS_API_MODE ? `task-${params.taskId || "pending"}` : data.task.revision);
   const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: IS_API_MODE && view === "home" });
   const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [view], { enabled: IS_API_MODE && view === "home" });
-  const apiHealthState = useAsyncResource(() => reviewService.getHealth(), [], { enabled: IS_API_MODE });
   const auditResultsState = useAsyncResource(() => reviewService.getAuditResults(), [], {
     enabled: IS_API_MODE && view === "results" && !isFR && !params.taskId,
   });
@@ -455,7 +432,7 @@ export default function App() {
               <button className="iconbtn mobile-menu-btn" title="导航菜单" onClick={() => setRailOpen((o) => !o)}>
                 <Icon name="menu" size={16} />
               </button>
-              <button className="btn ghost sm" onClick={() => setView("home")}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 新审查</button>
+              <button className="btn ghost sm" onClick={() => setView("home")}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 新建审查</button>
               <div className="crumb">
                 <span className="seg">{workflowName}</span>
                 <span className="sep">/</span>
@@ -486,7 +463,7 @@ export default function App() {
               : <div className="content-inner">{page}</div>}
         </div>
 
-        <AppFooter apiHealth={apiHealthState} />
+        <AppFooter />
 
         {view === "results" && (params.dbg || run.task?.logs?.length) ? (
           <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} logs={run.task?.logs} />
@@ -506,3 +483,4 @@ export default function App() {
     </div>
   );
 }
+

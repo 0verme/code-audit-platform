@@ -127,6 +127,8 @@ def get_audit_task_report(task_id: int):
     if row is None:
         return jsonify({"error": "report not ready"}), 404
     return app.response_class(row["report_json"], mimetype="application/json")
+
+
 @app.get("/api/audit-runs/<int:run_id>/status")
 def get_audit_run_status(run_id: int):
     payload = engine.get_audit_run_status(run_id)
@@ -141,8 +143,6 @@ def get_audit_run_partial_result(run_id: int):
     if payload is None:
         return jsonify({"error": "audit run not found"}), 404
     return jsonify(payload)
-
-
 
 
 @app.post("/api/audit-tasks")
@@ -273,4 +273,4 @@ def get_fine_report_items():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5088, debug=True)

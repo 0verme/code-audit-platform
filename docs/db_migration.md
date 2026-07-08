@@ -1,18 +1,21 @@
 # Database Migration Guide
 
-## Keep SQLite
+## Runtime Default
 
-Do nothing if you want local SQLite development. With no
-`CODE_AUDIT_DB_CONFIG_PATH` or `CODE_AUDIT_DB_PROFILE`, the app uses the default
-SQLite profile and creates:
+The backend no longer uses SQLite when no explicit platform database config is
+provided. With no `CODE_AUDIT_DB_CONFIG_PATH` or `CODE_AUDIT_DB_PROFILE`, the
+app reuses the metadata database config from:
 
 ```text
-backend/data/app.db
+backend/svn_check/configs/database.yaml
 ```
+
+That file must set `backend: postgres`. The runtime platform tables and rule
+metadata tables will be created/read in the same PostgreSQL database.
 
 ## Move to PostgreSQL or DWS
 
-1. Create an ignored local config from the template.
+1. Create `backend/svn_check/configs/database.yaml` from the template.
 2. Add a `postgresql` or `dws` profile with test or environment-specific values.
 3. Set `CODE_AUDIT_DB_CONFIG_PATH`.
 4. Set `CODE_AUDIT_DB_PROFILE`.
@@ -51,16 +54,17 @@ The script migrates only:
 It does not delete target data, does not truncate tables, and skips rows whose
 primary key already exists.
 
-## Roll Back to SQLite
+## Use SQLite Explicitly For Local Tests
 
-Unset the profile environment variables:
+Create a local config with an explicit SQLite profile, then set the profile
+environment variables:
 
 ```bash
-set CODE_AUDIT_DB_CONFIG_PATH=
-set CODE_AUDIT_DB_PROFILE=
+set CODE_AUDIT_DB_CONFIG_PATH=backend\svn_check\configs\database.yaml
+set CODE_AUDIT_DB_PROFILE=sqlite
 ```
 
-Then restart the backend. The app will use `backend/data/app.db` again.
+SQLite is no longer a no-config fallback.
 
 ## Tests
 

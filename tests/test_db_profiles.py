@@ -44,12 +44,74 @@ class DatabaseProfileTests(unittest.TestCase):
         path.write_text(CONFIG_TEXT, encoding="utf-8")
         return path
 
-    def test_default_profile_without_config_uses_sqlite_app_db(self):
-        with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
-            profile = resolve_profile()
-        self.assertEqual(profile.name, "sqlite")
-        self.assertEqual(profile.type, "sqlite")
-        self.assertTrue(profile.config["path"].endswith(str(Path("backend") / "data" / "app.db")))
+    def test_default_profile_uses_unified_postgres_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "database.yaml"
+            config_path.write_text(
+                """
+backend: postgres
+postgres:
+  host: 127.0.0.1
+  port: 5432
+  dbname: code_audit_test
+  user: tester
+  password: secret
+  schema: dwp
+""",
+                encoding="utf-8",
+            )
+            with patch("db.profiles.DEFAULT_CONFIG_PATH", config_path):
+                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
+                    profile = resolve_profile()
+        self.assertEqual(profile.name, "postgres")
+        self.assertEqual(profile.type, "postgresql")
+        self.assertEqual(profile.config["database"], "code_audit_test")
+        self.assertEqual(profile.config["schema"], "dwp")
+
+    def test_unified_postgres_config_takes_precedence_over_gauss_profiles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "database.yaml"
+            config_path.write_text(
+                """
+backend: postgres
+postgres:
+  host: 127.0.0.1
+  port: 5432
+  dbname: code_audit_test
+  user: tester
+  password: secret
+  schema: dwp
+profiles:
+  czcb:
+    jdbc_url: jdbc:gaussdb://127.0.0.1:25308/czcb
+    user: gauss
+    password: secret
+""",
+                encoding="utf-8",
+            )
+            with patch("db.profiles.DEFAULT_CONFIG_PATH", config_path):
+                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
+                    profile = resolve_profile()
+        self.assertEqual(profile.name, "postgres")
+        self.assertEqual(profile.type, "postgresql")
+        self.assertEqual(profile.config["database"], "code_audit_test")
+
+    def test_missing_default_config_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            missing_path = Path(tmp) / "missing.yaml"
+            with patch("db.profiles.DEFAULT_CONFIG_PATH", missing_path):
+                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
+                    with self.assertRaisesRegex(ProfileConfigError, "does not exist"):
+                        resolve_profile()
+
+    def test_non_postgres_backend_does_not_enable_default_sqlite(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = Path(tmp) / "database.yaml"
+            config_path.write_text("backend: gaussdb\n", encoding="utf-8")
+            with patch("db.profiles.DEFAULT_CONFIG_PATH", config_path):
+                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
+                    with self.assertRaisesRegex(ProfileConfigError, "must define profiles or set backend: postgres"):
+                        resolve_profile()
 
     def test_loads_sqlite_profile_from_config(self):
         with tempfile.TemporaryDirectory() as tmp:

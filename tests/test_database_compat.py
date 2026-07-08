@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -19,9 +20,30 @@ class DatabaseCompatTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.old_db_path = database.DB_PATH
         database.DB_PATH = Path(self.tmp.name) / "app.db"
+        self.config_path = Path(self.tmp.name) / "database.yaml"
+        self.config_path.write_text(
+            f"""
+default_profile: sqlite
+profiles:
+  sqlite:
+    type: sqlite
+    path: {database.DB_PATH.as_posix()}
+""",
+            encoding="utf-8",
+        )
+        self.env_patcher = patch.dict(
+            "os.environ",
+            {
+                "CODE_AUDIT_DB_CONFIG_PATH": str(self.config_path),
+                "CODE_AUDIT_DB_PROFILE": "sqlite",
+            },
+            clear=False,
+        )
+        self.env_patcher.start()
         database.init_db()
 
     def tearDown(self):
+        self.env_patcher.stop()
         database.DB_PATH = self.old_db_path
         self.tmp.cleanup()
 

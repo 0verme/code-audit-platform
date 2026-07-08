@@ -10,8 +10,7 @@ import yaml
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_DIR.parent
-DEFAULT_CONFIG_PATH = BACKEND_DIR / "configs" / "database.yaml"
-DEFAULT_SQLITE_PATH = BACKEND_DIR / "data" / "app.db"
+DEFAULT_CONFIG_PATH = BACKEND_DIR / "svn_check" / "configs" / "database.yaml"
 
 CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
@@ -49,16 +48,58 @@ def resolve_config_path(config_path: str | os.PathLike[str] | None = None) -> Pa
     return DEFAULT_CONFIG_PATH
 
 
-def _default_config() -> dict[str, Any]:
-    return {
-        "default_profile": "sqlite",
-        "profiles": {
-            "sqlite": {
-                "type": "sqlite",
-                "path": str(DEFAULT_SQLITE_PATH),
-            }
-        },
+def _runtime_profile_from_postgres_block(data: dict[str, Any]) -> dict[str, Any] | None:
+    backend = (os.getenv("SVN_CHECK_DB_BACKEND") or data.get("backend") or "").strip().lower()
+    if backend != "postgres":
+        return None
+
+    postgres = dict(data.get("postgres") or {})
+    overrides = {
+        "host": "SVN_CHECK_PG_HOST",
+        "port": "SVN_CHECK_PG_PORT",
+        "dbname": "SVN_CHECK_PG_DB",
+        "user": "SVN_CHECK_PG_USER",
+        "password": "SVN_CHECK_PG_PASSWORD",
+        "schema": "SVN_CHECK_PG_SCHEMA",
     }
+    for key, env_name in overrides.items():
+        value = os.getenv(env_name)
+        if value:
+            postgres[key] = value
+
+    return {
+        "type": "postgresql",
+        "host": postgres.get("host"),
+        "port": postgres.get("port"),
+        "database": postgres.get("dbname") or postgres.get("database"),
+        "username": postgres.get("user") or postgres.get("username"),
+        "password": postgres.get("password"),
+        "schema": postgres.get("schema", "public"),
+        "connect_timeout": postgres.get("connect_timeout", 30),
+    }
+
+
+def _normalize_database_config(data: dict[str, Any]) -> dict[str, Any]:
+    runtime_profile = _runtime_profile_from_postgres_block(data)
+    if runtime_profile:
+        profiles = dict(data.get("profiles") or {})
+        profiles["postgres"] = runtime_profile
+        return {
+            "default_profile": data.get("default_profile") or "postgres",
+            "profiles": profiles,
+        }
+
+    if "profiles" in data:
+        data.setdefault("default_profile", None)
+        data.setdefault("profiles", {})
+        if not isinstance(data["profiles"], dict):
+            raise ProfileConfigError("Database config 'profiles' must be a mapping")
+        return data
+
+    raise ProfileConfigError(
+        "Database config must define profiles or set backend: postgres with a postgres block: "
+        f"{DEFAULT_CONFIG_PATH}"
+    )
 
 
 def load_database_config(config_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
@@ -67,7 +108,7 @@ def load_database_config(config_path: str | os.PathLike[str] | None = None) -> d
     if not path.exists():
         if explicit_path:
             raise ProfileConfigError(f"Database config file does not exist: {path}")
-        return _default_config()
+        raise ProfileConfigError(f"Database config file does not exist: {path}")
 
     try:
         with path.open("r", encoding="utf-8") as handle:
@@ -80,11 +121,7 @@ def load_database_config(config_path: str | os.PathLike[str] | None = None) -> d
     if not isinstance(data, dict):
         raise ProfileConfigError(f"Database config must be a mapping: {path}")
 
-    data.setdefault("default_profile", "sqlite")
-    data.setdefault("profiles", {})
-    if not isinstance(data["profiles"], dict):
-        raise ProfileConfigError("Database config 'profiles' must be a mapping")
-    return data
+    return _normalize_database_config(data)
 
 
 def resolve_profile(
@@ -93,8 +130,14 @@ def resolve_profile(
     config_path: str | os.PathLike[str] | None = None,
 ) -> DatabaseProfile:
     data = load_database_config(config_path)
-    selected_name = (profile_name or os.getenv(PROFILE_ENV) or data.get("default_profile") or "sqlite").strip()
     profiles = data["profiles"]
+    selected_name = profile_name or os.getenv(PROFILE_ENV) or data.get("default_profile")
+    if not selected_name:
+        if len(profiles) == 1:
+            selected_name = next(iter(profiles))
+        else:
+            raise ProfileConfigError("Database default_profile is required when multiple profiles are configured")
+    selected_name = str(selected_name).strip()
     if selected_name not in profiles:
         raise ProfileConfigError(f"Database profile not found: {selected_name}")
 

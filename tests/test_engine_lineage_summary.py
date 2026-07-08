@@ -166,6 +166,43 @@ class EngineLineageSummaryTests(unittest.TestCase):
         self.assertEqual(report["workspaceRoot"], "C:\\workspace\\demo")
         json.dumps(report, ensure_ascii=False)
 
+    def test_schedule_shape_error_degrades_to_warning(self):
+        previous_mods = engine._mods
+        fake_modules = FakeModules(metadata_service=MetadataService())
+        engine._mods = fake_modules
+        try:
+            run = engine.TaskRun.__new__(engine.TaskRun)
+            run.task_id = 1
+            run.repo = "svn://repo/hcyt/demo"
+            run.workflow = "hcyt"
+            run.ai_enabled = False
+            run.debug_enabled = False
+            run.author = "tester"
+            run.source_type = "local"
+            run.logs = []
+            run.start_ts = 0
+            run.update = lambda *args, **kwargs: None
+            run.save_category_rows = lambda *args, **kwargs: None
+            run.build_ai = lambda *args, **kwargs: None
+            run.download_url = lambda *args, **kwargs: ""
+            run.run_hcyt_schedule = lambda *_args, **_kwargs: (_ for _ in ()).throw(IndexError("out-of-bounds"))
+
+            svn_result = {
+                "exported_paths": [],
+                "branch_changed_files": [],
+                "trunk_conflict_files": [],
+                "create_revision": "",
+                "source_type": "local",
+                "workspace_root": "C:\\workspace\\demo",
+            }
+            report = run.run_hcyt(svn_result)
+        finally:
+            engine._mods = previous_mods
+
+        self.assertEqual(report["task"]["status"], "warn")
+        self.assertTrue(any("shape mismatch" in row["msg"] for row in report["schedule"]["rows"]))
+        self.assertTrue(any("调度 Excel 结构异常" in log["msg"] for log in run.logs))
+
     def test_non_hcyt_reports_tolerate_missing_or_empty_lineage_summary(self):
         fine_report = {"task": {"status": "pass"}, "reports": [], "assetIssues": []}
         nups_report = {

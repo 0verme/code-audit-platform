@@ -114,13 +114,15 @@ python init_pg.py
 
 ```powershell
 cd backend
-python app.py
+.\start_backend.ps1
 ```
 
-默认监听 `http://127.0.0.1:5000`，健康检查：
+如果 Windows 上的 `python` 命中了 `WindowsApps\python.exe` 别名，后端会看起来像“直接退出”。仓库内启动脚本会强制使用 `backend/.venv/Scripts/python.exe`。
+
+默认监听 `http://127.0.0.1:5088`，健康检查：
 
 ```text
-GET http://127.0.0.1:5000/api/health
+GET http://127.0.0.1:5088/api/health
 ```
 
 ### 启动前端

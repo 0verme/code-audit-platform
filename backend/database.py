@@ -76,9 +76,9 @@ class CompatConnection:
         finally:
             self.close()
 
-    def execute(self, sql, params=()):
+    def execute(self, sql, params=(), expect_lastrowid=False):
         cursor = self._connection.cursor()
-        sql_to_execute = self._sql_for_insert_id(sql)
+        sql_to_execute = self._sql_for_insert_id(sql, expect_lastrowid=expect_lastrowid)
         cursor.execute(self._normalize_sql(sql_to_execute), tuple(params or ()))
         lastrowid = self._extract_insert_id(cursor, sql_to_execute)
         return CompatCursor(cursor, self.profile, lastrowid=lastrowid)
@@ -110,8 +110,10 @@ class CompatConnection:
             return sql.replace("?", "%s")
         return sql
 
-    def _sql_for_insert_id(self, sql):
+    def _sql_for_insert_id(self, sql, expect_lastrowid=False):
         if self.profile.type == "sqlite":
+            return sql
+        if not expect_lastrowid:
             return sql
         lowered = sql.lower()
         if lowered.lstrip().startswith("insert") and " returning " not in lowered:
@@ -148,7 +150,7 @@ def get_connection() -> CompatConnection:
 
 def execute_insert(sql: str, params=()) -> int:
     with get_connection() as connection:
-        cursor = connection.execute(sql, params)
+        cursor = connection.execute(sql, params, expect_lastrowid=True)
         return cursor.lastrowid
 
 

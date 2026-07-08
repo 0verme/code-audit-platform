@@ -95,7 +95,7 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
   return (
     <div className="home-wrap">
       <div className="home-hero fade-in">
-        <div className="hero-badge"><Dot tone="ok" pulse /> 审查引擎在线 · {APP_VERSION}</div>
+        <div className="hero-badge"><Dot tone="info" /> Community · {APP_VERSION}</div>
         <h1 className="hero-title">代码提交审查平台</h1>
         <p className="hero-sub">输入 SVN / Git 仓库地址或本地目录路径，平台将自动识别来源类型与审查工作流。</p>
       </div>
@@ -143,12 +143,6 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         {!detectedWorkflow ? <p className="route-hint" style={{ color: "var(--err)" }}><Icon name="info" size={12} /> {UNKNOWN_WORKFLOW_MESSAGE}</p> : null}
         {submitError ? <p className="route-hint" style={{ color: "var(--err)" }}>{submitError}</p> : null}
         {detectedWorkflow ? <p className="route-hint"><Icon name="info" size={12} /> 已自动识别工作流：{detectedWorkflow.name}</p> : null}
-        <p className="route-hint route-hint-runtime">
-          <Icon name="info" size={12} />
-          <span>当前运行环境</span>
-          <span className={`badge ${isApiMode ? "ok" : "info"} mono`}>{isApiMode ? "API" : "MOCK"}</span>
-          {localSourceEnabled ? <span className="badge accent mono">LOCAL</span> : null}
-        </p>
 
         {isApiMode && projectsState.loading ? <p className="route-hint">正在加载后端项目列表...</p> : null}
         {isApiMode && projectsState.error ? <p className="route-hint" style={{ color: "var(--err)" }}>项目列表接口不可用，请检查 API 服务或 `VITE_API_BASE_URL`。</p> : null}
@@ -163,8 +157,8 @@ export default function HomePage({ onSubmit, projectsState, tasksState, onCreate
         <div className="divline" />
 
         <div className="toggles">
-          <Toggle on={ai} onChange={setAi} icon="sparkle" label="接入本地 AI 大模型" desc="启用后追加 AI 语义分析与修复建议（默认关闭）" />
-          <Toggle on={dbg} onChange={setDbg} icon="terminal" label="调试日志" desc="输出检测、分类与规则执行的详细日志（默认关闭）" />
+          <Toggle on={ai} onChange={setAi} icon="sparkle" label="接入本地 AI 大模型" desc="启用后追加 AI 语义分析与修复建议（默认关闭）。" />
+          <Toggle on={dbg} onChange={setDbg} icon="terminal" label="调试日志" desc="输出检测、分类与规则执行的详细日志（默认关闭）。" />
         </div>
 
         <div className="home-actions">
