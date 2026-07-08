@@ -22,6 +22,40 @@
 
 .mini-counts { display: inline-flex; gap: 10px; margin-right: 6px; }
 
+.progressive-run {
+  padding: var(--pad-card);
+  margin-bottom: var(--gap);
+  border-color: color-mix(in oklab, var(--accent) 22%, var(--border));
+}
+.progressive-run.failed { border-color: var(--err-bd); }
+.progressive-main { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.progressive-sub { margin-top: 6px; color: var(--text-2); font-size: var(--fs-sm); }
+.progressive-counts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.real-progress { height: 8px; border-radius: 999px; overflow: hidden; margin-top: 16px; background: var(--surface-2); border: 1px solid var(--border); }
+.real-progress span { display: block; height: 100%; background: var(--accent); transition: width .35s ease; }
+
+.module-progress-board { padding: var(--pad-card); margin-bottom: var(--gap); }
+.module-progress-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin-top: 12px; }
+.module-progress-card {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left; width: 100%;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
+  color: var(--text); padding: 11px; cursor: pointer;
+}
+.module-progress-card:hover { border-color: var(--border-strong); background: var(--surface); }
+.module-progress-card.running { border-color: color-mix(in oklab, var(--accent) 35%, var(--border)); }
+.module-progress-card.failed { border-color: var(--err-bd); background: color-mix(in oklab, var(--err-bg) 35%, var(--surface)); }
+.module-progress-card.skipped { border-color: var(--warn-bd); }
+.mp-icon { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; flex: none; background: var(--surface); border: 1px solid var(--border); color: var(--text-2); }
+.mp-body { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.mp-title { font-size: var(--fs-sm); font-weight: 600; }
+.mp-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--text-3); font-size: var(--fs-xs); }
+.mp-error { color: var(--err-fg); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: anywhere; }
+.slow-hint { color: var(--warn-fg); }
+
+.run-logs { padding: 0; margin-top: var(--gap); overflow: hidden; }
+.run-logs summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px var(--pad-card); color: var(--text-2); font-size: var(--fs-sm); }
+.run-logs pre { margin: 0; padding: 0 var(--pad-card) var(--pad-card); white-space: pre-wrap; color: var(--text-2); font-size: var(--fs-xs); max-height: 280px; overflow: auto; }
+
 /* category board (board variant) */
 .cat-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; }
 .cat-card {
@@ -71,6 +105,9 @@
   /* AI findings: reduce padding */
   .ai-finding { padding: 9px 10px; }
   .ai-summary { flex-direction: column; gap: 8px; }
+  .progressive-main { flex-direction: column; }
+  .progressive-counts { justify-content: flex-start; }
+  .module-progress-grid { grid-template-columns: 1fr; }
 }
 
 /* ===== 真实引擎补充展示：下载链接 / 脚本栏 / 调度清单表格 / config JSON ===== */

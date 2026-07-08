@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "../config/api";
+import { API_BASE_URL } from "../config/api.js";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {

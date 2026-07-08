@@ -1,68 +1,223 @@
-import { useEffect, useState } from "react";
-import { reviewService } from "../services/reviewService";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { reviewService } from "../services/reviewService.js";
 
-const POLL_INTERVAL_MS = 2000;
-const REPORT_NOT_READY_MESSAGE = "report not ready";
+export const POLL_INTERVAL_MS = 1500;
 
-/**
- * 跟踪一次 API 审查任务：轮询任务状态，结束后拉取结构化报告。
- * taskId 为空时不发起任何请求，由调用方的 mock/api 配置决定是否使用演示数据。
- */
-export function useAuditRun(taskId) {
-  const [state, setState] = useState({ task: null, report: null, error: null, waitingForReport: false });
+const TERMINAL_RUN_STATUSES = new Set(["success", "failed"]);
+const TERMINAL_TASK_STATUSES = new Set(["pass", "warn", "fail"]);
+
+function getErrorMessage(error) {
+  return error?.message || String(error || "unknown error");
+}
+
+export function deriveAuditRunPageStatus(statusPayload, partialResult, error, starting = false) {
+  if (starting) return "starting";
+  if (error && !statusPayload && !partialResult) return "failed";
+
+  const runStatus = statusPayload?.status || partialResult?.status;
+  const taskStatus = statusPayload?.taskStatus || partialResult?.taskStatus;
+  const finalReportReady = Boolean(statusPayload?.finalReportReady || partialResult?.finalReportReady);
+
+  if (runStatus === "failed" || taskStatus === "fail") return "failed";
+  if (finalReportReady || runStatus === "success" || TERMINAL_TASK_STATUSES.has(taskStatus)) return "completed";
+  if (runStatus === "running" || taskStatus === "running" || taskStatus === "queued") return "running";
+  return statusPayload || partialResult ? "running" : "idle";
+}
+
+export function mergePartialReport(baseReport, statusPayload, partialResult) {
+  const partialReport = partialResult?.partialReport || statusPayload?.partialReport || {};
+  const finalReport = partialResult?.report || partialReport.finalReport || null;
+  const task = statusPayload?.task || {};
+  const tasks = partialResult?.tasks || statusPayload?.tasks || {};
+  const progress = partialResult?.progress || statusPayload?.progress || {};
+  const logs = partialResult?.logs || statusPayload?.logs || task.logs || [];
+  const report = finalReport || {
+    ...baseReport,
+    ...partialReport,
+    task: {
+      ...baseReport.task,
+      status: partialResult?.status === "failed" || statusPayload?.status === "failed" ? "fail" : baseReport.task.status,
+      repo: task.source_ref || task.repo || baseReport.task.repo,
+      sourceRef: task.source_ref || task.sourceRef || baseReport.task.sourceRef,
+      sourceType: task.source_type || task.sourceType || baseReport.task.sourceType,
+      workflow: task.workflow || baseReport.task.workflow,
+      revision: task.revision || baseReport.task.revision,
+      author: task.operator_user || task.author || baseReport.task.author,
+      startedAt: task.started_at || task.startedAt || baseReport.task.startedAt,
+      duration: task.duration || baseReport.task.duration,
+      changedFiles: partialReport.changes?.length ?? baseReport.task.changedFiles,
+      conflicts: partialReport.conflicts?.length ?? baseReport.task.conflicts,
+      errors: countIssues(partialReport, "err"),
+      warnings: countIssues(partialReport, "warn"),
+      checks: Object.keys(tasks).length || baseReport.task.checks,
+    },
+    logs,
+  };
+
+  return {
+    ...report,
+    __auditRun: {
+      pageStatus: deriveAuditRunPageStatus(statusPayload, partialResult, null),
+      statusPayload,
+      partialResult,
+      tasks,
+      progress,
+      logs,
+      currentModule: getCurrentModule(tasks, progress),
+      finalReportReady: Boolean(partialResult?.finalReportReady || statusPayload?.finalReportReady),
+    },
+  };
+}
+
+function countIssues(partialReport, level) {
+  const sections = ["dws", "hive", "config", "sbin", "recv", "python"];
+  return sections.reduce((total, key) => {
+    const rows = Array.isArray(partialReport[key]) ? partialReport[key] : [];
+    return total + rows.filter((row) => row.level === level).length;
+  }, 0);
+}
+
+function getCurrentModule(tasks, progress) {
+  const runningKey = progress?.running?.[0] || Object.keys(tasks || {}).find((key) => tasks[key]?.status === "running");
+  if (!runningKey) return "";
+  return tasks[runningKey]?.task?.label || runningKey;
+}
+
+export function useAuditRun(runId) {
+  const timerRef = useRef(null);
+  const stoppedRef = useRef(false);
+  const [activeRunId, setActiveRunId] = useState(runId || null);
+  const [statusPayload, setStatusPayload] = useState(null);
+  const [partialResult, setPartialResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [starting, setStarting] = useState(false);
+
+  const stopPolling = useCallback(() => {
+    stoppedRef.current = true;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const loadPartialResult = useCallback(async (targetRunId = activeRunId) => {
+    if (!targetRunId) return null;
+    const payload = await reviewService.getAuditRunPartialResult(targetRunId);
+    setPartialResult(payload);
+    return payload;
+  }, [activeRunId]);
+
+  const pollAuditRunStatus = useCallback(async (targetRunId = activeRunId) => {
+    if (!targetRunId) return null;
+    const payload = await reviewService.getAuditRunStatus(targetRunId);
+    setStatusPayload(payload);
+    return payload;
+  }, [activeRunId]);
+
+  const schedulePoll = useCallback((targetRunId) => {
+    if (stoppedRef.current || !targetRunId) return;
+    timerRef.current = setTimeout(async () => {
+      try {
+        const status = await pollAuditRunStatus(targetRunId);
+        const partial = await loadPartialResult(targetRunId);
+        const terminal =
+          TERMINAL_RUN_STATUSES.has(status?.status) ||
+          TERMINAL_TASK_STATUSES.has(status?.taskStatus) ||
+          partial?.finalReportReady;
+        if (terminal) {
+          stopPolling();
+          return;
+        }
+        schedulePoll(targetRunId);
+      } catch (pollError) {
+        setError(new Error(getErrorMessage(pollError)));
+        schedulePoll(targetRunId);
+      }
+    }, POLL_INTERVAL_MS);
+  }, [loadPartialResult, pollAuditRunStatus, stopPolling]);
+
+  const startAuditRun = useCallback(async (payload) => {
+    stopPolling();
+    stoppedRef.current = false;
+    setStarting(true);
+    setError(null);
+    setStatusPayload(null);
+    setPartialResult(null);
+    try {
+      const created = await reviewService.startAuditRun(payload);
+      const nextRunId = created?.runId ?? created?.run_id ?? created?.id;
+      setActiveRunId(nextRunId || null);
+      setStarting(false);
+      if (nextRunId) {
+        await pollAuditRunStatus(nextRunId);
+        await loadPartialResult(nextRunId);
+        schedulePoll(nextRunId);
+      }
+      return created;
+    } catch (startError) {
+      setStarting(false);
+      setError(new Error(getErrorMessage(startError)));
+      throw startError;
+    }
+  }, [loadPartialResult, pollAuditRunStatus, schedulePoll, stopPolling]);
 
   useEffect(() => {
-    setState({ task: null, report: null, error: null, waitingForReport: false });
-    if (!taskId) return undefined;
+    stopPolling();
+    stoppedRef.current = false;
+    setActiveRunId(runId || null);
+    setStatusPayload(null);
+    setPartialResult(null);
+    setError(null);
+    setStarting(false);
+    if (!runId) return undefined;
 
-    let cancelled = false;
-    let timer = null;
-
-    async function tick() {
+    (async () => {
       try {
-        const task = await reviewService.getAuditTask(taskId);
-        if (cancelled) return;
-        if (task.status === "running" || task.status === "queued") {
-          setState((current) => ({ ...current, task, waitingForReport: false }));
-          timer = setTimeout(tick, POLL_INTERVAL_MS);
-          return;
+        await pollAuditRunStatus(runId);
+        const partial = await loadPartialResult(runId);
+        if (!partial?.finalReportReady) {
+          schedulePoll(runId);
         }
-        let report = null;
-        let reportError = null;
-        let waitingForReport = false;
-        try {
-          report = await reviewService.getAuditTaskReport(taskId);
-        } catch (error) {
-          if (task.status === "fail") {
-            reportError = null;
-          } else if (String(error?.message || "").trim().toLowerCase() === REPORT_NOT_READY_MESSAGE) {
-            waitingForReport = true;
-          } else {
-            reportError = error;
-          }
-        }
-        if (waitingForReport) {
-          if (!cancelled) {
-            setState((current) => ({ ...current, task, error: null, waitingForReport: true }));
-            timer = setTimeout(tick, POLL_INTERVAL_MS);
-          }
-          return;
-        }
-        if (!cancelled) setState({ task, report, error: reportError, waitingForReport: false });
-      } catch (error) {
-        if (!cancelled) setState((current) => ({ ...current, error, waitingForReport: false }));
+      } catch (pollError) {
+        setError(new Error(getErrorMessage(pollError)));
       }
-    }
+    })();
 
-    tick();
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [taskId]);
+    return stopPolling;
+  }, [loadPartialResult, pollAuditRunStatus, runId, schedulePoll, stopPolling]);
 
-  const running =
-    (!!state.task && (state.task.status === "running" || state.task.status === "queued")) ||
-    state.waitingForReport;
-  return { ...state, running };
+  const pageStatus = deriveAuditRunPageStatus(statusPayload, partialResult, error, starting);
+  const running = pageStatus === "starting" || pageStatus === "running";
+
+  return useMemo(() => ({
+    runId: activeRunId,
+    task: statusPayload?.task || null,
+    statusPayload,
+    partialResult,
+    tasks: partialResult?.tasks || statusPayload?.tasks || {},
+    progress: partialResult?.progress || statusPayload?.progress || {},
+    logs: partialResult?.logs || statusPayload?.logs || statusPayload?.task?.logs || [],
+    report: partialResult?.report || partialResult?.partialReport?.finalReport || null,
+    error,
+    errorMessage: error ? getErrorMessage(error) : "",
+    pageStatus,
+    running,
+    starting,
+    startAuditRun,
+    pollAuditRunStatus,
+    loadPartialResult,
+    stopPolling,
+  }), [
+    activeRunId,
+    error,
+    loadPartialResult,
+    pageStatus,
+    partialResult,
+    pollAuditRunStatus,
+    running,
+    starting,
+    startAuditRun,
+    statusPayload,
+    stopPolling,
+  ]);
 }

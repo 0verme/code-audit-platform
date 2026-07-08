@@ -4,7 +4,7 @@ import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTwea
 import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
 import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
 import { useAsyncResource } from "./hooks/useAsyncResource";
-import { useAuditRun } from "./hooks/useAuditRun";
+import { mergePartialReport, useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
 
@@ -75,6 +75,52 @@ const TWEAK_DEFAULTS = {
   variant: "standard",
   showAi: true,
   accent: "#3358d4",
+};
+
+const EMPTY_AUDIT_REPORT = {
+  task: {
+    status: "warn",
+    repo: "",
+    sourceRef: "",
+    sourceType: "",
+    module: "hcyt",
+    workflow: "hcyt",
+    revision: "-",
+    author: "-",
+    startedAt: "-",
+    duration: "0s",
+    changedFiles: 0,
+    checks: 0,
+    errors: 0,
+    warnings: 0,
+    conflicts: 0,
+  },
+  changes: [],
+  conflicts: [],
+  dws: [],
+  hive: [],
+  config: [],
+  configFiles: [],
+  sbin: [],
+  recv: [],
+  schedule: { summary: { plan: 0, seq: 0, job: 0, cycles: 0, missing: 0 }, rows: [], tables: {} },
+  deps: [],
+  pyScripts: [],
+  refTables: [],
+  assetIssues: [],
+  unifiedAssetIssues: [],
+  lineageSummary: {
+    resultTables: [],
+    jobs: [],
+    recvPlans: [],
+    sysNames: [],
+    outfiles: [],
+    warnings: [],
+    stats: {},
+  },
+  sqlChecks: {},
+  ai: null,
+  logs: [],
 };
 
 const showTweakControls =
@@ -246,7 +292,10 @@ export default function App() {
   const isFR = params.workflow === "fine-report";
   const isNups = params.workflow === "nups";
   const run = useAuditRun(view === "results" ? params.taskId : null);
-  const liveData = run.report;
+  const progressiveData = params.taskId
+    ? mergePartialReport(EMPTY_AUDIT_REPORT, run.statusPayload, run.partialResult)
+    : null;
+  const liveData = run.report || progressiveData;
   const mockDataset = isNups ? NUPS_DATA : (isFR ? FINEREPORT_DATA : HCYT_DATA);
   const mockData = t.sampleState === "pass" ? mockDataset.PASS : mockDataset.FAIL;
   const data = liveData || mockData;
@@ -319,7 +368,7 @@ export default function App() {
 
   async function handleCreateTask(payload) {
     try {
-      return await reviewService.createAuditTask({
+      return await run.startAuditRun({
         sourceRef: payload.path,
         repo: payload.path,
         sourceType: payload.sourceType || "unknown",
@@ -342,12 +391,10 @@ export default function App() {
     contentRef.current?.scrollTo({ top: 0 });
   }
 
-  const taskFailed = !!params.taskId && !!run.task && !run.running && !liveData;
+  const taskFailed = !!params.taskId && run.pageStatus === "failed" && !liveData;
   const isTaskStateView =
     !!params.taskId && (
       (IS_API_MODE && !!run.error && !liveData) ||
-      run.running ||
-      (!run.task && !run.error) ||
       taskFailed
     );
 
@@ -367,9 +414,6 @@ export default function App() {
     }
     if (IS_API_MODE && params.taskId && run.error && !liveData) {
       return <ApiErrorView error={run.error} onBack={() => setView("home")} />;
-    }
-    if (params.taskId && (run.running || (!run.task && !run.error))) {
-      return <RunningView task={run.task} />;
     }
     if (taskFailed) {
       return <FailedView task={run.task} onBack={() => setView("home")} />;
