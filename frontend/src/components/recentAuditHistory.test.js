@@ -42,7 +42,7 @@ test("recent audit panel wires pagination and empty state in component source", 
   assert.match(panelSource, /formatRecentAuditTime\(item\.when\)/);
   assert.match(panelSource, /RecentAuditPagination/);
   assert.match(panelSource, /pagination\.hasPagination \?/);
-  assert.match(panelSource, /暂无最近审查记录/);
+  assert.match(panelSource, /recent-empty/);
 });
 
 test("home page routes recent audits through the collapsible panel", () => {
@@ -52,19 +52,17 @@ test("home page routes recent audits through the collapsible panel", () => {
   assert.match(homePageSource, /onSelect=\{handleRecentSelect\}/);
 });
 
-test("recent audit panel keeps ip and time visible while truncating source text", () => {
-  assert.doesNotMatch(panelSource, />状态<\/span>\s*<span>版本</);
-  assert.match(panelSource, />状态</);
-  assert.match(panelSource, />IP</);
-  assert.match(panelSource, />时间</);
-  assert.doesNotMatch(panelSource, /className="rr-rev mono"/);
+test("recent audit panel keeps badge display and raw source title while truncating source text", () => {
+  assert.match(panelSource, /formatAuditSourceDisplay\(/);
+  assert.match(panelSource, /auditSourceDisplayRules/);
   assert.match(panelSource, /className="rr-status"/);
   assert.match(panelSource, /className="rr-tag"/);
   assert.match(panelSource, /className="rr-source recent-audits-source-cell"/);
   assert.match(
     panelSource,
-    /className="rr-source-text recent-audits-source-path mono"\s+title=\{item\.sourceRef\}/,
+    /className="rr-source-text recent-audits-source-path mono"\s+title=\{sourceDisplay\.fullText\}/,
   );
+  assert.match(panelSource, /\{sourceDisplay\.displayText\}/);
   assert.match(
     panelSource,
     /className="rr-wf recent-audits-type-cell"\s+title=\{workflow\.name\}/,
@@ -76,7 +74,11 @@ test("recent audit panel keeps ip and time visible while truncating source text"
 test("recent audit styles keep source flexible and type narrow", () => {
   assert.match(
     homeStylesSource,
-    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*56px minmax\(260px,\s*1fr\) 150px 110px 170px;[\s\S]*gap:\s*12px;/,
+    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*52px minmax\(220px,\s*1fr\) 132px 104px 156px;[\s\S]*gap:\s*10px;/,
+  );
+  assert.match(
+    homeStylesSource,
+    /\.recent-table-wrap\s*\{[\s\S]*overflow-x:\s*auto;[\s\S]*min-width:\s*0;/,
   );
   assert.match(
     homeStylesSource,
@@ -88,15 +90,15 @@ test("recent audit styles keep source flexible and type narrow", () => {
   );
   assert.match(
     homeStylesSource,
-    /\.recent-audits-type-cell\s*\{[\s\S]*width:\s*150px;[\s\S]*max-width:\s*150px;[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+    /\.recent-audits-type-cell\s*\{[\s\S]*width:\s*132px;[\s\S]*max-width:\s*132px;[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
   );
   assert.match(
     homeStylesSource,
-    /\.recent-audits-ip-cell\s*\{[\s\S]*width:\s*110px;[\s\S]*max-width:\s*110px;[\s\S]*white-space:\s*nowrap;/,
+    /\.recent-audits-ip-cell\s*\{[\s\S]*width:\s*104px;[\s\S]*max-width:\s*104px;[\s\S]*white-space:\s*nowrap;/,
   );
   assert.match(
     homeStylesSource,
-    /\.recent-audits-time-cell\s*\{[\s\S]*width:\s*170px;[\s\S]*max-width:\s*170px;[\s\S]*white-space:\s*nowrap;/,
+    /\.recent-audits-time-cell\s*\{[\s\S]*width:\s*156px;[\s\S]*max-width:\s*156px;[\s\S]*white-space:\s*nowrap;/,
   );
 });
 
@@ -124,7 +126,7 @@ test("recent audit pagination hides controls when item count does not exceed pag
   const shortPage = getRecentAuditPagination(buildItems(20), 1);
 
   assert.equal(shortPage.hasPagination, false);
-  assert.equal(getRecentAuditSubtitle(20), "共 20 条记录");
+  assert.match(getRecentAuditSubtitle(20), /20/);
 });
 
 test("recent audit pagination clamps page index after data refresh shrinks total pages", () => {

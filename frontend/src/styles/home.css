@@ -506,8 +506,8 @@
 .recent-head,
 .recent-row {
   display: grid;
-  grid-template-columns: 56px minmax(260px, 1fr) 150px 110px 170px;
-  gap: 12px;
+  grid-template-columns: 52px minmax(220px, 1fr) 132px 104px 156px;
+  gap: 10px;
   align-items: center;
   padding: 9px 12px;
   border-radius: 8px;
@@ -566,8 +566,8 @@
   white-space: nowrap;
 }
 .recent-audits-type-cell {
-  width: 150px;
-  max-width: 150px;
+  width: 132px;
+  max-width: 132px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -580,14 +580,14 @@
   min-width: 0;
 }
 .recent-audits-ip-cell {
-  width: 110px;
-  max-width: 110px;
+  width: 104px;
+  max-width: 104px;
   min-width: 0;
   white-space: nowrap;
 }
 .recent-audits-time-cell {
-  width: 170px;
-  max-width: 170px;
+  width: 156px;
+  max-width: 156px;
   min-width: 0;
   white-space: nowrap;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AUDIT_WORKFLOWS } from "../config/auditWorkflows";
+import { auditSourceDisplayRules } from "../config/auditSourceDisplayConfig";
 import { Dot, Icon } from "./ui";
 import {
   formatRecentAuditTime,
@@ -7,6 +8,7 @@ import {
   getRecentAuditSubtitle,
   RECENT_AUDIT_PAGE_SIZE,
 } from "./recentAuditHistory";
+import { formatAuditSourceDisplay } from "../utils/auditSourceDisplay";
 
 function RecentAuditPagination({ currentPage, totalPages, totalItems, onPageChange }) {
   return (
@@ -103,6 +105,11 @@ export function RecentAuditHistoryPanel({
                       const workflow =
                         AUDIT_WORKFLOWS.find((entry) => entry.id === item.wf) ||
                         AUDIT_WORKFLOWS[0];
+                      const sourceDisplay = formatAuditSourceDisplay(
+                        item.sourceRef,
+                        item.sourceType,
+                        auditSourceDisplayRules,
+                      );
                       const tone =
                         item.status === "pass"
                           ? "ok"
@@ -122,9 +129,9 @@ export function RecentAuditHistoryPanel({
                             <span className="rr-tag">{item.sourceTag}</span>
                             <span
                               className="rr-source-text recent-audits-source-path mono"
-                              title={item.sourceRef}
+                              title={sourceDisplay.fullText}
                             >
-                              {item.sourceRef}
+                              {sourceDisplay.displayText}
                             </span>
                           </span>
                           <span
