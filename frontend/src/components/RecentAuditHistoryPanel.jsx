@@ -93,8 +93,7 @@ export function RecentAuditHistoryPanel({
                 <>
                   <div className="recent-table-wrap">
                     <div className="recent-head">
-                      <span />
-                      <span>状态 / 版本</span>
+                      <span>状态</span>
                       <span>审查来源</span>
                       <span>审查类型</span>
                       <span>IP</span>
@@ -116,11 +115,14 @@ export function RecentAuditHistoryPanel({
                           className="recent-row"
                           onClick={() => onSelect(item)}
                         >
-                          <Dot tone={tone} />
-                          <span className="rr-rev mono">{item.rev}</span>
-                          <span className="rr-source mono">
+                          <span className="rr-status" aria-label={`审查状态：${item.status || "unknown"}`}>
+                            <Dot tone={tone} />
+                          </span>
+                          <span className="rr-source">
                             <span className="rr-tag">{item.sourceTag}</span>
-                            {item.sourceRef}
+                            <span className="rr-source-text mono" title={item.sourceRef}>
+                              {item.sourceRef}
+                            </span>
                           </span>
                           <span className="rr-wf">
                             <Icon

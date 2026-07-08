@@ -48,6 +48,15 @@ test("home page routes recent audits through the collapsible panel", () => {
   assert.match(homePageSource, /onSelect=\{handleRecentSelect\}/);
 });
 
+test("recent audit panel simplifies status column and keeps source tooltip", () => {
+  assert.doesNotMatch(panelSource, /状态 \/ 版本/);
+  assert.match(panelSource, />状态</);
+  assert.doesNotMatch(panelSource, /className="rr-rev mono"/);
+  assert.match(panelSource, /className="rr-status"/);
+  assert.match(panelSource, /className="rr-tag"/);
+  assert.match(panelSource, /className="rr-source-text mono" title=\{item\.sourceRef\}/);
+});
+
 test("recent audit pagination returns first page of 20 items by default", () => {
   const page = getRecentAuditPagination(buildItems(25), 1);
 
