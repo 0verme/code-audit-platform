@@ -305,7 +305,7 @@ def _task_row_payload(task_id: int) -> dict | None:
             SELECT id, repo, source_ref, workflow, status, revision, author, operator_user,
                    client_ip, started_at, duration, ai_enabled, debug_enabled, progress,
                    step, finished_at, error, logs_json, source_type
-            FROM audit_tasks
+            FROM {{table:audit_tasks}}
             WHERE id = ?
             """,
             (task_id,),
@@ -322,7 +322,7 @@ def _task_row_payload(task_id: int) -> dict | None:
 
 def _task_report_payload(task_id: int) -> dict | None:
     with get_connection() as connection:
-        row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
+        row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
     if row is None:
         return None
     try:
@@ -494,7 +494,7 @@ class TaskRun:
                 sets.append("step = ?")
                 args.append(step)
             args.append(self.task_id)
-            connection.execute(f"UPDATE audit_tasks SET {', '.join(sets)} WHERE id = ?", args)
+            connection.execute(f"UPDATE {{table:audit_tasks}} SET {', '.join(sets)} WHERE id = ?", args)
         if step:
             self.log(f"当前步骤：{step}")
 
@@ -537,7 +537,7 @@ class TaskRun:
         with get_connection() as connection:
             connection.execute(
                 """
-                UPDATE audit_tasks
+                UPDATE {{table:audit_tasks}}
                 SET status = ?, duration = ?, finished_at = ?, error = ?, progress = ?, step = ?, logs_json = ?
                 WHERE id = ?
                 """,
@@ -557,12 +557,12 @@ class TaskRun:
     def save_category_rows(self, grouped_rows):
         """同步写 audit_results，保留 /api/audit-results 旧接口可用。"""
         with get_connection() as connection:
-            connection.execute("DELETE FROM audit_results WHERE task_id = ?", (self.task_id,))
+            connection.execute("DELETE FROM {{table:audit_results}} WHERE task_id = ?", (self.task_id,))
             for category, rows in grouped_rows.items():
                 for row in rows:
                     connection.execute(
                         """
-                        INSERT INTO audit_results (task_id, category, file_name, line_no, rule_name, level, message)
+                        INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                         """,
                         (self.task_id, category, row.get("file") or "", row.get("line") or 0,

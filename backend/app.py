@@ -20,7 +20,7 @@ def _fail_orphan_tasks():
     with get_connection() as connection:
         connection.execute(
             """
-            UPDATE audit_tasks
+            UPDATE {{table:audit_tasks}}
             SET status = 'fail', step = 'interrupted', error = 'backend restarted while task was running'
             WHERE status IN ('running', 'queued')
             """
@@ -99,7 +99,7 @@ def health():
 def get_projects():
     with get_connection() as connection:
         rows = connection.execute(
-            "SELECT id, name, project_key, repo_path, workflow, description FROM projects ORDER BY id"
+            "SELECT id, name, project_key, repo_path, workflow, description FROM {{table:projects}} ORDER BY id"
         ).fetchall()
     return jsonify([dict(row) for row in rows])
 
@@ -107,14 +107,14 @@ def get_projects():
 @app.get("/api/audit-tasks")
 def get_audit_tasks():
     with get_connection() as connection:
-        rows = connection.execute(f"SELECT {TASK_COLUMNS} FROM audit_tasks ORDER BY id DESC").fetchall()
+        rows = connection.execute(f"SELECT {TASK_COLUMNS} FROM {{table:audit_tasks}} ORDER BY id DESC").fetchall()
     return jsonify([task_row_to_dict(row) for row in rows])
 
 
 @app.get("/api/audit-tasks/<int:task_id>")
 def get_audit_task(task_id: int):
     with get_connection() as connection:
-        row = connection.execute(f"SELECT {TASK_COLUMNS} FROM audit_tasks WHERE id = ?", (task_id,)).fetchone()
+        row = connection.execute(f"SELECT {TASK_COLUMNS} FROM {{table:audit_tasks}} WHERE id = ?", (task_id,)).fetchone()
     if row is None:
         return jsonify({"error": "task not found"}), 404
     return jsonify(task_row_to_dict(row))
@@ -123,7 +123,7 @@ def get_audit_task(task_id: int):
 @app.get("/api/audit-tasks/<int:task_id>/report")
 def get_audit_task_report(task_id: int):
     with get_connection() as connection:
-        row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
+        row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
     if row is None:
         return jsonify({"error": "report not ready"}), 404
     return app.response_class(row["report_json"], mimetype="application/json")
@@ -185,7 +185,7 @@ def create_audit_task():
 
     task_id = execute_insert(
         """
-        INSERT INTO audit_tasks (
+        INSERT INTO {{table:audit_tasks}} (
             repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
             started_at, duration, ai_enabled, debug_enabled, progress, step, source_type
         )
@@ -239,7 +239,7 @@ def get_audit_results():
     task_id = request.args.get("task_id", type=int)
     query = """
         SELECT id, task_id, category, file_name, line_no, rule_name, level, message
-        FROM audit_results
+        FROM {{table:audit_results}}
     """
     args = ()
     if task_id is not None:
@@ -258,7 +258,7 @@ def get_fine_report_items():
             """
             SELECT id, title, file_path, report_type, change_type, connection_name,
                    focus, dataset_sql, dataset_rows, issues_json, ref_tables_json
-            FROM fine_report_items
+            FROM {{table:fine_report_items}}
             ORDER BY id
             """
         ).fetchall()

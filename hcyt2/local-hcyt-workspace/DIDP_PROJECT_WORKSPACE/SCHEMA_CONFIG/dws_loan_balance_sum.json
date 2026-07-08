@@ -1,0 +1,7 @@
+{
+  "schema": "dwuprr",
+  "table": "ijep_demo_asset",
+  "source_db": "dev_oracle_192",
+  "charset": "UTF-8",
+  "incremental": true
+}

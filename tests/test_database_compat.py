@@ -50,7 +50,7 @@ profiles:
     def test_sqlite_profile_creates_project(self):
         project_id = execute_insert(
             """
-            INSERT INTO projects (name, project_key, repo_path, workflow, description)
+            INSERT INTO {{table:projects}} (name, project_key, repo_path, workflow, description)
             VALUES (?, ?, ?, ?, ?)
             """,
             ("Demo", "demo", "https://example.com/repo.git", "hcyt", "Demo project"),
@@ -66,7 +66,7 @@ profiles:
         report = {"task": {"id": task_id}, "items": ["中文", "line\nbreak"]}
         upsert_task_report(task_id, json.dumps(report, ensure_ascii=False), datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         with database.get_connection() as connection:
-            row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
+            row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
         self.assertEqual(json.loads(row["report_json"]), report)
 
     def test_sqlite_profile_writes_audit_results(self):
@@ -74,26 +74,26 @@ profiles:
         with database.get_connection() as connection:
             connection.execute(
                 """
-                INSERT INTO audit_results (task_id, category, file_name, line_no, rule_name, level, message)
+                INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (task_id, "dws", "demo.sql", 1, "rule", "err", "message"),
             )
         with database.get_connection() as connection:
-            row = connection.execute("SELECT category, file_name FROM audit_results WHERE task_id = ?", (task_id,)).fetchone()
+            row = connection.execute("SELECT category, file_name FROM {{table:audit_results}} WHERE task_id = ?", (task_id,)).fetchone()
         self.assertEqual(dict(row), {"category": "dws", "file_name": "demo.sql"})
 
     def test_sqlite_profile_queries_recent_audit_list(self):
         task_id = self._create_task()
         with database.get_connection() as connection:
-            rows = connection.execute("SELECT id, status, logs_json FROM audit_tasks ORDER BY id DESC").fetchall()
+            rows = connection.execute("SELECT id, status, logs_json FROM {{table:audit_tasks}} ORDER BY id DESC").fetchall()
         self.assertEqual(rows[0]["id"], task_id)
         self.assertEqual(rows[0]["status"], "running")
 
     def _create_task(self) -> int:
         return execute_insert(
             """
-            INSERT INTO audit_tasks (
+            INSERT INTO {{table:audit_tasks}} (
                 repo, source_ref, workflow, status, revision, author, operator_user,
                 client_ip, started_at, duration
             )

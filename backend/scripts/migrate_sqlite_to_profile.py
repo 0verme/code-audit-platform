@@ -78,18 +78,21 @@ class SQLiteToProfileMigrator:
         return TableMigrationResult(table, source_count, target_before, inserted, skipped, target_after)
 
     def _target_count(self, table: str) -> int:
-        row = self.runner.query_one(f"SELECT COUNT(*) AS count FROM {table}")
+        row = self.runner.query_one("SELECT COUNT(*) AS count FROM " + "{{table:" + table + "}}")
         return int(row["count"] if row else 0)
 
     def _target_exists(self, table: str, pk_name: str, pk_value: Any) -> bool:
-        row = self.runner.query_one(f"SELECT {pk_name} FROM {table} WHERE {pk_name} = ?", (pk_value,))
+        row = self.runner.query_one(
+            f"SELECT {pk_name} FROM " + "{{table:" + table + "}}" + f" WHERE {pk_name} = ?",
+            (pk_value,),
+        )
         return row is not None
 
     def _insert_row(self, table: str, row: dict[str, Any]) -> None:
         columns = list(row.keys())
         placeholders = ", ".join("?" for _ in columns)
         column_sql = ", ".join(columns)
-        sql = f"INSERT INTO {table} ({column_sql}) VALUES ({placeholders})"
+        sql = "INSERT INTO " + "{{table:" + table + "}}" + f" ({column_sql}) VALUES ({placeholders})"
         self.runner.execute(sql, tuple(row[column] for column in columns))
 
 

@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS projects (
+CREATE TABLE IF NOT EXISTS {{table:projects}} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     project_key TEXT NOT NULL,
@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS projects (
     description TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS audit_tasks (
+CREATE TABLE IF NOT EXISTS {{table:audit_tasks}} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     repo TEXT NOT NULL,
     source_ref TEXT NOT NULL DEFAULT '',
@@ -29,14 +29,14 @@ CREATE TABLE IF NOT EXISTS audit_tasks (
     source_type TEXT NOT NULL DEFAULT 'svn'
 );
 
-CREATE TABLE IF NOT EXISTS task_reports (
+CREATE TABLE IF NOT EXISTS {{table:task_reports}} (
     task_id INTEGER PRIMARY KEY,
     report_json TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (task_id) REFERENCES audit_tasks(id)
+    FOREIGN KEY (task_id) REFERENCES {{table:audit_tasks}}(id)
 );
 
-CREATE TABLE IF NOT EXISTS audit_results (
+CREATE TABLE IF NOT EXISTS {{table:audit_results}} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER NOT NULL,
     category TEXT NOT NULL,
@@ -45,10 +45,10 @@ CREATE TABLE IF NOT EXISTS audit_results (
     rule_name TEXT NOT NULL,
     level TEXT NOT NULL,
     message TEXT NOT NULL,
-    FOREIGN KEY (task_id) REFERENCES audit_tasks(id)
+    FOREIGN KEY (task_id) REFERENCES {{table:audit_tasks}}(id)
 );
 
-CREATE TABLE IF NOT EXISTS fine_report_items (
+CREATE TABLE IF NOT EXISTS {{table:fine_report_items}} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     file_path TEXT NOT NULL,

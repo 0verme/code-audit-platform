@@ -6,6 +6,7 @@ from typing import Any
 
 from .errors import DatabaseDriverError
 from .profiles import DatabaseProfile, resolve_profile
+from .tables import DEFAULT_RUNTIME_SCHEMA
 
 try:
     import psycopg
@@ -74,7 +75,7 @@ def connect_postgresql(profile: DatabaseProfile) -> Any:
 
 def _build_pg_options(config: dict[str, Any]) -> str | None:
     options: list[str] = []
-    schema = str(config.get("schema") or "").strip()
+    schema = str(config.get("schema") or DEFAULT_RUNTIME_SCHEMA).strip()
     if schema:
         options.append(f"-c search_path={schema}")
     statement_timeout_ms = config.get("statement_timeout_ms")

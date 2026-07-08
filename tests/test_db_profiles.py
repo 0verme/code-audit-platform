@@ -11,6 +11,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from db.profiles import CONFIG_PATH_ENV, PROFILE_ENV, ProfileConfigError, resolve_profile  # noqa: E402
+from db.tables import qualified_table_name  # noqa: E402
 
 
 CONFIG_TEXT = """
@@ -26,7 +27,7 @@ profiles:
     database: code_audit
     username: change_me
     password: change_me
-    schema: public
+    schema: dwp
   local_dws:
     type: dws
     host: 127.0.0.1
@@ -34,7 +35,7 @@ profiles:
     database: code_audit
     username: change_me
     password: change_me
-    schema: public
+    schema: dwp
 """
 
 
@@ -67,6 +68,7 @@ postgres:
         self.assertEqual(profile.type, "postgresql")
         self.assertEqual(profile.config["database"], "code_audit_test")
         self.assertEqual(profile.config["schema"], "dwp")
+        self.assertEqual(profile.config["table_prefix"], "p_audit_")
 
     def test_unified_postgres_config_takes_precedence_over_gauss_profiles(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,13 +129,20 @@ profiles:
         self.assertTrue(profile.is_postgresql)
         self.assertEqual(profile.config["host"], "127.0.0.1")
         self.assertEqual(profile.config["port"], 5432)
+        self.assertEqual(qualified_table_name("audit_tasks", profile), "dwp.p_audit_run")
+
+    def test_sqlite_profile_resolves_prefixed_table_names_without_schema(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            profile = resolve_profile("sqlite", config_path=config_path)
+        self.assertEqual(qualified_table_name("audit_tasks", profile), "p_audit_run")
 
     def test_loads_dws_profile_from_config(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
             profile = resolve_profile("local_dws", config_path=config_path)
         self.assertTrue(profile.is_dws)
-        self.assertEqual(profile.config["schema"], "public")
+        self.assertEqual(profile.config["schema"], "dwp")
 
     def test_environment_profile_override(self):
         with tempfile.TemporaryDirectory() as tmp:

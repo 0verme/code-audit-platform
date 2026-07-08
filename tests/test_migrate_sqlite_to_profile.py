@@ -13,6 +13,7 @@ if str(BACKEND_DIR) not in sys.path:
 from db.profiles import DatabaseProfile  # noqa: E402
 from db.schema import RUNTIME_TABLES, initialize_schema  # noqa: E402
 from db.sql_runner import SQLRunner  # noqa: E402
+from db.tables import qualified_table_name, render_table_tokens  # noqa: E402
 from scripts.migrate_sqlite_to_profile import SQLiteToProfileMigrator  # noqa: E402
 
 
@@ -21,8 +22,68 @@ def sqlite_profile(name: str, path: Path) -> DatabaseProfile:
 
 
 def seed_source(path: Path) -> None:
-    initialize_schema(sqlite_profile("source", path))
     with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                project_key TEXT NOT NULL,
+                repo_path TEXT NOT NULL,
+                workflow TEXT NOT NULL,
+                description TEXT NOT NULL
+            );
+            CREATE TABLE audit_tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                repo TEXT NOT NULL,
+                source_ref TEXT NOT NULL DEFAULT '',
+                workflow TEXT NOT NULL,
+                status TEXT NOT NULL,
+                revision TEXT NOT NULL,
+                author TEXT NOT NULL,
+                operator_user TEXT NOT NULL DEFAULT '',
+                client_ip TEXT NOT NULL DEFAULT '',
+                started_at TEXT NOT NULL,
+                duration TEXT NOT NULL,
+                ai_enabled INTEGER NOT NULL DEFAULT 0,
+                debug_enabled INTEGER NOT NULL DEFAULT 0,
+                progress INTEGER NOT NULL DEFAULT 0,
+                step TEXT NOT NULL DEFAULT '',
+                finished_at TEXT,
+                error TEXT,
+                logs_json TEXT NOT NULL DEFAULT '[]',
+                source_type TEXT NOT NULL DEFAULT 'svn'
+            );
+            CREATE TABLE task_reports (
+                task_id INTEGER PRIMARY KEY,
+                report_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE audit_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                line_no INTEGER NOT NULL,
+                rule_name TEXT NOT NULL,
+                level TEXT NOT NULL,
+                message TEXT NOT NULL
+            );
+            CREATE TABLE fine_report_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                report_type TEXT NOT NULL,
+                change_type TEXT NOT NULL,
+                connection_name TEXT NOT NULL,
+                focus TEXT NOT NULL,
+                dataset_sql TEXT NOT NULL,
+                dataset_rows TEXT NOT NULL,
+                issues_json TEXT NOT NULL,
+                ref_tables_json TEXT NOT NULL
+            );
+            """
+        )
         connection.execute(
             "INSERT INTO projects (id, name, project_key, repo_path, workflow, description) VALUES (?, ?, ?, ?, ?, ?)",
             (1, "Demo", "demo", "https://example.com/repo.git", "hcyt", "demo"),
@@ -90,19 +151,37 @@ class FakeRunner:
     def __init__(self):
         self.rows = {table: {} for table in RUNTIME_TABLES}
         self.executed = []
+        self.profile = DatabaseProfile(
+            "local_pg",
+            "postgresql",
+            {
+                "type": "postgresql",
+                "host": "127.0.0.1",
+                "port": 5432,
+                "database": "code_audit",
+                "username": "tester",
+                "password": "secret",
+                "schema": "dwp",
+                "table_prefix": "p_audit_",
+            },
+        )
 
     def query_one(self, sql, params=()):
+        sql = render_table_tokens(sql, self.profile)
         if sql.startswith("SELECT COUNT(*) AS count FROM "):
-            table = sql.rsplit(" ", 1)[-1]
+            table = next(name for name in RUNTIME_TABLES if qualified_table_name(name, self.profile) == sql.rsplit(" ", 1)[-1])
             return {"count": len(self.rows[table])}
         if " WHERE " in sql:
-            table = sql.split(" FROM ", 1)[1].split(" WHERE ", 1)[0]
+            physical_name = sql.split(" FROM ", 1)[1].split(" WHERE ", 1)[0]
+            table = next(name for name in RUNTIME_TABLES if qualified_table_name(name, self.profile) == physical_name)
             return self.rows[table].get(params[0])
         raise AssertionError(f"unexpected query: {sql}")
 
     def execute(self, sql, params=()):
+        sql = render_table_tokens(sql, self.profile)
         self.executed.append((sql, params))
-        table = sql.split(" INTO ", 1)[1].split(" ", 1)[0]
+        physical_name = sql.split(" INTO ", 1)[1].split(" ", 1)[0]
+        table = next(name for name in RUNTIME_TABLES if qualified_table_name(name, self.profile) == physical_name)
         pk = "task_id" if table == "task_reports" else "id"
         columns = [column.strip() for column in sql.split("(", 1)[1].split(")", 1)[0].split(",")]
         row = dict(zip(columns, params))
@@ -134,11 +213,14 @@ class MigrationScriptTests(unittest.TestCase):
             source = Path(tmp) / "source.db"
             target = Path(tmp) / "target.db"
             seed_source(source)
-            initialize_schema(sqlite_profile("target", target))
-            runner = SQLRunner(sqlite_profile("target", target))
+            profile = sqlite_profile("target", target)
+            initialize_schema(profile)
+            runner = SQLRunner(profile)
             SQLiteToProfileMigrator(source, "target", runner=runner).migrate()
             with sqlite3.connect(target) as connection:
-                report_json = connection.execute("SELECT report_json FROM task_reports WHERE task_id = 1").fetchone()[0]
+                report_json = connection.execute(
+                    f"SELECT report_json FROM {qualified_table_name('task_reports', profile)} WHERE task_id = 1"
+                ).fetchone()[0]
         self.assertEqual(json.loads(report_json), {"text": "中文\nline"})
 
     def test_missing_source_has_friendly_error(self):

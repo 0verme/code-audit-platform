@@ -63,7 +63,7 @@ const FR_NAV = [
 const DEBUG_LINES = [
   { t: "INFO", m: "svn checkout 启动 -> 目标版本 r48217" },
   { t: "INFO", m: "文件分类完成，DWS x3 / Hive x2 / Python x2 / 配置 x2" },
-  { t: "RULE", m: "加载规则集 hcyt-ruleset@v3.4.2（共 87 条）" },
+  { t: "RULE", m: `加载规则集 hcyt-ruleset@${APP_VERSION}（共 87 条）` },
   { t: "WARN", m: "dws_cust_asset_d.sql:18 命中规则 [禁止视图创建]" },
   { t: "ERR", m: "dws_risk_tag_d.sql:33 命中规则 [笛卡尔积风险]" },
   { t: "INFO", m: "审查完成 / 错误 7 / 警告 14 / 耗时 1m47s" },

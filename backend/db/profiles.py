@@ -7,7 +7,6 @@ from typing import Any
 
 import yaml
 
-
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_DIR.parent
 DEFAULT_CONFIG_PATH = BACKEND_DIR / "svn_check" / "configs" / "database.yaml"
@@ -15,6 +14,8 @@ DEFAULT_CONFIG_PATH = BACKEND_DIR / "svn_check" / "configs" / "database.yaml"
 CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
 SUPPORTED_TYPES = {"sqlite", "postgresql", "dws"}
+DEFAULT_RUNTIME_SCHEMA = "dwp"
+DEFAULT_TABLE_PREFIX = "p_audit_"
 
 
 class ProfileConfigError(RuntimeError):
@@ -74,7 +75,8 @@ def _runtime_profile_from_postgres_block(data: dict[str, Any]) -> dict[str, Any]
         "database": postgres.get("dbname") or postgres.get("database"),
         "username": postgres.get("user") or postgres.get("username"),
         "password": postgres.get("password"),
-        "schema": postgres.get("schema", "public"),
+        "schema": postgres.get("schema", DEFAULT_RUNTIME_SCHEMA),
+        "table_prefix": postgres.get("table_prefix", DEFAULT_TABLE_PREFIX),
         "connect_timeout": postgres.get("connect_timeout", 30),
     }
 
@@ -171,7 +173,8 @@ def resolve_profile(
     missing = [key for key in ("host", "port", "database", "username", "password") if not config.get(key)]
     if missing:
         raise ProfileConfigError(f"Profile {selected_name} is missing required fields: {', '.join(missing)}")
-    config.setdefault("schema", "public")
+    config.setdefault("schema", DEFAULT_RUNTIME_SCHEMA)
+    config.setdefault("table_prefix", DEFAULT_TABLE_PREFIX)
     config["port"] = int(config["port"])
     return DatabaseProfile(name=selected_name, type=db_type, config=config)
 

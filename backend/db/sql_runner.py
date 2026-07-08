@@ -6,6 +6,7 @@ from typing import Any, Callable, Iterable, Iterator, Sequence
 from .connection import connect
 from .errors import SqlExecutionError
 from .profiles import DatabaseProfile, resolve_profile
+from .tables import render_table_tokens
 
 
 Params = Sequence[Any] | None
@@ -79,6 +80,7 @@ class SQLRunner:
             connection.close()
 
     def normalize_sql(self, sql: str) -> str:
+        sql = render_table_tokens(sql, self.profile)
         if self.profile.type in {"postgresql", "dws"}:
             return sql.replace("?", "%s")
         return sql
@@ -144,6 +146,7 @@ class TransactionRunner:
             _close_cursor(cursor)
 
     def normalize_sql(self, sql: str) -> str:
+        sql = render_table_tokens(sql, self.profile)
         if self.profile.type in {"postgresql", "dws"}:
             return sql.replace("?", "%s")
         return sql

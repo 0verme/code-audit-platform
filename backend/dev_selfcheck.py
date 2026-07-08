@@ -51,7 +51,7 @@ CPT_XML = """<?xml version="1.0" encoding="UTF-8"?>
 
 def make_task(workflow):
     return execute_insert(
-        """INSERT INTO audit_tasks (repo, workflow, status, revision, author, started_at,
+        """INSERT INTO {{table:audit_tasks}} (repo, workflow, status, revision, author, started_at,
                                     duration, ai_enabled, debug_enabled, progress, step)
            VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
         (

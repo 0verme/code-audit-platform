@@ -582,7 +582,7 @@ const FR_PASS = {
 };
 
 // ===========================================================================
-// NUPS 统一支付审查 mock（新增：SQL 检查 + 加工程序 + SQL 引用表）
+// NUPS 统一报送平台审查 mock（新增：SQL 检查 + 加工程序 + SQL 引用表）
 // ===========================================================================
 
 const NUPS_FAIL = {
@@ -590,7 +590,7 @@ const NUPS_FAIL = {
     status: "fail",
     repo: "svn+ssh://svn.example.com/example/repo/trunk/nups",
     module: "nups",
-    workflow: "NUPS 统一支付审查",
+    workflow: "NUPS 统一报送平台审查",
     revision: "r9021",
     author: "chenhao",
     startedAt: "2026-06-07 13:05:40",

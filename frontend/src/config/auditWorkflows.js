@@ -32,7 +32,7 @@ export const AUDIT_WORKFLOWS = [
   {
     id: "nups",
     key: "nups",
-    name: "NUPS 统一支付审查",
+    name: "NUPS 统一报送平台审查",
     pathPrefix: "/nups",
     kw: "/nups/",
     desc: "接口契约 / 配置文件 / 联调依赖检查",
@@ -40,7 +40,7 @@ export const AUDIT_WORKFLOWS = [
     icon: "layers",
     type: "nups",
     color: "var(--warn)",
-    matchKeywords: ["/nups", "统一支付", "pay/nups", "nups"],
+    matchKeywords: ["/nups", "统一报送", "pay/nups", "nups"],
   },
 ];
 

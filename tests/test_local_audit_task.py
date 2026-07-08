@@ -59,7 +59,7 @@ class LocalAuditTaskTests(unittest.TestCase):
 
                 with database.get_connection() as connection:
                     row = connection.execute(
-                        "SELECT source_type, source_ref, operator_user, client_ip FROM audit_tasks WHERE id = ?",
+                        "SELECT source_type, source_ref, operator_user, client_ip FROM {{table:audit_tasks}} WHERE id = ?",
                         (body["id"],),
                     ).fetchone()
                 self.assertEqual(row["source_type"], "local")
@@ -172,7 +172,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 app_module = importlib.import_module("app")
                 task_id = database.execute_insert(
                     """
-                    INSERT INTO audit_tasks (
+                    INSERT INTO {{table:audit_tasks}} (
                         repo, source_ref, workflow, status, revision, author, started_at, duration, progress
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -215,7 +215,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 database.init_db()
                 task_id = database.execute_insert(
                     """
-                    INSERT INTO audit_tasks (
+                    INSERT INTO {{table:audit_tasks}} (
                         repo, workflow, status, revision, author, started_at, duration, progress
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -241,7 +241,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 app_module = importlib.import_module("app")
                 task_id = database.execute_insert(
                     """
-                    INSERT INTO audit_tasks (
+                    INSERT INTO {{table:audit_tasks}} (
                         repo, source_ref, workflow, status, revision, author, started_at, duration, progress
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -293,7 +293,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 database.init_db()
                 task_id = database.execute_insert(
                     """
-                    INSERT INTO audit_tasks (
+                    INSERT INTO {{table:audit_tasks}} (
                         repo, workflow, status, revision, author, started_at, duration, source_type
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -313,7 +313,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 run.finish("pass", report=report)
 
                 with database.get_connection() as connection:
-                    row = connection.execute("SELECT report_json FROM task_reports WHERE task_id = ?", (task_id,)).fetchone()
+                    row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
                 saved = json.loads(row["report_json"])
                 self.assertEqual(saved["sourceType"], "local")
                 self.assertEqual(saved["workspaceRoot"], "C:\\path\\to\\local-hcyt-workspace")

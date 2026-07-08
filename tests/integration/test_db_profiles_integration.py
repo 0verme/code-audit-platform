@@ -35,7 +35,7 @@ class DatabaseProfileIntegrationTests(unittest.TestCase):
     def test_initialize_schema_and_query_tables(self):
         initialize_schema(self.profile)
         for table in RUNTIME_TABLES:
-            row = self.runner.query_one(f"SELECT COUNT(*) AS count FROM {table}")
+            row = self.runner.query_one("SELECT COUNT(*) AS count FROM " + "{{table:" + table + "}}")
             self.assertIsNotNone(row)
             self.assertIn("count", row)
 

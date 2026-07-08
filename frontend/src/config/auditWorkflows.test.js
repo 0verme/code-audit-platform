@@ -34,6 +34,7 @@ test("fine-report repository path is detected as FineReport", () => {
 test("nups repository path is detected as NUPS", () => {
   assert.equal(detectWorkflow("svn+ssh://svn.example.com/example/repo/trunk/nups"), "nups");
   assert.equal(detectWorkflow("svn+ssh://svn.example.com/NUPS"), "nups");
+  assert.equal(detectWorkflow("svn+ssh://svn.example.com/pay/nups/统一报送"), "nups");
 });
 
 test("unmatched repository path returns null", () => {

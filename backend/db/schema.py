@@ -4,15 +4,7 @@ from pathlib import Path
 
 from .profiles import DatabaseProfile, resolve_profile
 from .sql_runner import SQLRunner
-
-
-RUNTIME_TABLES = (
-    "projects",
-    "audit_tasks",
-    "task_reports",
-    "audit_results",
-    "fine_report_items",
-)
+from .tables import RUNTIME_TABLES, render_table_tokens
 
 SCHEMA_DIR = Path(__file__).resolve().parent
 SCHEMA_FILES = {
@@ -29,7 +21,7 @@ def schema_path_for(profile: str | DatabaseProfile | None = None) -> Path:
 
 def load_schema_sql(profile: str | DatabaseProfile | None = None) -> str:
     path = schema_path_for(profile)
-    return path.read_text(encoding="utf-8")
+    return render_table_tokens(path.read_text(encoding="utf-8"), profile)
 
 
 def schema_statements(profile: str | DatabaseProfile | None = None) -> list[str]:

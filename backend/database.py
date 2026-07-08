@@ -7,6 +7,7 @@ from pathlib import Path
 from db.connection import connect
 from db.profiles import CONFIG_PATH_ENV, PROFILE_ENV, DatabaseProfile, resolve_profile
 from db.schema import initialize_schema
+from db.tables import qualified_table_name, render_table_tokens
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -89,6 +90,7 @@ class CompatConnection:
         return CompatCursor(cursor, self.profile)
 
     def executescript(self, sql_script):
+        sql_script = render_table_tokens(sql_script, self.profile)
         if self.profile.type == "sqlite":
             return self._connection.executescript(sql_script)
         cursor = self._connection.cursor()
@@ -106,6 +108,7 @@ class CompatConnection:
         self._connection.close()
 
     def _normalize_sql(self, sql):
+        sql = render_table_tokens(sql, self.profile)
         if self.profile.type in {"postgresql", "dws"}:
             return sql.replace("?", "%s")
         return sql
@@ -156,51 +159,75 @@ def execute_insert(sql: str, params=()) -> int:
 
 def upsert_task_report(task_id: int, report_json: str, created_at: str) -> None:
     with get_connection() as connection:
-        connection.execute("DELETE FROM task_reports WHERE task_id = ?", (task_id,))
+        connection.execute("DELETE FROM {{table:task_reports}} WHERE task_id = ?", (task_id,))
         connection.execute(
-            "INSERT INTO task_reports (task_id, report_json, created_at) VALUES (?, ?, ?)",
+            "INSERT INTO {{table:task_reports}} (task_id, report_json, created_at) VALUES (?, ?, ?)",
             (task_id, report_json, created_at),
         )
 
 
 def _migrate_audit_tasks(connection: CompatConnection) -> None:
     """老库平滑升级：补齐任务进度 / 日志相关列。"""
-    existing = {row[1] for row in connection.execute("PRAGMA table_info(audit_tasks)").fetchall()}
+    table_name = qualified_table_name("audit_tasks", connection.profile)
+    existing = {row[1] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
     for name, ddl in (
-        ("progress", "ALTER TABLE audit_tasks ADD COLUMN progress INTEGER NOT NULL DEFAULT 0"),
-        ("step", "ALTER TABLE audit_tasks ADD COLUMN step TEXT NOT NULL DEFAULT ''"),
-        ("finished_at", "ALTER TABLE audit_tasks ADD COLUMN finished_at TEXT"),
-        ("error", "ALTER TABLE audit_tasks ADD COLUMN error TEXT"),
-        ("logs_json", "ALTER TABLE audit_tasks ADD COLUMN logs_json TEXT NOT NULL DEFAULT '[]'"),
-        ("source_type", "ALTER TABLE audit_tasks ADD COLUMN source_type TEXT NOT NULL DEFAULT 'svn'"),
-        ("source_ref", "ALTER TABLE audit_tasks ADD COLUMN source_ref TEXT NOT NULL DEFAULT ''"),
-        ("operator_user", "ALTER TABLE audit_tasks ADD COLUMN operator_user TEXT NOT NULL DEFAULT ''"),
-        ("client_ip", "ALTER TABLE audit_tasks ADD COLUMN client_ip TEXT NOT NULL DEFAULT ''"),
+        ("progress", f"ALTER TABLE {table_name} ADD COLUMN progress INTEGER NOT NULL DEFAULT 0"),
+        ("step", f"ALTER TABLE {table_name} ADD COLUMN step TEXT NOT NULL DEFAULT ''"),
+        ("finished_at", f"ALTER TABLE {table_name} ADD COLUMN finished_at TEXT"),
+        ("error", f"ALTER TABLE {table_name} ADD COLUMN error TEXT"),
+        ("logs_json", f"ALTER TABLE {table_name} ADD COLUMN logs_json TEXT NOT NULL DEFAULT '[]'"),
+        ("source_type", f"ALTER TABLE {table_name} ADD COLUMN source_type TEXT NOT NULL DEFAULT 'svn'"),
+        ("source_ref", f"ALTER TABLE {table_name} ADD COLUMN source_ref TEXT NOT NULL DEFAULT ''"),
+        ("operator_user", f"ALTER TABLE {table_name} ADD COLUMN operator_user TEXT NOT NULL DEFAULT ''"),
+        ("client_ip", f"ALTER TABLE {table_name} ADD COLUMN client_ip TEXT NOT NULL DEFAULT ''"),
     ):
         if name not in existing:
             connection.execute(ddl)
     if "source_ref" not in existing:
-        connection.execute("UPDATE audit_tasks SET source_ref = repo WHERE source_ref = ''")
+        connection.execute(f"UPDATE {table_name} SET source_ref = repo WHERE source_ref = ''")
     if "operator_user" not in existing:
-        connection.execute("UPDATE audit_tasks SET operator_user = author WHERE operator_user = ''")
+        connection.execute(f"UPDATE {table_name} SET operator_user = author WHERE operator_user = ''")
+
+
+def _migrate_sqlite_runtime_table_names(connection: CompatConnection) -> None:
+    if connection.profile.type != "sqlite":
+        return
+    for logical_name in ("projects", "audit_tasks", "task_reports", "audit_results"):
+        new_name = qualified_table_name(logical_name, connection.profile)
+        if new_name == logical_name:
+            continue
+        legacy_exists = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (logical_name,),
+        ).fetchone()
+        new_exists = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (new_name,),
+        ).fetchone()
+        if legacy_exists and not new_exists:
+            connection.execute(f"ALTER TABLE {logical_name} RENAME TO {new_name}")
 
 
 def init_db() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    initialize_schema(_runtime_profile())
+    profile = _runtime_profile()
+    if profile.type == "sqlite":
+        with CompatConnection(profile) as bootstrap_connection:
+            _migrate_sqlite_runtime_table_names(bootstrap_connection)
+    initialize_schema(profile)
 
     with get_connection() as connection:
         if connection.profile.type == "sqlite":
+            initialize_schema(connection.profile)
             _migrate_audit_tasks(connection)
 
-        project_count = connection.execute("SELECT COUNT(*) FROM projects").fetchone()[0]
+        project_count = connection.execute("SELECT COUNT(*) FROM {{table:projects}}").fetchone()[0]
         if project_count:
             return
 
         connection.executemany(
             """
-            INSERT INTO projects (name, project_key, repo_path, workflow, description)
+            INSERT INTO {{table:projects}} (name, project_key, repo_path, workflow, description)
             VALUES (?, ?, ?, ?, ?)
             """,
             [
@@ -230,7 +257,7 @@ def init_db() -> None:
 
         connection.executemany(
             """
-            INSERT INTO audit_tasks (repo, workflow, status, revision, author, started_at, duration, ai_enabled, debug_enabled, source_type)
+            INSERT INTO {{table:audit_tasks}} (repo, workflow, status, revision, author, started_at, duration, ai_enabled, debug_enabled, source_type)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
@@ -272,11 +299,13 @@ def init_db() -> None:
                 ),
             ],
         )
-        connection.execute("UPDATE audit_tasks SET source_ref = repo, operator_user = author WHERE source_ref = '' OR operator_user = ''")
+        connection.execute(
+            "UPDATE {{table:audit_tasks}} SET source_ref = repo, operator_user = author WHERE source_ref = '' OR operator_user = ''"
+        )
 
         connection.executemany(
             """
-            INSERT INTO audit_results (task_id, category, file_name, line_no, rule_name, level, message)
+            INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
             VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             [
@@ -339,7 +368,7 @@ def init_db() -> None:
 
         connection.executemany(
             """
-            INSERT INTO fine_report_items (
+            INSERT INTO {{table:fine_report_items}} (
                 title, file_path, report_type, change_type, connection_name,
                 focus, dataset_sql, dataset_rows, issues_json, ref_tables_json
             )
