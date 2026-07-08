@@ -92,9 +92,9 @@ export function RecentAuditHistoryPanel({
               {pagination.totalItems ? (
                 <>
                   <div className="recent-table-wrap">
-                    <div className="recent-head">
-                      <span>状态</span>
-                      <span>审查来源</span>
+                    <div className="recent-head recent-audits-row">
+                      <span className="recent-audits-status-cell">状态</span>
+                      <span className="recent-audits-source-cell">审查来源</span>
                       <span>审查类型</span>
                       <span>IP</span>
                       <span>时间</span>
@@ -118,9 +118,12 @@ export function RecentAuditHistoryPanel({
                           <span className="rr-status" aria-label={`审查状态：${item.status || "unknown"}`}>
                             <Dot tone={tone} />
                           </span>
-                          <span className="rr-source">
+                          <span className="rr-source recent-audits-source-cell">
                             <span className="rr-tag">{item.sourceTag}</span>
-                            <span className="rr-source-text mono" title={item.sourceRef}>
+                            <span
+                              className="rr-source-text recent-audits-source-path mono"
+                              title={item.sourceRef}
+                            >
                               {item.sourceRef}
                             </span>
                           </span>

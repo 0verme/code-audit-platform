@@ -16,6 +16,10 @@ const homePageSource = readFileSync(
   new URL("../pages/HomePage.jsx", import.meta.url),
   "utf8",
 );
+const homeStylesSource = readFileSync(
+  new URL("../styles/home.css", import.meta.url),
+  "utf8",
+);
 
 function buildItems(count) {
   return Array.from({ length: count }, (_, index) => ({
@@ -48,13 +52,34 @@ test("home page routes recent audits through the collapsible panel", () => {
   assert.match(homePageSource, /onSelect=\{handleRecentSelect\}/);
 });
 
-test("recent audit panel simplifies status column and keeps source tooltip", () => {
-  assert.doesNotMatch(panelSource, /状态 \/ 版本/);
+test("recent audit panel keeps ip and time visible while truncating source text", () => {
+  assert.doesNotMatch(panelSource, />状态<\/span>\s*<span>版本</);
   assert.match(panelSource, />状态</);
+  assert.match(panelSource, />IP</);
+  assert.match(panelSource, />时间</);
   assert.doesNotMatch(panelSource, /className="rr-rev mono"/);
   assert.match(panelSource, /className="rr-status"/);
   assert.match(panelSource, /className="rr-tag"/);
-  assert.match(panelSource, /className="rr-source-text mono" title=\{item\.sourceRef\}/);
+  assert.match(panelSource, /className="rr-source recent-audits-source-cell"/);
+  assert.match(
+    panelSource,
+    /className="rr-source-text recent-audits-source-path mono"\s+title=\{item\.sourceRef\}/,
+  );
+});
+
+test("recent audit styles constrain source column without hiding ip or time", () => {
+  assert.match(
+    homeStylesSource,
+    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*56px minmax\(240px,\s*320px\) 170px 120px 176px;/,
+  );
+  assert.match(
+    homeStylesSource,
+    /\.recent-audits-source-cell\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;/,
+  );
+  assert.match(
+    homeStylesSource,
+    /\.recent-audits-source-path\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+  );
 });
 
 test("recent audit pagination returns first page of 20 items by default", () => {
