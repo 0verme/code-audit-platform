@@ -65,12 +65,18 @@ test("recent audit panel keeps ip and time visible while truncating source text"
     panelSource,
     /className="rr-source-text recent-audits-source-path mono"\s+title=\{item\.sourceRef\}/,
   );
+  assert.match(
+    panelSource,
+    /className="rr-wf recent-audits-type-cell"\s+title=\{workflow\.name\}/,
+  );
+  assert.match(panelSource, /className="rr-who recent-audits-ip-cell"/);
+  assert.match(panelSource, /className="rr-when recent-audits-time-cell"/);
 });
 
-test("recent audit styles constrain source column without hiding ip or time", () => {
+test("recent audit styles keep source flexible and type narrow", () => {
   assert.match(
     homeStylesSource,
-    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*56px minmax\(240px,\s*320px\) 170px 120px 176px;/,
+    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*56px minmax\(260px,\s*1fr\) 150px 110px 170px;[\s\S]*gap:\s*12px;/,
   );
   assert.match(
     homeStylesSource,
@@ -79,6 +85,18 @@ test("recent audit styles constrain source column without hiding ip or time", ()
   assert.match(
     homeStylesSource,
     /\.recent-audits-source-path\s*\{[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+  );
+  assert.match(
+    homeStylesSource,
+    /\.recent-audits-type-cell\s*\{[\s\S]*width:\s*150px;[\s\S]*max-width:\s*150px;[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+  );
+  assert.match(
+    homeStylesSource,
+    /\.recent-audits-ip-cell\s*\{[\s\S]*width:\s*110px;[\s\S]*max-width:\s*110px;[\s\S]*white-space:\s*nowrap;/,
+  );
+  assert.match(
+    homeStylesSource,
+    /\.recent-audits-time-cell\s*\{[\s\S]*width:\s*170px;[\s\S]*max-width:\s*170px;[\s\S]*white-space:\s*nowrap;/,
   );
 });
 

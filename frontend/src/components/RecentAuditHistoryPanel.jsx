@@ -95,9 +95,9 @@ export function RecentAuditHistoryPanel({
                     <div className="recent-head recent-audits-row">
                       <span className="recent-audits-status-cell">状态</span>
                       <span className="recent-audits-source-cell">审查来源</span>
-                      <span>审查类型</span>
-                      <span>IP</span>
-                      <span>时间</span>
+                      <span className="recent-audits-type-cell">审查类型</span>
+                      <span className="recent-audits-ip-cell">IP</span>
+                      <span className="recent-audits-time-cell">时间</span>
                     </div>
                     {pagination.pagedItems.map((item, index) => {
                       const workflow =
@@ -127,7 +127,10 @@ export function RecentAuditHistoryPanel({
                               {item.sourceRef}
                             </span>
                           </span>
-                          <span className="rr-wf">
+                          <span
+                            className="rr-wf recent-audits-type-cell"
+                            title={workflow.name}
+                          >
                             <Icon
                               name={workflow.icon}
                               size={12}
@@ -135,8 +138,8 @@ export function RecentAuditHistoryPanel({
                             />{" "}
                             {workflow.name}
                           </span>
-                          <span className="rr-who">{item.who}</span>
-                          <span className="rr-when">
+                          <span className="rr-who recent-audits-ip-cell">{item.who}</span>
+                          <span className="rr-when recent-audits-time-cell">
                             {formatRecentAuditTime(item.when)}
                           </span>
                         </div>

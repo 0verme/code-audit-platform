@@ -506,8 +506,8 @@
 .recent-head,
 .recent-row {
   display: grid;
-  grid-template-columns: 56px minmax(240px, 320px) 170px 120px 176px;
-  gap: 14px;
+  grid-template-columns: 56px minmax(260px, 1fr) 150px 110px 170px;
+  gap: 12px;
   align-items: center;
   padding: 9px 12px;
   border-radius: 8px;
@@ -563,6 +563,32 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-audits-type-cell {
+  width: 150px;
+  max-width: 150px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rr-wf {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.recent-audits-ip-cell {
+  width: 110px;
+  max-width: 110px;
+  min-width: 0;
+  white-space: nowrap;
+}
+.recent-audits-time-cell {
+  width: 170px;
+  max-width: 170px;
+  min-width: 0;
   white-space: nowrap;
 }
 .rr-tag {
