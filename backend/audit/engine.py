@@ -32,6 +32,7 @@ from .hcyt_inspection_orchestrator import run_hcyt_inspections
 from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
+from .fine_report_builder import build_fine_report
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
     build_ai as _build_ai,
@@ -1067,23 +1068,19 @@ class TaskRun:
 
         self.save_category_rows(build_legacy_fine_audit_result_rows(reports))
 
-        report = {
-            "task": self.build_task_meta(svn_result, status, {
+        return build_fine_report(
+            task=self.build_task_meta(svn_result, status, {
                 "reports": len(reports),
                 "checks": len(cpt_lists) + (1 if menu_url else 0) + (1 if authority_url else 0),
                 "errors": errors, "warnings": warnings,
             }),
-            "svn": self.build_svn_section(svn_result),
-            "menu": menu_section,
-            "authority": authority_section,
-            "reports": reports,
-            "refTables": all_ref_tables,
-            "assetIssues": [],
-            "unifiedAssetIssues": [],
-        }
-        if ai:
-            report["ai"] = ai
-        return report
+            svn=self.build_svn_section(svn_result),
+            menu_section=menu_section,
+            authority_section=authority_section,
+            reports=reports,
+            ref_tables=all_ref_tables,
+            ai=ai,
+        )
 
 
 def start_task(task_id, repo, workflow, ai_enabled=False, debug_enabled=False, author="local-user", source_type="svn"):
