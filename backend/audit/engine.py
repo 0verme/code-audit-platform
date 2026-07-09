@@ -74,9 +74,7 @@ from db.runtime_store import (
     update_task_runtime_state,
 )
 
-_json_safe = json_safe
 _empty_lineage_summary = empty_lineage_summary
-_lineage_warning = lineage_warning
 _rule_label = rule_label
 
 try:
