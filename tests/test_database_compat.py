@@ -10,7 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from db.connection import CompatConnection  # noqa: E402
 from db.profiles import DatabaseProfile  # noqa: E402
-from db.runtime_store import upsert_task_report  # noqa: E402
+from db.runtime_store import build_audit_result_row_payloads, persist_task_run_completion, upsert_task_report  # noqa: E402
 from db.schema import init_db  # noqa: E402
 
 
@@ -107,6 +107,31 @@ class DatabaseCompatTests(unittest.TestCase):
                 "INSERT INTO dwp.p_audit_run_report (task_id, report_json, created_at) VALUES (%s, %s, %s)",
             ],
         )
+
+    def test_persist_task_run_completion_uses_same_runtime_tables(self):
+        fake = SequenceConnection()
+        with patch("db.connection.resolve_profile", return_value=pg_profile()), patch("db.connection.connect", return_value=fake):
+            persist_task_run_completion(
+                5,
+                status="pass",
+                duration="2s",
+                finished_at="2026-07-09 12:00:00",
+                error=None,
+                progress=100,
+                step="completed",
+                logs=[{"msg": "done"}],
+                report={"task": {"status": "pass"}},
+            )
+        statements = [sql.strip() for sql, _ in fake.cursor_obj.executed]
+        self.assertEqual(len(statements), 3)
+        self.assertTrue(statements[0].startswith("UPDATE dwp.p_audit_run"))
+        self.assertIn("SET status = %s, duration = %s, finished_at = %s, error = %s, progress = %s, step = %s, logs_json = %s", statements[0])
+        self.assertEqual(statements[1], "DELETE FROM dwp.p_audit_run_report WHERE task_id = %s")
+        self.assertEqual(statements[2], "INSERT INTO dwp.p_audit_run_report (task_id, report_json, created_at) VALUES (%s, %s, %s)")
+
+    def test_build_audit_result_row_payloads_normalizes_legacy_defaults(self):
+        payloads = build_audit_result_row_payloads(8, {"python": [{"file": "demo.py", "line": None, "rule": None, "level": "", "msg": None}]})
+        self.assertEqual(payloads, [(8, "python", "demo.py", 0, "", "info", "")])
 
     def test_init_db_only_initializes_runtime_tables(self):
         with patch("db.schema.ensure_runtime_tables") as ensure_runtime_tables:

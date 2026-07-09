@@ -25,7 +25,6 @@ from pathlib import Path
 from .compat import (
     build_legacy_fine_audit_result_rows,
     build_legacy_nups_audit_result_rows,
-    normalize_legacy_audit_result_groups,
 )
 from .issue_adapter import asset_issue_to_dict
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
@@ -54,10 +53,9 @@ from .run_registry import (
 )
 from .source_resolver import detect_workflow
 from db.runtime_store import (
-    finalize_task,
+    persist_task_run_completion,
     replace_audit_results,
     update_task_runtime_state,
-    upsert_task_report,
 )
 
 _json_safe = json_safe
@@ -312,32 +310,28 @@ class TaskRun:
 
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
+        finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if report is not None:
             self.set_partial("finalReport", report)
             self.task_success("summary", summary={"status": status})
             self._ensure_run_state().mark_finished()
         else:
             self._ensure_run_state().mark_finished(error=error or status)
-        finalize_task(
+        persist_task_run_completion(
             self.task_id,
             status=status,
             duration=duration,
-            finished_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            finished_at=finished_at,
             error=error,
             progress=100 if report else 0,
             step="completed" if report else "failed",
-            logs_json=json.dumps(self.logs, ensure_ascii=False),
+            logs=self.logs,
+            report=report,
         )
-        if report is not None:
-            upsert_task_report(
-                self.task_id,
-                json.dumps(report, ensure_ascii=False),
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            )
 
     def save_category_rows(self, grouped_rows):
         """Sync audit_results to preserve the legacy /api/audit-results endpoint."""
-        replace_audit_results(self.task_id, normalize_legacy_audit_result_groups(grouped_rows))
+        replace_audit_results(self.task_id, grouped_rows)
 
 
     # ---- 主入口 ----

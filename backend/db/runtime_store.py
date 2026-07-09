@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+from audit.compat import normalize_legacy_audit_result_groups
+
 from .connection import get_connection
 
 
@@ -67,6 +69,14 @@ def get_task_report_payload(task_id: int) -> dict | None:
         return None
 
 
+def build_task_report_json(report: dict) -> str:
+    return json.dumps(report, ensure_ascii=False)
+
+
+def build_task_logs_json(logs: list[dict]) -> str:
+    return json.dumps(logs, ensure_ascii=False)
+
+
 def upsert_task_report(task_id: int, report_json: str, created_at: str) -> None:
     with get_connection() as connection:
         connection.execute("DELETE FROM {{table:task_reports}} WHERE task_id = ?", (task_id,))
@@ -111,26 +121,62 @@ def finalize_task(
         )
 
 
+def persist_task_run_completion(
+    task_id: int,
+    *,
+    status: str,
+    duration: str,
+    finished_at: str,
+    error: str | None,
+    progress: int,
+    step: str,
+    logs: list[dict],
+    report: dict | None = None,
+) -> None:
+    finalize_task(
+        task_id,
+        status=status,
+        duration=duration,
+        finished_at=finished_at,
+        error=error,
+        progress=progress,
+        step=step,
+        logs_json=build_task_logs_json(logs),
+    )
+    if report is not None:
+        upsert_task_report(task_id, build_task_report_json(report), finished_at)
+
+
+def build_audit_result_row_payloads(task_id: int, grouped_rows: dict[str, list[dict]]) -> list[tuple]:
+    payloads = []
+    for category, rows in normalize_legacy_audit_result_groups(grouped_rows).items():
+        for row in rows:
+            payloads.append(
+                (
+                    task_id,
+                    category,
+                    row["file"],
+                    row["line"],
+                    row["rule"],
+                    row["level"],
+                    row["msg"],
+                )
+            )
+    return payloads
+
+
 def replace_audit_results(task_id: int, grouped_rows: dict[str, list[dict]]) -> None:
+    row_payloads = build_audit_result_row_payloads(task_id, grouped_rows)
     with get_connection() as connection:
         connection.execute("DELETE FROM {{table:audit_results}} WHERE task_id = ?", (task_id,))
-        for category, rows in grouped_rows.items():
-            for row in rows:
-                connection.execute(
-                    """
-                    INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        task_id,
-                        category,
-                        row.get("file") or "",
-                        row.get("line") or 0,
-                        row.get("rule") or "",
-                        row.get("level") or "info",
-                        row.get("msg") or "",
-                    ),
-                )
+        for row_payload in row_payloads:
+            connection.execute(
+                """
+                INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                row_payload,
+            )
 
 
 def list_audit_results(task_id: int | None = None):
