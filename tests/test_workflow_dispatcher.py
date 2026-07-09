@@ -1,103 +1,93 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from backend.audit.workflow_dispatcher import WorkflowRunContext, run_workflow
 
 
 class WorkflowDispatcherTests(unittest.TestCase):
     def test_run_workflow_dispatches_to_hcyt_runner(self):
-        run_hcyt = Mock(return_value={"task": {"status": "pass"}})
-        run_nups = Mock()
-        run_fine = Mock()
+        runtime_context = Mock()
 
-        result = run_workflow(
-            WorkflowRunContext(
-                workflow="hcyt",
-                svn_result={"exported_paths": []},
-                run_hcyt=run_hcyt,
-                run_nups=run_nups,
-                run_fine=run_fine,
-            )
-        )
+        with patch("backend.audit.workflow_dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
+            with patch("backend.audit.workflow_dispatcher.run_nups") as run_nups:
+                with patch("backend.audit.workflow_dispatcher.run_fine") as run_fine:
+                    result = run_workflow(
+                        WorkflowRunContext(
+                            workflow="hcyt",
+                            runtime_context=runtime_context,
+                        )
+                    )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
-        run_hcyt.assert_called_once_with({"exported_paths": []})
+        run_hcyt.assert_called_once_with(runtime_context)
         run_nups.assert_not_called()
         run_fine.assert_not_called()
 
     def test_run_workflow_dispatches_to_nups_runner(self):
-        run_hcyt = Mock()
-        run_nups = Mock(return_value={"task": {"status": "pass"}})
-        run_fine = Mock()
+        runtime_context = Mock()
 
-        result = run_workflow(
-            WorkflowRunContext(
-                workflow="nups",
-                svn_result={"exported_paths": []},
-                run_hcyt=run_hcyt,
-                run_nups=run_nups,
-                run_fine=run_fine,
-            )
-        )
+        with patch("backend.audit.workflow_dispatcher.run_hcyt") as run_hcyt:
+            with patch("backend.audit.workflow_dispatcher.run_nups", return_value={"task": {"status": "pass"}}) as run_nups:
+                with patch("backend.audit.workflow_dispatcher.run_fine") as run_fine:
+                    result = run_workflow(
+                        WorkflowRunContext(
+                            workflow="nups",
+                            runtime_context=runtime_context,
+                        )
+                    )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
         run_hcyt.assert_not_called()
-        run_nups.assert_called_once_with({"exported_paths": []})
+        run_nups.assert_called_once_with(runtime_context)
         run_fine.assert_not_called()
 
     def test_run_workflow_dispatches_to_fine_report_runner(self):
-        run_hcyt = Mock()
-        run_nups = Mock()
-        run_fine = Mock(return_value={"task": {"status": "pass"}})
+        runtime_context = Mock()
 
-        result = run_workflow(
-            WorkflowRunContext(
-                workflow="fine-report",
-                svn_result={"exported_paths": []},
-                run_hcyt=run_hcyt,
-                run_nups=run_nups,
-                run_fine=run_fine,
-            )
-        )
+        with patch("backend.audit.workflow_dispatcher.run_hcyt") as run_hcyt:
+            with patch("backend.audit.workflow_dispatcher.run_nups") as run_nups:
+                with patch("backend.audit.workflow_dispatcher.run_fine", return_value={"task": {"status": "pass"}}) as run_fine:
+                    result = run_workflow(
+                        WorkflowRunContext(
+                            workflow="fine-report",
+                            runtime_context=runtime_context,
+                        )
+                    )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
         run_hcyt.assert_not_called()
         run_nups.assert_not_called()
-        run_fine.assert_called_once_with({"exported_paths": []})
+        run_fine.assert_called_once_with(runtime_context)
 
     def test_run_workflow_falls_back_to_hcyt_for_unknown_workflow(self):
-        run_hcyt = Mock(return_value={"task": {"status": "pass"}})
-        run_nups = Mock()
-        run_fine = Mock()
+        runtime_context = Mock()
 
-        result = run_workflow(
-            WorkflowRunContext(
-                workflow="unknown-workflow",
-                svn_result={"exported_paths": []},
-                run_hcyt=run_hcyt,
-                run_nups=run_nups,
-                run_fine=run_fine,
-            )
-        )
+        with patch("backend.audit.workflow_dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
+            with patch("backend.audit.workflow_dispatcher.run_nups") as run_nups:
+                with patch("backend.audit.workflow_dispatcher.run_fine") as run_fine:
+                    result = run_workflow(
+                        WorkflowRunContext(
+                            workflow="unknown-workflow",
+                            runtime_context=runtime_context,
+                        )
+                    )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
-        run_hcyt.assert_called_once_with({"exported_paths": []})
+        run_hcyt.assert_called_once_with(runtime_context)
         run_nups.assert_not_called()
         run_fine.assert_not_called()
 
     def test_run_workflow_propagates_branch_exceptions_verbatim(self):
-        run_hcyt = Mock(side_effect=RuntimeError("boom"))
+        runtime_context = Mock()
 
-        with self.assertRaisesRegex(RuntimeError, "^boom$"):
-            run_workflow(
-                WorkflowRunContext(
-                    workflow="hcyt",
-                    svn_result={"exported_paths": []},
-                    run_hcyt=run_hcyt,
-                    run_nups=Mock(),
-                    run_fine=Mock(),
+        with patch("backend.audit.workflow_dispatcher.run_hcyt", side_effect=RuntimeError("boom")):
+            with self.assertRaisesRegex(RuntimeError, "^boom$"):
+                run_workflow(
+                    WorkflowRunContext(
+                        workflow="hcyt",
+                        runtime_context=runtime_context,
+                    )
                 )
-            )
 
 
 if __name__ == "__main__":

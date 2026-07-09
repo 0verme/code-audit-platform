@@ -63,7 +63,7 @@ class EngineOrchestrationContractTests(unittest.TestCase):
         def fake_run_workflow(context):
             calls.append(("run_workflow", context))
             self.assertEqual(context.workflow, "hcyt")
-            self.assertIs(context.svn_result, svn_result)
+            self.assertIs(context.runtime_context.source_payload, svn_result)
             return {"task": {"status": "pass"}, "body": "workflow"}
 
         def fake_finalize_run_result(workflow_result, **kwargs):

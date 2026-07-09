@@ -93,10 +93,10 @@ class RunFailureResultTests(unittest.TestCase):
             }
         )
         run = self._new_run(source_type="svn")
-        run.run_hcyt = Mock(side_effect=RuntimeError("workflow boom"))
 
         with patch.object(audit_engine, "_load_real_modules", lambda: None):
-            run.run()
+            with patch.object(audit_engine, "run_workflow", side_effect=RuntimeError("workflow boom")):
+                run.run()
 
         self.assertEqual(len(run.finished), 1)
         self.assertEqual(run.finished[0], {"status": "fail", "report": None, "error": "workflow boom"})

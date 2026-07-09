@@ -364,7 +364,7 @@ class TaskRun:
             workflow=self.workflow,
             repo=self.repo,
             task_id=self.task_id,
-            ai_enabled=self.ai_enabled,
+            ai_enabled=getattr(self, "ai_enabled", False),
             source_payload=svn_result,
             safe=self.safe,
             log=self.log,
@@ -440,10 +440,7 @@ class TaskRun:
             report = run_workflow(
                 WorkflowRunContext(
                     workflow=workflow,
-                    svn_result=svn_result,
-                    run_hcyt=self.run_hcyt,
-                    run_nups=self.run_nups,
-                    run_fine=self.run_fine,
+                    runtime_context=self.build_workflow_runtime(svn_result),
                 )
             )
 

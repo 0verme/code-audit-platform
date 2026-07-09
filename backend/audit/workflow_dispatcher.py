@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+
+from .fine_runner import run_fine
+from .hcyt_runner import run_hcyt
+from .nups_runner import run_nups
+from .workflow_runtime import WorkflowRuntimeContext
 
 
 @dataclass
 class WorkflowRunContext:
     workflow: str
-    svn_result: dict
-    run_hcyt: Callable[[dict], dict]
-    run_nups: Callable[[dict], dict]
-    run_fine: Callable[[dict], dict]
+    runtime_context: WorkflowRuntimeContext
 
 
 def run_workflow(context: WorkflowRunContext) -> dict:
     if context.workflow == "fine-report":
-        return context.run_fine(context.svn_result)
+        return run_fine(context.runtime_context)
     if context.workflow == "nups":
-        return context.run_nups(context.svn_result)
-    return context.run_hcyt(context.svn_result)
+        return run_nups(context.runtime_context)
+    return run_hcyt(context.runtime_context)

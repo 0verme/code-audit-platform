@@ -404,12 +404,10 @@ class LocalAuditTaskTests(unittest.TestCase):
                 )
                 run = audit_engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
                 run.update = lambda *args, **kwargs: None
-                run.run_hcyt = lambda _svn_result: {"task": {"status": "pass"}}
-                run.run_nups = lambda _svn_result: {"task": {"status": "pass"}}
-                run.run_fine = lambda _svn_result: {"task": {"status": "pass"}}
 
                 with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    run.run()
+                    with patch.object(audit_engine, "run_workflow", return_value={"task": {"status": "pass"}}):
+                        run.run()
 
                 with db_connection.get_connection() as connection:
                     row = connection.execute(
@@ -446,10 +444,10 @@ class LocalAuditTaskTests(unittest.TestCase):
                 )
                 run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")
                 run.update = lambda *args, **kwargs: None
-                run.run_hcyt = lambda _svn_result: {"task": {"status": "pass"}}
 
                 with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    run.run()
+                    with patch.object(audit_engine, "run_workflow", return_value={"task": {"status": "pass"}}):
+                        run.run()
 
                 saved = self._load_saved_report(task_id)
                 row = self._load_task_row(task_id)
@@ -490,10 +488,10 @@ class LocalAuditTaskTests(unittest.TestCase):
                 )
                 run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="local")
                 run.update = lambda *args, **kwargs: None
-                run.run_hcyt = lambda _svn_result: {"task": {"status": "pass"}}
 
                 with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    run.run()
+                    with patch.object(audit_engine, "run_workflow", return_value={"task": {"status": "pass"}}):
+                        run.run()
 
                 saved = self._load_saved_report(task_id)
                 load_local_workspace.assert_called_once_with(repo, "hcyt")
@@ -611,26 +609,29 @@ class LocalAuditTaskTests(unittest.TestCase):
                 )
 
                 with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    for repo, expected_runner in cases:
-                        task_id = self._insert_task(repo)
-                        run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")
-                        run.update = lambda *args, **kwargs: None
-                        run.run_hcyt = Mock(return_value={"task": {"status": "pass"}})
-                        run.run_nups = Mock(return_value={"task": {"status": "pass"}})
-                        run.run_fine = Mock(return_value={"task": {"status": "pass"}})
+                    with patch("audit.workflow_dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
+                        with patch("audit.workflow_dispatcher.run_nups", return_value={"task": {"status": "pass"}}) as run_nups:
+                            with patch("audit.workflow_dispatcher.run_fine", return_value={"task": {"status": "pass"}}) as run_fine:
+                                for repo, expected_runner in cases:
+                                    task_id = self._insert_task(repo)
+                                    run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")
+                                    run.update = lambda *args, **kwargs: None
 
-                        run.run()
+                                    run.run()
 
-                        calls = {
-                            "run_hcyt": run.run_hcyt.call_count,
-                            "run_nups": run.run_nups.call_count,
-                            "run_fine": run.run_fine.call_count,
-                        }
-                        self.assertEqual(calls[expected_runner], 1, repo)
-                        for runner_name, count in calls.items():
-                            if runner_name != expected_runner:
-                                self.assertEqual(count, 0, repo)
-                        audit_engine._run_states.pop(task_id, None)
+                                    calls = {
+                                        "run_hcyt": run_hcyt.call_count,
+                                        "run_nups": run_nups.call_count,
+                                        "run_fine": run_fine.call_count,
+                                    }
+                                    self.assertEqual(calls[expected_runner], 1, repo)
+                                    for runner_name, count in calls.items():
+                                        if runner_name != expected_runner:
+                                            self.assertEqual(count, 0, repo)
+                                    run_hcyt.reset_mock()
+                                    run_nups.reset_mock()
+                                    run_fine.reset_mock()
+                                    audit_engine._run_states.pop(task_id, None)
             finally:
                 audit_engine._mods = previous_mods
                 db_connection.DB_PATH = old_db_path
