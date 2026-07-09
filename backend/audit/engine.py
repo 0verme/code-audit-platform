@@ -22,10 +22,8 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from .compat import (
-    build_legacy_fine_audit_result_rows,
-    build_legacy_nups_audit_result_rows,
-)
+from .compat import build_legacy_nups_audit_result_rows
+from .fine_runner import run_fine as _run_fine
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
@@ -35,7 +33,6 @@ from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule, sched
 from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
-from .fine_report_builder import build_fine_report
 from .nups_report_builder import build_nups_report
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
@@ -76,6 +73,7 @@ from .source_resolver import (
     resolve_workflow,
 )
 from .workflow_dispatcher import WorkflowRunContext, run_workflow
+from .workflow_runtime import WorkflowRuntimeContext
 from db.profiles import get_active_profile
 from db.runtime_store import (
     persist_task_run_completion,
@@ -357,6 +355,34 @@ class TaskRun:
 
 
     # ---- 主入口 ----
+
+    def build_workflow_runtime(self, svn_result):
+        return WorkflowRuntimeContext(
+            mods=_mods,
+            workflow=self.workflow,
+            repo=self.repo,
+            task_id=self.task_id,
+            source_payload=svn_result,
+            safe=self.safe,
+            log=self.log,
+            update=self.update,
+            task_running=self.task_running,
+            task_success=self.task_success,
+            task_skipped=self.task_skipped,
+            set_partial=self.set_partial,
+            save_category_rows=self.save_category_rows,
+            download_url=self.download_url,
+            build_task_meta=self.build_task_meta,
+            build_svn_section=self.build_svn_section,
+            build_changes=self.build_changes,
+            build_conflicts=self.build_conflicts,
+            build_config_files=self.build_config_files,
+            build_job_table=self.build_job_table,
+            build_ai=self.build_ai,
+            get_active_profile_name=lambda: get_active_profile().name,
+            status_of=self.status_of,
+            count_levels=self.count_levels,
+        )
 
     def run(self):
         try:
@@ -779,139 +805,7 @@ class TaskRun:
     # ===================================================================
 
     def run_fine(self, svn_result):
-        m = _mods
-        exported = svn_result["exported_paths"]
-        from urllib.parse import quote
-
-        cpt_lists, menu_url, authority_url = [], "", ""
-        for path in exported:
-            if path.endswith((".frm", ".cpt")):
-                cpt_lists.append(path)
-            elif "menu.txt" in path:
-                menu_url = path
-            elif "authority.txt" in path:
-                authority_url = path
-
-        # --- 目录 / 权限（表格 + 规则）---
-        self.update(progress=40, step="目录与权限检查")
-        menu_section = authority_section = None
-        menu_lists = []
-        if menu_url:
-            table = self.safe(
-                "目录表(menu.txt)",
-                lambda: m.re_service.load_txt_to_df(menu_url, ["后台目录", "前台目录", "预览方式"]),
-                None)
-            result = self.safe("目录规则(rule_menu)", lambda: m.fine_rule.rule_menu(menu_url), ([], "", 0))
-            menu_lists = result[0] if isinstance(result, tuple) and result else []
-            menu_section = {
-                "columns": ["后台目录", "前台目录", "预览方式"],
-                "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
-                "messages": text_to_messages(result[1] if isinstance(result, tuple) and len(result) > 1 else "", ""),
-            }
-        if authority_url:
-            table = self.safe(
-                "权限表(authority.txt)",
-                lambda: m.re_service.load_txt_to_df2(authority_url, ["前台目录", "赋予权限"]),
-                None)
-            result = self.safe("权限规则(rule_authority)",
-                               lambda: m.fine_rule.rule_authority(authority_url, menu_lists), ("", 0))
-            text = result[0] if isinstance(result, tuple) else str(result)
-            authority_section = {
-                "columns": ["前台目录", "赋予权限"],
-                "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
-                "messages": text_to_messages(text, ""),
-            }
-
-        # --- 报表模板 ---
-        self.update(progress=55, step="帆软模板检查")
-        registered = set(self.safe(
-            "结果表登记库(lineage)",
-            lambda: m.load_registered_result_tables(profile=get_active_profile().name),
-            set(),
-        ))
-        para_tables = set(self.safe(
-            "码值参数表(all_para_table_lists)",
-            lambda: {normalize_table(r[0]) for r in m.public_data.all_para_table_lists() if r and r[0]},
-            set()))
-        disabled, sys_name_map = self.load_result_table_annotations()
-
-        reports, all_ref_tables = [], []
-        for path in cpt_lists:
-            file_name = m.re_service.get_filename(path)
-            result = self.safe(f"帆软规则({file_name})", lambda p=path: m.fine_rule.rule_fine(p), None)
-            issues, ref_tables = [], []
-            title, conn, engine_flag, sheets, datasets = file_name, "-", "", [], []
-            viewlet = ""
-            if isinstance(result, tuple) and len(result) >= 3:
-                text, _cnt, detail = result[0], result[1], result[2]
-                issues = [{"cat": "dataset", "loc": file_name, "rule": rule_label(line), "level": "err", "msg": line}
-                          for line in str(text or "").split("\n") if line.strip() and line.strip() != "存在问题:"]
-                viewlet = str(detail[0]) if detail and detail[0] else ""
-                title = viewlet or file_name
-                conn = str(detail[1]) if len(detail) > 1 and detail[1] else "-"
-                engine_flag = str(detail[2]) if len(detail) > 2 else ""
-                sheets = list(detail[3]) if len(detail) > 3 and detail[3] else []
-                sql_tables = dedupe_tables(detail[4] if len(detail) > 4 else [])
-                sql_text = self.safe("数据集 SQL 提取", lambda p=path: m.fine_rule.get_cpt_sql(p), "")
-                if sql_text:
-                    datasets = [{"name": "数据集 SQL", "sql": (sql_text or "").strip(), "rows": "-"}]
-                for name in sql_tables:
-                    ttype = "result" if name in registered else ("src" if name in para_tables else "mid")
-                    ann = self.annotate_table(name, disabled, sys_name_map)
-                    ref_tables.append({"name": name, "type": ttype, **ann})
-            elif result is not None:
-                issues = [{"cat": "tpl", "loc": file_name, "rule": "规则执行异常", "level": "warn", "msg": str(result)}]
-
-            preview_url = (f"https://fine.example.com/svn_check.html?viewlet={quote(viewlet, safe='')}"
-                           if viewlet else "")
-            reports.append({
-                "title": title,
-                "file": m.re_service.safe_remove_prefix(path),
-                "type": "frm" if path.endswith(".frm") else "cpt",
-                "change": "M",
-                "conn": conn,
-                "engine": engine_flag,
-                "sheets": sheets,
-                "previewUrl": preview_url,
-                "downloadUrl": self.download_url(path),
-                "focus": "重点检查数据集 SQL、数据连接、敏感字段与权限。",
-                "datasets": datasets,
-                "issues": issues,
-                "refTables": ref_tables,
-            })
-            seen = {item["name"] for item in all_ref_tables}
-            for item in ref_tables:
-                if item["name"] not in seen:
-                    all_ref_tables.append(item)
-                    seen.add(item["name"])
-
-        admin_issue_count = 0
-        for section in (menu_section, authority_section):
-            if section:
-                admin_issue_count += len(section["messages"])
-        errors = sum(1 for r in reports for i in r["issues"] if i["level"] == "err")
-        errors += sum(1 for s in (menu_section, authority_section) if s for msg in s["messages"] if msg["level"] == "err")
-        warnings = sum(1 for r in reports for i in r["issues"] if i["level"] == "warn")
-        warnings += sum(1 for s in (menu_section, authority_section) if s for msg in s["messages"] if msg["level"] == "warn")
-        ai = self.build_ai(cpt_lists, errors, warnings)
-        status = self.status_of(errors, warnings)
-
-        self.save_category_rows(build_legacy_fine_audit_result_rows(reports))
-
-        return build_fine_report(
-            task=self.build_task_meta(svn_result, status, {
-                "reports": len(reports),
-                "checks": len(cpt_lists) + (1 if menu_url else 0) + (1 if authority_url else 0),
-                "errors": errors, "warnings": warnings,
-            }),
-            svn=self.build_svn_section(svn_result),
-            menu_section=menu_section,
-            authority_section=authority_section,
-            reports=reports,
-            ref_tables=all_ref_tables,
-            ai=ai,
-        )
-
+        return _run_fine(self.build_workflow_runtime(svn_result))
 
 def start_task(task_id, repo, workflow, ai_enabled=False, debug_enabled=False, author="local-user", source_type="svn"):
     run = TaskRun(task_id, repo, workflow, ai_enabled, debug_enabled, author, source_type)
