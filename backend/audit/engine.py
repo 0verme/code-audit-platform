@@ -29,6 +29,7 @@ from .compat import (
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
+from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule, schedule_rows as _schedule_rows
 from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
@@ -42,6 +43,10 @@ from .report_builder import (
     build_conflicts as _build_conflicts,
     build_job_table as _build_job_table,
     build_task_meta as _build_task_meta,
+)
+from .result_table_annotations import (
+    annotate_table as _annotate_table,
+    load_result_table_annotations as _load_result_table_annotations,
 )
 from .result_normalizer import (
     dedupe_tables,
@@ -469,38 +474,21 @@ class TaskRun:
         )
 
     def load_result_table_annotations(self):
-        m = _mods
-        disabled = set(self.safe(
-            "禁用结果表(all_disabled_result_tables)",
-            lambda: {normalize_table(r[0]) for r in (m.public_data.all_disabled_result_tables() or []) if r and r[0]},
-            set(),
-        ))
-        sys_name_map = {}
-
-        def build_sys_map():
-            mapping = {}
-            for row in (m.public_data.all_result_table_sys_names() or []):
-                if not row or len(row) < 2 or row[0] is None or row[1] is None:
-                    continue
-                table = normalize_table(row[0])
-                sys_name = str(row[1]).strip()
-                if table and sys_name:
-                    mapping.setdefault(table, [])
-                    if sys_name not in mapping[table]:
-                        mapping[table].append(sys_name)
-            return mapping
-
-        sys_name_map = self.safe("结果表源系统(all_result_table_sys_names)", build_sys_map, {})
-        return disabled, sys_name_map
+        return _load_result_table_annotations(
+            safe=self.safe,
+            public_data=_mods.public_data,
+            normalize_table=normalize_table,
+        )
 
     def annotate_table(self, name, disabled, sys_name_map):
         """返回 {name, disabled, sysNames, highlight}（highlight=禁用或重点源系统）。"""
-        normalized = normalize_table(name)
-        sys_names = sys_name_map.get(normalized, [])
-        is_disabled = normalized in disabled
-        highlight = is_disabled or any(
-            s.strip().upper() in {h.upper() for h in HIGHLIGHT_RESULT_SOURCE_SYSTEMS} for s in sys_names)
-        return {"name": normalized, "disabled": is_disabled, "sysNames": sys_names, "highlight": highlight}
+        return _annotate_table(
+            name,
+            disabled,
+            sys_name_map,
+            normalize_table=normalize_table,
+            highlight_result_source_systems=HIGHLIGHT_RESULT_SOURCE_SYSTEMS,
+        )
 
     # ===================================================================
     # HCYT 工作流
@@ -671,70 +659,16 @@ class TaskRun:
 
     def run_hcyt_schedule(self, plan_xls, seq_xls, cale_xls, job_xls):
         """调度清单表格（PLAN/SEQ/CALE/JOB）+ 规则告警，复刻 hcyt_stream._render_schedule_section。"""
-        m = _mods
-        rows = []
-        tables = {}
-        summary = {"plan": 0, "seq": 0, "job": 0, "cycles": 0, "missing": 0}
-        job_df = r_plan = db_job_rows = None
-
-        def df_table(df, columns=None):
-            display = df.fillna("") if df is not None else None
-            if display is None:
-                return {"columns": [], "rows": []}
-            cols = columns or [str(c) for c in display.columns]
-            return {"columns": cols, "rows": display.astype(str).values.tolist()}
-
-        if plan_xls:
-            plan_source = self.safe("PLAN Excel", lambda: m.re_service.load_xls_to_df(plan_xls), None)
-            if plan_source is not None:
-                summary["plan"] = len(plan_source)
-                plan_df = plan_source.iloc[:, [0, 4]].fillna("")
-                plan_df.columns = ["计划名", "前置依赖"]
-                tables["plan"] = {"title": "PLAN 计划清单", **df_table(plan_df)}
-                result = self.safe("PLAN 规则", lambda: m.hcyt.rule_excle_plan(plan_df), ("", "", 0, None))
-                r_plan = result[3] if len(result) > 3 else None
-                plan_rows = self._schedule_rows(result[0], result[1])
-                tables["plan"]["messages"] = plan_rows
-                rows += [{"table": "PLAN", "item": Path(plan_xls).name, **r} for r in plan_rows]
-
-        if seq_xls:
-            seq_source = self.safe("SEQ Excel", lambda: m.re_service.load_xls_to_df(seq_xls), None)
-            if seq_source is not None:
-                summary["seq"] = len(seq_source)
-                seq_df = seq_source.iloc[:, [0, 1, 2]].fillna("")
-                seq_df.columns = ["计划名", "作业流名", "作业流描述"]
-                tables["seq"] = {"title": "SEQ 作业流清单", **df_table(seq_df)}
-                result = self.safe("SEQ 规则", lambda: m.hcyt.rule_excle_seq(seq_df), ("", "", 0))
-                seq_rows = self._schedule_rows(result[0], result[1])
-                tables["seq"]["messages"] = seq_rows
-                rows += [{"table": "SEQ", "item": Path(seq_xls).name, **r} for r in seq_rows]
-
-        if cale_xls:
-            cale_source = self.safe("CALE Excel", lambda: m.re_service.load_xls_to_df(cale_xls), None)
-            if cale_source is not None:
-                tables["cale"] = {"title": "CALE 日历清单", **df_table(cale_source)}
-
-        if job_xls:
-            job_source = self.safe("JOB Excel", lambda: m.re_service.load_xls_to_df(job_xls), None)
-            if job_source is not None:
-                summary["job"] = len(job_source)
-                job_df = job_source
-                db_job_rows = self.safe("线上作业查询(all_job)", m.public_data.all_job, None)
-                job_table, row_states = self.build_job_table(job_source, db_job_rows)
-                tables["job"] = {"title": "JOB 作业清单（绿=新增 / 红=禁用再上线）",
-                                 "rowStates": row_states, **job_table}
-                result = self.safe(
-                    "JOB 规则",
-                    lambda: m.hcyt.rule_excle_job(job_df, r_plan=r_plan, timing_log=None, job_rows=db_job_rows),
-                    ("", "", 0))
-                job_rows = self._schedule_rows(result[0], result[1])
-                tables["job"]["messages"] = job_rows
-                rows += [{"table": "JOB", "item": Path(job_xls).name, **r} for r in job_rows]
-                summary["cycles"] = sum(1 for r in job_rows if "成环" in r["msg"] or "循环" in r["msg"])
-                summary["missing"] = sum(1 for r in job_rows if ("不存在" in r["msg"] or "未在生产" in r["msg"]))
-
-        return {"summary": summary, "rows": rows, "tables": tables,
-                "_job_df": job_df, "_r_plan": r_plan, "_db_job_rows": db_job_rows}
+        return _run_hcyt_schedule(
+            plan_xls,
+            seq_xls,
+            cale_xls,
+            job_xls,
+            safe=self.safe,
+            modules=_mods,
+            build_job_table=self.build_job_table,
+            schedule_rows_fn=self._schedule_rows,
+        )
 
     def build_job_table(self, job_source, db_job_rows):
         """JOB ??4 ?????+ ??????new=????????/ disabled=??????????????
@@ -743,15 +677,7 @@ class TaskRun:
 
     @staticmethod
     def _schedule_rows(result_text, warn_text):
-        rows = []
-        for raw, level in ((result_text, "err"), (warn_text, "warn")):
-            if not raw or not isinstance(raw, str):
-                continue
-            for line in raw.split("\n"):
-                line = line.strip()
-                if line:
-                    rows.append({"rule": rule_label(line), "level": level, "msg": line})
-        return rows
+        return _schedule_rows(result_text, warn_text, rule_label=rule_label)
 
     def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows):
         m = _mods
