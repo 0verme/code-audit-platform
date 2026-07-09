@@ -77,7 +77,6 @@ from db.runtime_store import (
 )
 
 _empty_lineage_summary = empty_lineage_summary
-_rule_label = rule_label
 
 try:
     from .run import AuditRunState, AuditTask, AuditTaskStatus
