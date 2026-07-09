@@ -26,7 +26,7 @@ from .compat import (
     build_legacy_fine_audit_result_rows,
     build_legacy_nups_audit_result_rows,
 )
-from .issue_adapter import asset_issue_to_dict
+from .hcyt_inspection_orchestrator import run_hcyt_inspections
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
@@ -597,59 +597,33 @@ class TaskRun:
         # --- 调度 Excel：清单表格 + 规则 ---
         self.update(progress=50, step="调度规范检查")
         self.task_running("schedule")
-        try:
-            schedule = self.run_hcyt_schedule(plan_xls, seq_xls, cale_xls, job_xls)
-        except IndexError as exc:
-            self.log(f"调度 Excel 结构异常，已跳过调度规则检查: {exc}", "WARN")
-            schedule = {
-                "summary": {"plan": 0, "seq": 0, "job": 0, "cycles": 0, "missing": 0},
-                "rows": [{
-                    "table": "SCHEDULE",
-                    "item": "",
-                    "rule": "column-check",
-                    "level": "warn",
-                    "msg": f"schedule artifact shape mismatch: {exc}",
-                }],
-                "tables": {},
-                "_job_df": None,
-                "_r_plan": None,
-                "_db_job_rows": None,
-            }
-        self.set_partial("schedule", schedule)
-        self.task_success("schedule", result=schedule, summary={"issues": len(schedule.get("rows", []))})
-        job_df = schedule.pop("_job_df")
-        r_plan = schedule.pop("_r_plan")
-        db_job_rows = schedule.pop("_db_job_rows")
-
-        # --- 加工程序 ---
-        self.update(progress=65, step="加工程序检查")
-        self.task_running("python_scripts")
-        py_scripts, py_rows, ref_tables, deps, py_asset_issues = self.run_hcyt_programs(
-            py_lists, job_df, program_xls, db_job_rows)
-        grouped["python"] += py_rows
-        self.set_partial("python", grouped["python"])
-        self.set_partial("pyScripts", py_scripts)
-        self.set_partial("refTables", ref_tables)
-        self.set_partial("deps", deps)
-        self.task_success("python_scripts", result=grouped["python"], summary={"issues": len(grouped["python"])})
-        asset_issues += py_asset_issues
-        asset_issues = [asset_issue_to_dict(issue) for issue in m.dedupe_issues(asset_issues)]
-        unified_asset_issues = m.asset_issues_to_unified_issues(
-            asset_issues,
-            scan_batch_id=self.task_id,
-        )
-        self.task_running("lineage")
-        lineage_summary = _build_lineage_summary_payload(
-            m,
-            job_df=job_df,
-            program_xls=program_xls,
+        inspections = run_hcyt_inspections(
+            plan_xls=plan_xls,
+            seq_xls=seq_xls,
+            cale_xls=cale_xls,
+            job_xls=job_xls,
             py_lists=py_lists,
-            db_job_rows=db_job_rows,
+            program_xls=program_xls,
+            task_id=self.task_id,
+            initial_asset_issues=asset_issues,
+            run_schedule=self.run_hcyt_schedule,
+            run_programs=self.run_hcyt_programs,
+            build_lineage_summary=_build_lineage_summary_payload,
+            modules=m,
+            log_schedule_warning=lambda msg: self.log(msg, "WARN"),
+            update_progress=self.update,
+            task_running=self.task_running,
+            task_success=self.task_success,
+            set_partial=self.set_partial,
+            grouped=grouped,
         )
-        self.set_partial("assetIssues", asset_issues)
-        self.set_partial("unifiedAssetIssues", unified_asset_issues)
-        self.set_partial("lineageSummary", lineage_summary)
-        self.task_success("lineage", result=lineage_summary, summary=lineage_summary.get("stats", {}))
+        schedule = inspections.schedule
+        py_scripts = inspections.py_scripts
+        ref_tables = inspections.ref_tables
+        deps = inspections.deps
+        asset_issues = inspections.asset_issues
+        unified_asset_issues = inspections.unified_asset_issues
+        lineage_summary = inspections.lineage_summary
 
         errors, warnings = self.count_levels(list(grouped.values()) + [schedule["rows"]])
         self.update(progress=85, step="AI 分析" if self.ai_enabled else "汇总报告")
