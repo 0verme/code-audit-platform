@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock
 
-from backend.audit.workflow_dispatcher import run_workflow
+from backend.audit.workflow_dispatcher import WorkflowRunContext, run_workflow
 
 
 class WorkflowDispatcherTests(unittest.TestCase):
@@ -11,11 +11,13 @@ class WorkflowDispatcherTests(unittest.TestCase):
         run_fine = Mock()
 
         result = run_workflow(
-            "hcyt",
-            {"exported_paths": []},
-            run_hcyt=run_hcyt,
-            run_nups=run_nups,
-            run_fine=run_fine,
+            WorkflowRunContext(
+                workflow="hcyt",
+                svn_result={"exported_paths": []},
+                run_hcyt=run_hcyt,
+                run_nups=run_nups,
+                run_fine=run_fine,
+            )
         )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
@@ -29,11 +31,13 @@ class WorkflowDispatcherTests(unittest.TestCase):
         run_fine = Mock()
 
         result = run_workflow(
-            "nups",
-            {"exported_paths": []},
-            run_hcyt=run_hcyt,
-            run_nups=run_nups,
-            run_fine=run_fine,
+            WorkflowRunContext(
+                workflow="nups",
+                svn_result={"exported_paths": []},
+                run_hcyt=run_hcyt,
+                run_nups=run_nups,
+                run_fine=run_fine,
+            )
         )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
@@ -47,11 +51,13 @@ class WorkflowDispatcherTests(unittest.TestCase):
         run_fine = Mock(return_value={"task": {"status": "pass"}})
 
         result = run_workflow(
-            "fine-report",
-            {"exported_paths": []},
-            run_hcyt=run_hcyt,
-            run_nups=run_nups,
-            run_fine=run_fine,
+            WorkflowRunContext(
+                workflow="fine-report",
+                svn_result={"exported_paths": []},
+                run_hcyt=run_hcyt,
+                run_nups=run_nups,
+                run_fine=run_fine,
+            )
         )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
@@ -65,11 +71,13 @@ class WorkflowDispatcherTests(unittest.TestCase):
         run_fine = Mock()
 
         result = run_workflow(
-            "unknown-workflow",
-            {"exported_paths": []},
-            run_hcyt=run_hcyt,
-            run_nups=run_nups,
-            run_fine=run_fine,
+            WorkflowRunContext(
+                workflow="unknown-workflow",
+                svn_result={"exported_paths": []},
+                run_hcyt=run_hcyt,
+                run_nups=run_nups,
+                run_fine=run_fine,
+            )
         )
 
         self.assertEqual(result, {"task": {"status": "pass"}})
@@ -82,11 +90,13 @@ class WorkflowDispatcherTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "^boom$"):
             run_workflow(
-                "hcyt",
-                {"exported_paths": []},
-                run_hcyt=run_hcyt,
-                run_nups=Mock(),
-                run_fine=Mock(),
+                WorkflowRunContext(
+                    workflow="hcyt",
+                    svn_result={"exported_paths": []},
+                    run_hcyt=run_hcyt,
+                    run_nups=Mock(),
+                    run_fine=Mock(),
+                )
             )
 
 

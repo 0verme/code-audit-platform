@@ -59,7 +59,7 @@ from .source_resolver import (
     resolve_workspace,
     resolve_workflow,
 )
-from .workflow_dispatcher import run_workflow
+from .workflow_dispatcher import WorkflowRunContext, run_workflow
 from db.profiles import get_active_profile
 from db.runtime_store import (
     persist_task_run_completion,
@@ -383,11 +383,13 @@ class TaskRun:
             self.update(progress=25, step="分析文件")
 
             report = run_workflow(
-                workflow,
-                svn_result,
-                run_hcyt=self.run_hcyt,
-                run_nups=self.run_nups,
-                run_fine=self.run_fine,
+                WorkflowRunContext(
+                    workflow=workflow,
+                    svn_result=svn_result,
+                    run_hcyt=self.run_hcyt,
+                    run_nups=self.run_nups,
+                    run_fine=self.run_fine,
+                )
             )
 
             report.update(

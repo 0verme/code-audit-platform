@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Callable
 
-def run_workflow(
-    workflow: str,
-    svn_result: dict,
-    *,
-    run_hcyt,
-    run_nups,
-    run_fine,
-) -> dict:
-    if workflow == "fine-report":
-        return run_fine(svn_result)
-    if workflow == "nups":
-        return run_nups(svn_result)
-    return run_hcyt(svn_result)
+
+@dataclass
+class WorkflowRunContext:
+    workflow: str
+    svn_result: dict
+    run_hcyt: Callable[[dict], dict]
+    run_nups: Callable[[dict], dict]
+    run_fine: Callable[[dict], dict]
+
+
+def run_workflow(context: WorkflowRunContext) -> dict:
+    if context.workflow == "fine-report":
+        return context.run_fine(context.svn_result)
+    if context.workflow == "nups":
+        return context.run_nups(context.svn_result)
+    return context.run_hcyt(context.svn_result)
