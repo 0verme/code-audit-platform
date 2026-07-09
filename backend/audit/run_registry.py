@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 
+from .compat import build_audit_run_partial_result_payload
 from db.runtime_store import get_task_report_payload, get_task_row_payload
 
 try:
@@ -71,18 +72,4 @@ def get_audit_run_partial_result(task_id: int) -> dict | None:
         return None
 
     final_report = get_task_report_payload(task_id)
-    partial_report = dict(status_payload.get("partialReport") or {})
-    if final_report is not None:
-        partial_report.setdefault("finalReport", final_report)
-    return {
-        "runId": task_id,
-        "workflow": status_payload.get("workflow", ""),
-        "status": status_payload.get("status", ""),
-        "taskStatus": status_payload.get("taskStatus"),
-        "progress": status_payload.get("progress", {}),
-        "tasks": status_payload.get("tasks", {}),
-        "partialReport": partial_report,
-        "finalReportReady": final_report is not None,
-        "report": final_report,
-        "logs": status_payload.get("logs", []),
-    }
+    return build_audit_run_partial_result_payload(task_id, status_payload, final_report)

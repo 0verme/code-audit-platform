@@ -22,6 +22,11 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
+from .compat import (
+    build_legacy_fine_audit_result_rows,
+    build_legacy_nups_audit_result_rows,
+    normalize_legacy_audit_result_groups,
+)
 from .issue_adapter import asset_issue_to_dict
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
@@ -332,7 +337,7 @@ class TaskRun:
 
     def save_category_rows(self, grouped_rows):
         """Sync audit_results to preserve the legacy /api/audit-results endpoint."""
-        replace_audit_results(self.task_id, grouped_rows)
+        replace_audit_results(self.task_id, normalize_legacy_audit_result_groups(grouped_rows))
 
 
     # ---- 主入口 ----
@@ -917,10 +922,7 @@ class TaskRun:
         status = self.status_of(errors + len(conflicts), warnings)
 
         # 旧接口 audit_results 也写一份
-        self.save_category_rows({"nups": [
-            {"file": c["script"], "line": 0, "rule": rule_label(m["msg"]), "level": m["level"], "msg": m["msg"]}
-            for c in sql_checks for m in c["messages"]
-        ]})
+        self.save_category_rows(build_legacy_nups_audit_result_rows(sql_checks, rule_label))
 
         report = {
             "task": self.build_task_meta(svn_result, status, {
@@ -1058,10 +1060,7 @@ class TaskRun:
         ai = self.build_ai(cpt_lists, errors, warnings)
         status = self.status_of(errors, warnings)
 
-        self.save_category_rows({"fine": [
-            {"file": r["file"], "line": 0, "rule": i["rule"], "level": i["level"], "msg": i["msg"]}
-            for r in reports for i in r["issues"]
-        ]})
+        self.save_category_rows(build_legacy_fine_audit_result_rows(reports))
 
         report = {
             "task": self.build_task_meta(svn_result, status, {
