@@ -26,6 +26,7 @@ from .compat import (
     build_legacy_fine_audit_result_rows,
     build_legacy_nups_audit_result_rows,
 )
+from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
@@ -506,17 +507,17 @@ class TaskRun:
 
     def run_hcyt(self, svn_result):
         m = _mods
-        exported = svn_result["exported_paths"]
         self.task_running("classify_files")
-        path_map = {m.re_service.safe_remove_prefix(p): p for p in exported}
-        (dws_url, hive_url, schame_config_lists, sbin_lists, recv_lists,
-         dwo_lists, dwf_lists, _dlo_meta, _dlo, py_lists,
-         plan_xls, seq_xls, job_xls, program_xls, cale_xls) = m.hcyt.get_hcyt_type(exported)
-
-        grouped = {"dws": [], "hive": [], "python": [], "sbin": [], "config": [], "recv": []}
-        report = {}
-        changes = self.build_changes(svn_result, path_map)
-        conflicts = self.build_conflicts(svn_result)
+        input_files = collect_hcyt_input_files(
+            svn_result=svn_result,
+            re_service=m.re_service,
+            hcyt=m.hcyt,
+            build_changes=self.build_changes,
+            build_conflicts=self.build_conflicts,
+        )
+        (dws_url, hive_url, schame_config_lists, sbin_lists, recv_lists, dwo_lists, dwf_lists,
+         py_lists, plan_xls, seq_xls, job_xls, program_xls, cale_xls, grouped, changes, conflicts
+         ) = input_files.as_run_inputs()
         self.set_partial("changes", changes)
         self.set_partial("conflicts", conflicts)
         self.task_success("classify_files", summary={"changedFiles": len(changes)})
@@ -638,7 +639,7 @@ class TaskRun:
             task=self.build_task_meta(svn_result, status, {
                 "changedFiles": len(changes), "checks": checks, "errors": errors,
                 "warnings": warnings, "conflicts": len(conflicts),
-                "sqlFiles": len(exported),
+                "sqlFiles": len(svn_result["exported_paths"]),
             }),
             svn=self.build_svn_section(svn_result),
             changes=changes,
