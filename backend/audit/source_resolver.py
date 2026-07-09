@@ -21,6 +21,21 @@ def validate_source_workflow(source_type: str, workflow: str) -> None:
         raise ValueError("Local workspace source currently supports hcyt workflow only")
 
 
+def resolve_workspace(
+    source_ref: str,
+    workflow: str,
+    source_type: str,
+    *,
+    svn_loader,
+    local_loader,
+) -> dict:
+    if source_type == "local":
+        validate_source_workflow(source_type, workflow)
+        return local_loader(source_ref, workflow)
+    payload = svn_loader(source_ref)
+    return normalize_source_payload(payload, source_type=source_type)
+
+
 def build_source_label(source_ref: str, source_type: str) -> str:
     if source_type == "local":
         return "local workspace"

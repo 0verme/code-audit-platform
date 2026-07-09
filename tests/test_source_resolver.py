@@ -12,6 +12,7 @@ from audit.source_resolver import (  # noqa: E402
     build_source_load_step,
     build_source_summary,
     normalize_source_payload,
+    resolve_workspace,
     resolve_workflow,
     validate_source_workflow,
 )
@@ -59,6 +60,86 @@ class SourceResolverTests(unittest.TestCase):
         self.assertEqual(normalized["workspace_root"], "")
         self.assertEqual(normalized["exported_paths"], ["demo.sql"])
         self.assertNotEqual(id(normalized), id(payload))
+
+    def test_resolve_workspace_uses_local_loader_for_local_hcyt(self):
+        calls = []
+
+        def local_loader(source_ref, workflow):
+            calls.append((source_ref, workflow))
+            return {"source_type": "local", "workspace_root": source_ref}
+
+        def svn_loader(_source_ref):
+            raise AssertionError("svn_loader should not be called for local source")
+
+        resolved = resolve_workspace(
+            r"C:\workspace\demo",
+            "hcyt",
+            "local",
+            svn_loader=svn_loader,
+            local_loader=local_loader,
+        )
+
+        self.assertEqual(calls, [(r"C:\workspace\demo", "hcyt")])
+        self.assertEqual(resolved, {"source_type": "local", "workspace_root": r"C:\workspace\demo"})
+
+    def test_resolve_workspace_rejects_local_non_hcyt_with_original_message(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "^Local workspace source currently supports hcyt workflow only$",
+        ):
+            resolve_workspace(
+                r"C:\workspace\nups\demo",
+                "nups",
+                "local",
+                svn_loader=lambda _source_ref: None,
+                local_loader=lambda _source_ref, _workflow: None,
+            )
+
+    def test_resolve_workspace_uses_svn_loader_and_normalizes_payload(self):
+        calls = []
+
+        def svn_loader(source_ref):
+            calls.append(source_ref)
+            return {"exported_paths": ["demo.sql"]}
+
+        resolved = resolve_workspace(
+            "svn://example.com/branches/demo",
+            "hcyt",
+            "svn",
+            svn_loader=svn_loader,
+            local_loader=lambda _source_ref, _workflow: None,
+        )
+
+        self.assertEqual(calls, ["svn://example.com/branches/demo"])
+        self.assertEqual(resolved["source_type"], "svn")
+        self.assertEqual(resolved["workspace_root"], "")
+        self.assertEqual(resolved["exported_paths"], ["demo.sql"])
+
+    def test_resolve_workspace_propagates_local_loader_exceptions_verbatim(self):
+        def local_loader(_source_ref, _workflow):
+            raise RuntimeError("local loader failed")
+
+        with self.assertRaisesRegex(RuntimeError, "^local loader failed$"):
+            resolve_workspace(
+                r"C:\workspace\demo",
+                "hcyt",
+                "local",
+                svn_loader=lambda _source_ref: None,
+                local_loader=local_loader,
+            )
+
+    def test_resolve_workspace_propagates_svn_loader_exceptions_verbatim(self):
+        def svn_loader(_source_ref):
+            raise RuntimeError("svn loader failed")
+
+        with self.assertRaisesRegex(RuntimeError, "^svn loader failed$"):
+            resolve_workspace(
+                "svn://example.com/branches/demo",
+                "hcyt",
+                "svn",
+                svn_loader=svn_loader,
+                local_loader=lambda _source_ref, _workflow: None,
+            )
 
     def test_build_source_summary_keeps_report_field_names_and_values(self):
         payload = {"source_type": "local", "workspace_root": r"C:\workspace\demo"}

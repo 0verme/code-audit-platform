@@ -56,9 +56,8 @@ from .source_resolver import (
     build_source_load_step,
     build_source_summary,
     detect_workflow,
-    normalize_source_payload,
+    resolve_workspace,
     resolve_workflow,
-    validate_source_workflow,
 )
 from db.runtime_store import (
     persist_task_run_completion,
@@ -361,12 +360,22 @@ class TaskRun:
             self.update(progress=5, step=build_source_load_step(self.source_type))
 
             if self.source_type == "local":
-                validate_source_workflow(self.source_type, workflow)
-                svn_result = _mods.load_local_workspace(self.repo, workflow)
+                svn_result = resolve_workspace(
+                    self.repo,
+                    workflow,
+                    self.source_type,
+                    svn_loader=lambda source_ref: _mods.svn_main(workflow, source_ref),
+                    local_loader=_mods.load_local_workspace,
+                )
                 self.log(f"本地目录加载完成，识别 {len(svn_result['exported_paths'])} 个待审计文件")
             else:
-                svn_result = _mods.svn_main(workflow, self.repo)
-                svn_result = normalize_source_payload(svn_result, source_type=self.source_type)
+                svn_result = resolve_workspace(
+                    self.repo,
+                    workflow,
+                    self.source_type,
+                    svn_loader=lambda source_ref: _mods.svn_main(workflow, source_ref),
+                    local_loader=lambda _source_ref, _workflow: None,
+                )
                 self.log(f"SVN 拉取完成，导出 {len(svn_result['exported_paths'])} 个变更文件")
             self.task_success("source_load", summary={"files": len(svn_result.get("exported_paths", []))})
             self.update(progress=25, step="分析文件")
