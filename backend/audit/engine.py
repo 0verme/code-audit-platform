@@ -33,6 +33,7 @@ from .hcyt_progress_events import build_source_classified_progress, publish_hcyt
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
 from .fine_report_builder import build_fine_report
+from .nups_report_builder import build_nups_report
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
     build_ai as _build_ai,
@@ -926,23 +927,19 @@ class TaskRun:
         # 旧接口 audit_results 也写一份
         self.save_category_rows(build_legacy_nups_audit_result_rows(sql_checks, rule_label))
 
-        report = {
-            "task": self.build_task_meta(svn_result, status, {
+        return build_nups_report(
+            task=self.build_task_meta(svn_result, status, {
                 "changedFiles": len(svn_result.get("branch_changed_files", [])),
                 "checks": len(sql_lists or []) + len(py_lists or []),
                 "errors": errors, "warnings": warnings, "conflicts": len(conflicts),
             }),
-            "svn": self.build_svn_section(svn_result),
-            "changes": self.build_changes(svn_result),
-            "conflicts": conflicts,
-            "sqlChecks": sql_checks,
-            "pyScripts": py_scripts,
-            "assetIssues": [],
-            "unifiedAssetIssues": [],
-        }
-        if ai:
-            report["ai"] = ai
-        return report
+            svn=self.build_svn_section(svn_result),
+            changes=self.build_changes(svn_result),
+            conflicts=conflicts,
+            sql_checks=sql_checks,
+            py_scripts=py_scripts,
+            ai=ai,
+        )
 
     # ===================================================================
     # FineReport 工作流
