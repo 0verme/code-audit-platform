@@ -28,6 +28,7 @@ from .compat import (
 )
 from .issue_adapter import asset_issue_to_dict
 from .hcyt_report_builder import build_hcyt_report
+from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
     build_ai as _build_ai,
@@ -658,7 +659,7 @@ class TaskRun:
         checks = sum(1 for flag in (dws_url, hive_url, sbin_lists, schame_config_lists, recv_lists,
                                     dwo_lists or dwf_lists, plan_xls, seq_xls, job_xls, py_lists) if flag)
 
-        self.save_category_rows(grouped)
+        sync_hcyt_legacy_results(self.save_category_rows, grouped)
         report = build_hcyt_report(
             task=self.build_task_meta(svn_result, status, {
                 "changedFiles": len(changes), "checks": checks, "errors": errors,
