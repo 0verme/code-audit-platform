@@ -37,6 +37,7 @@ class NupsRunnerTests(unittest.TestCase):
             workflow="nups",
             repo="svn://repo/nups/demo",
             task_id=2,
+            ai_enabled=True,
             source_payload={
                 "exported_paths": ["query.sql", "job.py"],
                 "branch_changed_files": ["query.sql", "job.py"],
@@ -61,6 +62,7 @@ class NupsRunnerTests(unittest.TestCase):
             },
             build_changes=lambda svn_result: [{"path": path} for path in svn_result["branch_changed_files"]],
             build_conflicts=lambda svn_result: list(svn_result["trunk_conflict_files"]),
+            build_lineage_summary=lambda *_args, **_kwargs: {},
             build_config_files=lambda _paths: [],
             build_job_table=lambda *_args, **_kwargs: None,
             build_ai=lambda targets, errors, warnings: {
@@ -69,6 +71,17 @@ class NupsRunnerTests(unittest.TestCase):
                 "warnings": warnings,
             },
             get_active_profile_name=lambda: "unused",
+            collect_hcyt_input_files=lambda *_args, **_kwargs: None,
+            build_source_classified_progress=lambda *_args, **_kwargs: None,
+            publish_hcyt_progress=lambda *_args, **_kwargs: None,
+            run_hcyt_rules=lambda *_args, **_kwargs: None,
+            run_hcyt_inspections=lambda *_args, **_kwargs: None,
+            run_hcyt_ai_review=lambda *_args, **_kwargs: None,
+            sync_hcyt_legacy_results=lambda *_args, **_kwargs: None,
+            build_hcyt_report=lambda *_args, **_kwargs: None,
+            run_hcyt_schedule=lambda *_args, **_kwargs: None,
+            run_hcyt_programs=lambda *_args, **_kwargs: None,
+            text_to_rows=lambda *_args, **_kwargs: [],
             status_of=lambda errors, warnings: "fail" if errors else ("warn" if warnings else "pass"),
             count_levels=lambda _rows: (0, 0),
         )

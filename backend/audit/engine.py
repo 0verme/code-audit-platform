@@ -24,6 +24,7 @@ from pathlib import Path
 
 from .compat import build_legacy_nups_audit_result_rows
 from .fine_runner import run_fine as _run_fine
+from .hcyt_runner import run_hcyt as _run_hcyt
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
@@ -363,6 +364,7 @@ class TaskRun:
             workflow=self.workflow,
             repo=self.repo,
             task_id=self.task_id,
+            ai_enabled=self.ai_enabled,
             source_payload=svn_result,
             safe=self.safe,
             log=self.log,
@@ -377,10 +379,22 @@ class TaskRun:
             build_svn_section=self.build_svn_section,
             build_changes=self.build_changes,
             build_conflicts=self.build_conflicts,
+            build_lineage_summary=_build_lineage_summary_payload,
             build_config_files=self.build_config_files,
             build_job_table=self.build_job_table,
             build_ai=self.build_ai,
             get_active_profile_name=lambda: get_active_profile().name,
+            collect_hcyt_input_files=collect_hcyt_input_files,
+            build_source_classified_progress=build_source_classified_progress,
+            publish_hcyt_progress=publish_hcyt_progress,
+            run_hcyt_rules=run_hcyt_rules,
+            run_hcyt_inspections=run_hcyt_inspections,
+            run_hcyt_ai_review=run_hcyt_ai_review,
+            sync_hcyt_legacy_results=sync_hcyt_legacy_results,
+            build_hcyt_report=build_hcyt_report,
+            run_hcyt_schedule=self.run_hcyt_schedule,
+            run_hcyt_programs=self.run_hcyt_programs,
+            text_to_rows=text_to_rows,
             status_of=self.status_of,
             count_levels=self.count_levels,
         )
@@ -524,138 +538,8 @@ class TaskRun:
     # ===================================================================
 
     def run_hcyt(self, svn_result):
-        m = _mods
-        self.task_running("classify_files")
-        input_files = collect_hcyt_input_files(
-            svn_result=svn_result,
-            re_service=m.re_service,
-            hcyt=m.hcyt,
-            build_changes=self.build_changes,
-            build_conflicts=self.build_conflicts,
-        )
-        (dws_url, hive_url, schame_config_lists, sbin_lists, recv_lists, dwo_lists, dwf_lists,
-         py_lists, plan_xls, seq_xls, job_xls, program_xls, cale_xls, grouped, changes, conflicts
-         ) = input_files.as_run_inputs()
-        publish_hcyt_progress(self.set_partial, build_source_classified_progress(changes=changes, conflicts=conflicts))
-        self.task_success("classify_files", summary={"changedFiles": len(changes)})
-        self.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
+        return _run_hcyt(self.build_workflow_runtime(svn_result))
 
-        # --- SQL / 脚本 / 配置类规则 ---
-        self.update(progress=35, step="SQL 与配置规则检查")
-        sql_checks, asset_issues, config_files = run_hcyt_rules(
-            dws_url,
-            hive_url,
-            schame_config_lists,
-            sbin_lists,
-            recv_lists,
-            dwo_lists,
-            dwf_lists,
-            safe=self.safe,
-            modules=type(
-                "HcytRuleRunnerModules",
-                (),
-                {
-                    "re_service": m.re_service,
-                    "hcyt": m.hcyt,
-                    "hcyt_ddl_rule": getattr(
-                        m,
-                        "hcyt_ddl_rule",
-                        type(
-                            "NoopDdlRule",
-                            (),
-                            {"collect_root_missing_issues": staticmethod(lambda *args, **kwargs: [])},
-                        )(),
-                    ),
-                    "hcyt_sql_rule": getattr(
-                        m,
-                        "hcyt_sql_rule",
-                        type(
-                            "NoopSqlRule",
-                            (),
-                            {"collect_created_table_review_issues": staticmethod(lambda *args, **kwargs: [])},
-                        )(),
-                    ),
-                    "text_to_rows": staticmethod(text_to_rows),
-                },
-            )(),
-            grouped=grouped,
-            task_running=self.task_running,
-            task_success=self.task_success,
-            task_skipped=self.task_skipped,
-            set_partial=self.set_partial,
-            download_url=self.download_url,
-            build_config_files=self.build_config_files,
-        )
-
-        # --- 调度 Excel：清单表格 + 规则 ---
-        self.update(progress=50, step="调度规范检查")
-        self.task_running("schedule")
-        inspections = run_hcyt_inspections(
-            plan_xls=plan_xls,
-            seq_xls=seq_xls,
-            cale_xls=cale_xls,
-            job_xls=job_xls,
-            py_lists=py_lists,
-            program_xls=program_xls,
-            task_id=self.task_id,
-            initial_asset_issues=asset_issues,
-            run_schedule=self.run_hcyt_schedule,
-            run_programs=self.run_hcyt_programs,
-            build_lineage_summary=_build_lineage_summary_payload,
-            modules=m,
-            log_schedule_warning=lambda msg: self.log(msg, "WARN"),
-            update_progress=self.update,
-            task_running=self.task_running,
-            task_success=self.task_success,
-            set_partial=self.set_partial,
-            grouped=grouped,
-        )
-        schedule = inspections.schedule
-        py_scripts = inspections.py_scripts
-        ref_tables = inspections.ref_tables
-        deps = inspections.deps
-        asset_issues = inspections.asset_issues
-        unified_asset_issues = inspections.unified_asset_issues
-        lineage_summary = inspections.lineage_summary
-
-        errors, warnings = self.count_levels(list(grouped.values()) + [schedule["rows"]])
-        ai = run_hcyt_ai_review(
-            py_lists=py_lists,
-            dws_url=dws_url,
-            errors=errors,
-            warnings=warnings,
-            ai_enabled=self.ai_enabled,
-            update_progress=self.update,
-            build_ai=self.build_ai,
-        )
-
-        status = self.status_of(errors + len(conflicts), warnings)
-        checks = sum(1 for flag in (dws_url, hive_url, sbin_lists, schame_config_lists, recv_lists,
-                                    dwo_lists or dwf_lists, plan_xls, seq_xls, job_xls, py_lists) if flag)
-
-        sync_hcyt_legacy_results(self.save_category_rows, grouped)
-        report = build_hcyt_report(
-            task=self.build_task_meta(svn_result, status, {
-                "changedFiles": len(changes), "checks": checks, "errors": errors,
-                "warnings": warnings, "conflicts": len(conflicts),
-                "sqlFiles": len(svn_result["exported_paths"]),
-            }),
-            svn=self.build_svn_section(svn_result),
-            changes=changes,
-            conflicts=conflicts,
-            grouped=grouped,
-            sql_checks=sql_checks,
-            config_files=config_files,
-            schedule=schedule,
-            py_scripts=py_scripts,
-            ref_tables=ref_tables,
-            deps=deps,
-            asset_issues=asset_issues,
-            unified_asset_issues=unified_asset_issues,
-            lineage_summary=lineage_summary,
-            ai=ai,
-        )
-        return report
 
     def build_config_files(self, config_paths):
         """schema_config ??JSON ?????????dict -> ???/???list[dict] -> ???????"""
