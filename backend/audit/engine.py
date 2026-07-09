@@ -26,6 +26,7 @@ from .compat import (
     build_legacy_fine_audit_result_rows,
     build_legacy_nups_audit_result_rows,
 )
+from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
 from .hcyt_report_builder import build_hcyt_report
@@ -627,8 +628,15 @@ class TaskRun:
         lineage_summary = inspections.lineage_summary
 
         errors, warnings = self.count_levels(list(grouped.values()) + [schedule["rows"]])
-        self.update(progress=85, step="AI 分析" if self.ai_enabled else "汇总报告")
-        ai = self.build_ai(py_lists or ([dws_url] if dws_url else []), errors, warnings)
+        ai = run_hcyt_ai_review(
+            py_lists=py_lists,
+            dws_url=dws_url,
+            errors=errors,
+            warnings=warnings,
+            ai_enabled=self.ai_enabled,
+            update_progress=self.update,
+            build_ai=self.build_ai,
+        )
 
         status = self.status_of(errors + len(conflicts), warnings)
         checks = sum(1 for flag in (dws_url, hive_url, sbin_lists, schame_config_lists, recv_lists,
