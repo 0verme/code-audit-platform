@@ -51,7 +51,15 @@ from .run_registry import (
     get_audit_run_state as _get_audit_run_state,
     get_audit_run_status as _get_audit_run_status,
 )
-from .source_resolver import detect_workflow
+from .source_resolver import (
+    build_source_label,
+    build_source_load_step,
+    build_source_summary,
+    detect_workflow,
+    normalize_source_payload,
+    resolve_workflow,
+    validate_source_workflow,
+)
 from db.runtime_store import (
     persist_task_run_completion,
     replace_audit_results,
@@ -345,22 +353,20 @@ class TaskRun:
                 self.finish("fail", error=f"真实审查引擎加载失败。\n{_import_error}")
                 return
 
-            workflow = detect_workflow(self.repo, self.workflow)
+            workflow = resolve_workflow(self.repo, self.workflow)
             self.workflow = workflow
-            source_label = self.repo if self.source_type == "svn" else "local workspace"
+            source_label = build_source_label(self.repo, self.source_type)
             self.log(f"开始处理：{source_label}（工作流 {workflow}，来源 {self.source_type}）")
             self.task_running("source_load")
-            self.update(progress=5, step="拉取 SVN" if self.source_type == "svn" else "读取本地目录")
+            self.update(progress=5, step=build_source_load_step(self.source_type))
 
             if self.source_type == "local":
-                if workflow != "hcyt":
-                    raise ValueError("Local workspace source currently supports hcyt workflow only")
+                validate_source_workflow(self.source_type, workflow)
                 svn_result = _mods.load_local_workspace(self.repo, workflow)
                 self.log(f"本地目录加载完成，识别 {len(svn_result['exported_paths'])} 个待审计文件")
             else:
                 svn_result = _mods.svn_main(workflow, self.repo)
-                svn_result["source_type"] = "svn"
-                svn_result["workspace_root"] = ""
+                svn_result = normalize_source_payload(svn_result, source_type=self.source_type)
                 self.log(f"SVN 拉取完成，导出 {len(svn_result['exported_paths'])} 个变更文件")
             self.task_success("source_load", summary={"files": len(svn_result.get("exported_paths", []))})
             self.update(progress=25, step="分析文件")
@@ -372,9 +378,13 @@ class TaskRun:
             else:
                 report = self.run_hcyt(svn_result)
 
-            report["sourceType"] = svn_result.get("source_type", self.source_type)
-            report["sourceRef"] = self.repo
-            report["workspaceRoot"] = svn_result.get("workspace_root", "")
+            report.update(
+                build_source_summary(
+                    svn_result,
+                    source_ref=self.repo,
+                    fallback_source_type=self.source_type,
+                )
+            )
             report["logs"] = self.logs
             self.update(progress=100, step="完成")
             self.log("任务完成")

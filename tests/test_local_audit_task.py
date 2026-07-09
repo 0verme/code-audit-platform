@@ -2,6 +2,7 @@ import importlib
 import json
 import sys
 import tempfile
+import types
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -329,6 +330,67 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(saved["task"]["sourceType"], "local")
                 self.assertEqual(saved["task"]["workspaceRoot"], "C:\\path\\to\\local-hcyt-workspace")
             finally:
+                db_connection.DB_PATH = old_db_path
+
+    def test_task_run_local_source_preserves_final_report_source_fields(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
+            previous_mods = audit_engine._mods
+            try:
+                init_db()
+                task_id = execute_insert(
+                    """
+                    INSERT INTO {{table:audit_tasks}} (
+                        repo, workflow, status, revision, author, started_at, duration, source_type
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        "C:\\path\\to\\local-hcyt-workspace",
+                        "hcyt",
+                        "running",
+                        "-",
+                        "tester",
+                        datetime.now().isoformat(),
+                        "0s",
+                        "local",
+                    ),
+                )
+
+                audit_engine._mods = types.SimpleNamespace(
+                    load_local_workspace=lambda repo, workflow: {
+                        "source_type": "local",
+                        "workspace_root": repo,
+                        "exported_paths": ["demo.sql"],
+                    },
+                    svn_main=lambda *_args, **_kwargs: None,
+                )
+                run = audit_engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
+                run.update = lambda *args, **kwargs: None
+                run.run_hcyt = lambda _svn_result: {"task": {"status": "pass"}}
+                run.run_nups = lambda _svn_result: {"task": {"status": "pass"}}
+                run.run_fine = lambda _svn_result: {"task": {"status": "pass"}}
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    run.run()
+
+                with db_connection.get_connection() as connection:
+                    row = connection.execute(
+                        "SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?",
+                        (task_id,),
+                    ).fetchone()
+                saved = json.loads(row["report_json"])
+
+                self.assertEqual(saved["sourceType"], "local")
+                self.assertEqual(saved["sourceRef"], "C:\\path\\to\\local-hcyt-workspace")
+                self.assertEqual(saved["workspaceRoot"], "C:\\path\\to\\local-hcyt-workspace")
+                self.assertEqual(saved["logs"], run.logs)
+                self.assertTrue(saved["logs"])
+            finally:
+                audit_engine._mods = previous_mods
+                audit_engine._run_states.pop(task_id, None)
                 db_connection.DB_PATH = old_db_path
 
 
