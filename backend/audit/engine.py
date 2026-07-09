@@ -59,6 +59,7 @@ from .source_resolver import (
     resolve_workspace,
     resolve_workflow,
 )
+from .workflow_dispatcher import run_workflow
 from db.profiles import get_active_profile
 from db.runtime_store import (
     persist_task_run_completion,
@@ -381,12 +382,13 @@ class TaskRun:
             self.task_success("source_load", summary={"files": len(svn_result.get("exported_paths", []))})
             self.update(progress=25, step="分析文件")
 
-            if workflow == "fine-report":
-                report = self.run_fine(svn_result)
-            elif workflow == "nups":
-                report = self.run_nups(svn_result)
-            else:
-                report = self.run_hcyt(svn_result)
+            report = run_workflow(
+                workflow,
+                svn_result,
+                run_hcyt=self.run_hcyt,
+                run_nups=self.run_nups,
+                run_fine=self.run_fine,
+            )
 
             report.update(
                 build_source_summary(
