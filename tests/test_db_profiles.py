@@ -15,11 +15,8 @@ from db.tables import qualified_table_name  # noqa: E402
 
 
 CONFIG_TEXT = """
-default_profile: sqlite
+default_profile: local_pg
 profiles:
-  sqlite:
-    type: sqlite
-    path: backend/data/app.db
   local_pg:
     type: postgresql
     host: 127.0.0.1
@@ -40,104 +37,21 @@ profiles:
 
 
 class DatabaseProfileTests(unittest.TestCase):
-    def write_config(self, directory: str) -> Path:
+    def write_config(self, directory: str, content: str = CONFIG_TEXT) -> Path:
         path = Path(directory) / "database.yaml"
-        path.write_text(CONFIG_TEXT, encoding="utf-8")
+        path.write_text(content, encoding="utf-8")
         return path
 
-    def test_default_profile_uses_unified_postgres_config(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            config_path = Path(tmp) / "database.yaml"
-            config_path.write_text(
-                """
-backend: postgres
-postgres:
-  host: 127.0.0.1
-  port: 5432
-  dbname: code_audit_test
-  user: tester
-  password: secret
-  schema: dwp
-""",
-                encoding="utf-8",
-            )
-            with patch("db.profiles.DEFAULT_CONFIG_PATH", config_path):
-                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
-                    profile = resolve_profile()
-        self.assertEqual(profile.name, "postgres")
-        self.assertEqual(profile.type, "postgresql")
-        self.assertEqual(profile.config["database"], "code_audit_test")
-        self.assertEqual(profile.config["schema"], "dwp")
-        self.assertEqual(profile.config["table_prefix"], "p_audit_")
-
-    def test_unified_postgres_config_takes_precedence_over_gauss_profiles(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            config_path = Path(tmp) / "database.yaml"
-            config_path.write_text(
-                """
-backend: postgres
-postgres:
-  host: 127.0.0.1
-  port: 5432
-  dbname: code_audit_test
-  user: tester
-  password: secret
-  schema: dwp
-profiles:
-  czcb:
-    jdbc_url: jdbc:gaussdb://127.0.0.1:25308/czcb
-    user: gauss
-    password: secret
-""",
-                encoding="utf-8",
-            )
-            with patch("db.profiles.DEFAULT_CONFIG_PATH", config_path):
-                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
-                    profile = resolve_profile()
-        self.assertEqual(profile.name, "postgres")
-        self.assertEqual(profile.type, "postgresql")
-        self.assertEqual(profile.config["database"], "code_audit_test")
-
-    def test_missing_default_config_fails(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            missing_path = Path(tmp) / "missing.yaml"
-            with patch("db.profiles.DEFAULT_CONFIG_PATH", missing_path):
-                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
-                    with self.assertRaisesRegex(ProfileConfigError, "does not exist"):
-                        resolve_profile()
-
-    def test_non_postgres_backend_does_not_enable_default_sqlite(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            config_path = Path(tmp) / "database.yaml"
-            config_path.write_text("backend: gaussdb\n", encoding="utf-8")
-            with patch("db.profiles.DEFAULT_CONFIG_PATH", config_path):
-                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
-                    with self.assertRaisesRegex(ProfileConfigError, "must define profiles or set backend: postgres"):
-                        resolve_profile()
-
-    def test_loads_sqlite_profile_from_config(self):
+    def test_loads_default_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
-            profile = resolve_profile("sqlite", config_path=config_path)
-        self.assertTrue(profile.is_sqlite)
-        self.assertEqual(profile.config["database"], profile.config["path"])
-
-    def test_loads_postgresql_profile_from_config(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            config_path = self.write_config(tmp)
-            profile = resolve_profile("local_pg", config_path=config_path)
-        self.assertTrue(profile.is_postgresql)
-        self.assertEqual(profile.config["host"], "127.0.0.1")
+            profile = resolve_profile(config_path=config_path)
+        self.assertEqual(profile.name, "local_pg")
+        self.assertEqual(profile.type, "postgresql")
         self.assertEqual(profile.config["port"], 5432)
         self.assertEqual(qualified_table_name("audit_tasks", profile), "dwp.p_audit_run")
 
-    def test_sqlite_profile_resolves_prefixed_table_names_without_schema(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            config_path = self.write_config(tmp)
-            profile = resolve_profile("sqlite", config_path=config_path)
-        self.assertEqual(qualified_table_name("audit_tasks", profile), "p_audit_run")
-
-    def test_loads_dws_profile_from_config(self):
+    def test_loads_dws_profile(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
             profile = resolve_profile("local_dws", config_path=config_path)
@@ -147,17 +61,78 @@ profiles:
     def test_environment_profile_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
-            env = {PROFILE_ENV: "local_dws"}
-            with patch.dict(os.environ, env, clear=False):
+            with patch.dict(os.environ, {PROFILE_ENV: "local_dws"}, clear=False):
                 profile = resolve_profile(config_path=config_path)
         self.assertEqual(profile.name, "local_dws")
-        self.assertTrue(profile.is_dws)
 
-    def test_missing_explicit_config_has_friendly_error(self):
+    def test_legacy_mixed_mode_is_rejected(self):
+        content = """
+default_profile: postgres
+backend: postgres
+postgres:
+  host: 127.0.0.1
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with self.assertRaisesRegex(ProfileConfigError, r"legacy keys backend, postgres"):
+                resolve_profile(config_path=config_path)
+
+    def test_missing_type_reports_profile_and_supported_types(self):
+        content = """
+default_profile: broken
+profiles:
+  broken:
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: demo
+    password: demo
+    schema: dwp
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with self.assertRaisesRegex(
+                ProfileConfigError,
+                r"Invalid database profile 'broken': type is <missing>; supported types are \[postgresql, dws\]",
+            ):
+                resolve_profile(config_path=config_path)
+
+    def test_missing_required_fields_are_reported(self):
+        content = """
+default_profile: broken
+profiles:
+  broken:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: demo
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with self.assertRaisesRegex(
+                ProfileConfigError,
+                r"Invalid database profile 'broken': missing required fields: password, schema; supported types are \[postgresql, dws\]",
+            ):
+                resolve_profile(config_path=config_path)
+
+    def test_missing_profile_error_includes_source_and_available_profiles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            with patch.dict(os.environ, {PROFILE_ENV: "profiles"}, clear=False):
+                with self.assertRaisesRegex(
+                    ProfileConfigError,
+                    r"Database profile not found: profiles \(source: CODE_AUDIT_DB_PROFILE; available: local_dws, local_pg; supported types: \[postgresql, dws\]\)",
+                ):
+                    resolve_profile(config_path=config_path)
+
+    def test_missing_default_config_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             missing_path = Path(tmp) / "missing.yaml"
-            with self.assertRaisesRegex(ProfileConfigError, "does not exist"):
-                resolve_profile(config_path=missing_path)
+            with patch("db.profiles.DEFAULT_CONFIG_PATH", missing_path):
+                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
+                    with self.assertRaisesRegex(ProfileConfigError, "does not exist"):
+                        resolve_profile()
 
 
 if __name__ == "__main__":

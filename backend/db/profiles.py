@@ -13,7 +13,9 @@ DEFAULT_CONFIG_PATH = BACKEND_DIR / "svn_check" / "configs" / "database.yaml"
 
 CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
-SUPPORTED_TYPES = {"sqlite", "postgresql", "dws"}
+SUPPORTED_TYPES = {"postgresql", "dws"}
+REQUIRED_PROFILE_FIELDS = ("type", "host", "port", "database", "username", "password", "schema")
+SUPPORTED_TYPES_TEXT = "postgresql, dws"
 DEFAULT_RUNTIME_SCHEMA = "dwp"
 DEFAULT_TABLE_PREFIX = "p_audit_"
 
@@ -27,10 +29,6 @@ class DatabaseProfile:
     name: str
     type: str
     config: dict[str, Any]
-
-    @property
-    def is_sqlite(self) -> bool:
-        return self.type == "sqlite"
 
     @property
     def is_postgresql(self) -> bool:
@@ -49,59 +47,24 @@ def resolve_config_path(config_path: str | os.PathLike[str] | None = None) -> Pa
     return DEFAULT_CONFIG_PATH
 
 
-def _runtime_profile_from_postgres_block(data: dict[str, Any]) -> dict[str, Any] | None:
-    backend = (os.getenv("SVN_CHECK_DB_BACKEND") or data.get("backend") or "").strip().lower()
-    if backend != "postgres":
-        return None
-
-    postgres = dict(data.get("postgres") or {})
-    overrides = {
-        "host": "SVN_CHECK_PG_HOST",
-        "port": "SVN_CHECK_PG_PORT",
-        "dbname": "SVN_CHECK_PG_DB",
-        "user": "SVN_CHECK_PG_USER",
-        "password": "SVN_CHECK_PG_PASSWORD",
-        "schema": "SVN_CHECK_PG_SCHEMA",
-    }
-    for key, env_name in overrides.items():
-        value = os.getenv(env_name)
-        if value:
-            postgres[key] = value
-
-    return {
-        "type": "postgresql",
-        "host": postgres.get("host"),
-        "port": postgres.get("port"),
-        "database": postgres.get("dbname") or postgres.get("database"),
-        "username": postgres.get("user") or postgres.get("username"),
-        "password": postgres.get("password"),
-        "schema": postgres.get("schema", DEFAULT_RUNTIME_SCHEMA),
-        "table_prefix": postgres.get("table_prefix", DEFAULT_TABLE_PREFIX),
-        "connect_timeout": postgres.get("connect_timeout", 30),
-    }
-
-
 def _normalize_database_config(data: dict[str, Any]) -> dict[str, Any]:
-    runtime_profile = _runtime_profile_from_postgres_block(data)
-    if runtime_profile:
-        profiles = dict(data.get("profiles") or {})
-        profiles["postgres"] = runtime_profile
-        return {
-            "default_profile": data.get("default_profile") or "postgres",
-            "profiles": profiles,
-        }
+    legacy_keys = [key for key in ("backend", "postgres", "defaults") if key in data]
+    if legacy_keys:
+        raise ProfileConfigError(
+            "Database config uses legacy keys "
+            f"{', '.join(legacy_keys)}. Use only 'default_profile' and unified 'profiles' entries "
+            f"with type in [{SUPPORTED_TYPES_TEXT}]."
+        )
+    if "profiles" not in data:
+        raise ProfileConfigError(
+            "Database config must define 'default_profile' and 'profiles' using the unified profile format."
+        )
 
-    if "profiles" in data:
-        data.setdefault("default_profile", None)
-        data.setdefault("profiles", {})
-        if not isinstance(data["profiles"], dict):
-            raise ProfileConfigError("Database config 'profiles' must be a mapping")
-        return data
-
-    raise ProfileConfigError(
-        "Database config must define profiles or set backend: postgres with a postgres block: "
-        f"{DEFAULT_CONFIG_PATH}"
-    )
+    normalized = dict(data)
+    normalized.setdefault("default_profile", None)
+    if not isinstance(normalized["profiles"], dict):
+        raise ProfileConfigError("Database config 'profiles' must be a mapping")
+    return normalized
 
 
 def load_database_config(config_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
@@ -133,7 +96,8 @@ def resolve_profile(
 ) -> DatabaseProfile:
     data = load_database_config(config_path)
     profiles = data["profiles"]
-    selected_name = profile_name or os.getenv(PROFILE_ENV) or data.get("default_profile")
+    env_profile_name = os.getenv(PROFILE_ENV)
+    selected_name = profile_name or env_profile_name or data.get("default_profile")
     if not selected_name:
         if len(profiles) == 1:
             selected_name = next(iter(profiles))
@@ -141,7 +105,18 @@ def resolve_profile(
             raise ProfileConfigError("Database default_profile is required when multiple profiles are configured")
     selected_name = str(selected_name).strip()
     if selected_name not in profiles:
-        raise ProfileConfigError(f"Database profile not found: {selected_name}")
+        available_profiles = ", ".join(sorted(str(name) for name in profiles)) or "<none>"
+        source = "argument" if profile_name else PROFILE_ENV if env_profile_name else "default_profile"
+        hint = ""
+        if selected_name == "profiles":
+            hint = (
+                f" Hint: '{selected_name}' is the YAML section name, not a profile name. "
+                f"Set {PROFILE_ENV} to one of: {available_profiles}"
+            )
+        raise ProfileConfigError(
+            f"Database profile not found: {selected_name} (source: {source}; available: {available_profiles}; "
+            f"supported types: [{SUPPORTED_TYPES_TEXT}]).{hint}"
+        )
 
     raw_config = profiles[selected_name]
     if not isinstance(raw_config, dict):
@@ -149,33 +124,27 @@ def resolve_profile(
 
     config = dict(raw_config)
     db_type = str(config.get("type") or "").strip().lower()
-    if db_type == "postgres":
-        db_type = "postgresql"
     if db_type not in SUPPORTED_TYPES:
-        raise ProfileConfigError(f"Unsupported database type for profile {selected_name}: {db_type or '<missing>'}")
+        raise ProfileConfigError(
+            f"Invalid database profile '{selected_name}': type is {db_type or '<missing>'}; "
+            f"supported types are [{SUPPORTED_TYPES_TEXT}]"
+        )
     config["type"] = db_type
 
-    if db_type == "sqlite":
-        sqlite_path = config.get("path") or config.get("database")
-        if not sqlite_path:
-            raise ProfileConfigError(f"SQLite profile requires 'path': {selected_name}")
-        if str(sqlite_path) == ":memory:":
-            resolved_path = ":memory:"
-        else:
-            path = Path(str(sqlite_path))
-            if not path.is_absolute():
-                path = PROJECT_ROOT / path
-            resolved_path = str(path)
-        config["path"] = resolved_path
-        config["database"] = resolved_path
-        return DatabaseProfile(name=selected_name, type=db_type, config=config)
-
-    missing = [key for key in ("host", "port", "database", "username", "password") if not config.get(key)]
+    missing = [key for key in REQUIRED_PROFILE_FIELDS if not config.get(key)]
     if missing:
-        raise ProfileConfigError(f"Profile {selected_name} is missing required fields: {', '.join(missing)}")
-    config.setdefault("schema", DEFAULT_RUNTIME_SCHEMA)
+        raise ProfileConfigError(
+            f"Invalid database profile '{selected_name}': missing required fields: {', '.join(missing)}; "
+            f"supported types are [{SUPPORTED_TYPES_TEXT}]"
+        )
     config.setdefault("table_prefix", DEFAULT_TABLE_PREFIX)
-    config["port"] = int(config["port"])
+    try:
+        config["port"] = int(config["port"])
+    except (TypeError, ValueError) as exc:
+        raise ProfileConfigError(
+            f"Invalid database profile '{selected_name}': field 'port' must be an integer; "
+            f"supported types are [{SUPPORTED_TYPES_TEXT}]"
+        ) from exc
     return DatabaseProfile(name=selected_name, type=db_type, config=config)
 
 

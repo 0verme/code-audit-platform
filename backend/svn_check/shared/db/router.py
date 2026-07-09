@@ -1,45 +1,42 @@
 # -*- coding: utf-8 -*-
-"""数据库后端路由：根据配置在 Postgres / GaussDB 之间分发。
-
-选择优先级：环境变量 SVN_CHECK_DB_BACKEND > configs/database.yaml 的 backend 段 > 'gaussdb'。
-对外暴露与 gaussdb 一致的 select_sql_with_profile / run_sql_with_profile，
-便于 db_service、mapping_sqlite 等调用点无感切换。
-"""
+"""统一数据库路由：平台运行库与元数据访问共用同一 profile 解析入口。"""
 from __future__ import annotations
 
-import os
 from functools import lru_cache
-from pathlib import Path
 
-import yaml
-
-CONFIG_PATH = Path(__file__).resolve().parents[2] / "configs" / "database.yaml"
+from db.profiles import DatabaseProfile, resolve_profile
 
 
-@lru_cache(maxsize=1)
-def get_backend() -> str:
-    env = os.getenv("SVN_CHECK_DB_BACKEND")
-    if env:
-        return env.strip().lower()
-    try:
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        return str(data.get("backend", "gaussdb")).strip().lower()
-    except Exception:
-        return "gaussdb"
+def _resolve(profile: str | None = None) -> DatabaseProfile:
+    return resolve_profile(profile)
 
 
-def _impl():
-    if get_backend() == "postgres":
+def get_backend(profile: str | None = None) -> str:
+    return _resolve(profile).type
+
+
+@lru_cache(maxsize=2)
+def _module_for_type(db_type: str):
+    if db_type == "postgresql":
         from shared.db import postgres
+
         return postgres
-    from shared.db import gaussdb
-    return gaussdb
+    if db_type == "dws":
+        from shared.db import gaussdb
+
+        return gaussdb
+    raise RuntimeError(f"Unsupported database type in router: {db_type}")
 
 
-def select_sql_with_profile(profile: str, sql_str: str):
-    return _impl().select_sql_with_profile(profile, sql_str)
+def _impl(profile: str | None = None):
+    return _module_for_type(_resolve(profile).type)
 
 
-def run_sql_with_profile(profile: str, sql_str: str):
-    return _impl().run_sql_with_profile(profile, sql_str)
+def select_sql_with_profile(profile: str | None, sql_str: str):
+    resolved = _resolve(profile)
+    return _impl(resolved.name).select_sql_with_profile(resolved.name, sql_str)
+
+
+def run_sql_with_profile(profile: str | None, sql_str: str):
+    resolved = _resolve(profile)
+    return _impl(resolved.name).run_sql_with_profile(resolved.name, sql_str)

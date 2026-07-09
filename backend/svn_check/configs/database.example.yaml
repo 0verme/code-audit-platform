@@ -1,31 +1,24 @@
-# Database connection template for the rule metadata service.
-# Copy this file to database.yaml in your deployment environment and fill real values.
-# Do not commit real usernames, passwords, tokens, internal IPs, or production DSNs.
-#
-# Environment variables can override this file:
-#   SVN_CHECK_DB_BACKEND
-#   SVN_CHECK_PG_HOST / SVN_CHECK_PG_PORT / SVN_CHECK_PG_DB
-#   SVN_CHECK_PG_USER / SVN_CHECK_PG_PASSWORD / SVN_CHECK_PG_SCHEMA
+# Unified database profile template.
+# Copy this file to database.yaml and keep only PostgreSQL or only DWS as the active profile.
+# Runtime tables and metadata queries always use the same profile.
 
-# Supported values: postgres | gaussdb
-backend: postgres
-
-# ---- Postgres metadata database ----
-postgres:
-  host: 127.0.0.1
-  port: 5432
-  dbname: demo_db
-  user: demo_user
-  password: demo_password
-  schema: dwp
-
-# ---- Optional GaussDB over JDBC ----
-defaults:
-  driver: com.example.jdbc.Driver
-  jar_path: /path/to/resources/jars/gaussdb200.jar
+default_profile: local_pg
 
 profiles:
-  demo:
-    jdbc_url: jdbc:gaussdb://db.example.com:5432/demo_db?currentSchema=dwp
-    user: demo_user
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: demo_user
     password: demo_password
+    schema: dwp
+
+  local_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: demo_user
+    password: demo_password
+    schema: dwp

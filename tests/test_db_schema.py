@@ -1,6 +1,4 @@
-import sqlite3
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -14,9 +12,7 @@ from db.schema import RUNTIME_TABLES, initialize_schema, schema_statements  # no
 from db.tables import qualified_table_name  # noqa: E402
 
 
-def profile(db_type: str, path: str = ":memory:") -> DatabaseProfile:
-    if db_type == "sqlite":
-        return DatabaseProfile("sqlite_test", "sqlite", {"type": "sqlite", "path": path, "database": path})
+def profile(db_type: str) -> DatabaseProfile:
     return DatabaseProfile(
         f"{db_type}_test",
         db_type,
@@ -46,18 +42,6 @@ class SchemaTests(unittest.TestCase):
             set(RUNTIME_TABLES),
             {"projects", "audit_tasks", "task_reports", "audit_results", "fine_report_items"},
         )
-
-    def test_sqlite_initialization_creates_tables_and_is_idempotent(self):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-            db_path = str(Path(tmp) / "schema.db")
-            sqlite = profile("sqlite", db_path)
-            initialize_schema(sqlite)
-            initialize_schema(sqlite)
-            with sqlite3.connect(db_path) as connection:
-                rows = connection.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-                ).fetchall()
-        self.assertEqual({row[0] for row in rows}, {qualified_table_name(table, sqlite) for table in RUNTIME_TABLES})
 
     def test_pg_schema_generates_expected_statements(self):
         statements = schema_statements(profile("postgresql"))

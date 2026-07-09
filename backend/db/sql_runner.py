@@ -81,15 +81,13 @@ class SQLRunner:
 
     def normalize_sql(self, sql: str) -> str:
         sql = render_table_tokens(sql, self.profile)
-        if self.profile.type in {"postgresql", "dws"}:
-            return sql.replace("?", "%s")
-        return sql
+        return sql.replace("?", "%s")
 
     def _connect(self):
         return self._connection_factory(self.profile)
 
     def _sql_for_insert_id(self, sql: str, *, return_id: bool) -> str:
-        if not return_id or self.profile.type == "sqlite":
+        if not return_id:
             return sql
         lowered = sql.lower()
         if lowered.lstrip().startswith("insert") and " returning " not in lowered:
@@ -99,8 +97,6 @@ class SQLRunner:
     def _extract_insert_id(self, cursor: Any, *, return_id: bool) -> int | None:
         if not return_id:
             return None
-        if self.profile.type == "sqlite":
-            return getattr(cursor, "lastrowid", None)
         row = cursor.fetchone()
         if row is None:
             return None
@@ -147,12 +143,10 @@ class TransactionRunner:
 
     def normalize_sql(self, sql: str) -> str:
         sql = render_table_tokens(sql, self.profile)
-        if self.profile.type in {"postgresql", "dws"}:
-            return sql.replace("?", "%s")
-        return sql
+        return sql.replace("?", "%s")
 
     def _sql_for_insert_id(self, sql: str, *, return_id: bool) -> str:
-        if not return_id or self.profile.type == "sqlite":
+        if not return_id:
             return sql
         lowered = sql.lower()
         if lowered.lstrip().startswith("insert") and " returning " not in lowered:
@@ -162,8 +156,6 @@ class TransactionRunner:
     def _extract_insert_id(self, cursor: Any, *, return_id: bool) -> int | None:
         if not return_id:
             return None
-        if self.profile.type == "sqlite":
-            return getattr(cursor, "lastrowid", None)
         row = cursor.fetchone()
         if row is None:
             return None

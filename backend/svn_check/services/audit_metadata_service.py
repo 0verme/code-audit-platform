@@ -2,16 +2,14 @@
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 from shared.db import router as db_router
+from db.profiles import get_active_profile
 
 
 logger = logging.getLogger("svn_check.audit_metadata")
-
-DEFAULT_METADATA_PROFILE = "czcb"
 
 TERM_ROOT_SQL = """
 SELECT DISTINCT upper(root_code)
@@ -66,11 +64,7 @@ where d.table_name is not null
 
 
 def _get_metadata_profile_name() -> str:
-    return (
-        os.getenv("SVN_CHECK_METADATA_PROFILE", "").strip()
-        or os.getenv("SVN_CHECK_DB_PROFILE", "").strip()
-        or DEFAULT_METADATA_PROFILE
-    )
+    return get_active_profile().name
 
 
 def _get_backend_name() -> str:

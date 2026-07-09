@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 
 from db.connection import connect
-from db.profiles import CONFIG_PATH_ENV, PROFILE_ENV, DatabaseProfile, resolve_profile
+from db.profiles import DatabaseProfile, resolve_profile
 from db.schema import initialize_schema
-from db.tables import qualified_table_name, render_table_tokens
-
-
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "app.db"
+from db.tables import render_table_tokens
 
 
 class CompatRow(dict):
@@ -30,7 +23,7 @@ class CompatCursor:
     def __init__(self, cursor, profile: DatabaseProfile, lastrowid=None):
         self._cursor = cursor
         self._profile = profile
-        self.lastrowid = lastrowid if lastrowid is not None else getattr(cursor, "lastrowid", None)
+        self.lastrowid = lastrowid
         self.rowcount = getattr(cursor, "rowcount", None)
 
     @property
@@ -91,8 +84,6 @@ class CompatConnection:
 
     def executescript(self, sql_script):
         sql_script = render_table_tokens(sql_script, self.profile)
-        if self.profile.type == "sqlite":
-            return self._connection.executescript(sql_script)
         cursor = self._connection.cursor()
         for statement in [part.strip() for part in sql_script.split(";") if part.strip()]:
             cursor.execute(self._normalize_sql(statement))
@@ -108,14 +99,9 @@ class CompatConnection:
         self._connection.close()
 
     def _normalize_sql(self, sql):
-        sql = render_table_tokens(sql, self.profile)
-        if self.profile.type in {"postgresql", "dws"}:
-            return sql.replace("?", "%s")
-        return sql
+        return render_table_tokens(sql, self.profile).replace("?", "%s")
 
     def _sql_for_insert_id(self, sql, expect_lastrowid=False):
-        if self.profile.type == "sqlite":
-            return sql
         if not expect_lastrowid:
             return sql
         lowered = sql.lower()
@@ -124,8 +110,6 @@ class CompatConnection:
         return sql
 
     def _extract_insert_id(self, cursor, sql):
-        if self.profile.type == "sqlite":
-            return getattr(cursor, "lastrowid", None)
         if " returning " not in sql.lower():
             return None
         row = cursor.fetchone()
@@ -137,18 +121,9 @@ class CompatConnection:
             return row["id"]
         return row[0]
 
-def _runtime_profile() -> DatabaseProfile:
-    profile = resolve_profile()
-    if profile.type == "sqlite" and not any((os.getenv(CONFIG_PATH_ENV), os.getenv(PROFILE_ENV))):
-        config = dict(profile.config)
-        config["path"] = str(DB_PATH)
-        config["database"] = str(DB_PATH)
-        return DatabaseProfile(profile.name, profile.type, config)
-    return profile
-
 
 def get_connection() -> CompatConnection:
-    return CompatConnection(_runtime_profile())
+    return CompatConnection(resolve_profile())
 
 
 def execute_insert(sql: str, params=()) -> int:
@@ -166,61 +141,11 @@ def upsert_task_report(task_id: int, report_json: str, created_at: str) -> None:
         )
 
 
-def _migrate_audit_tasks(connection: CompatConnection) -> None:
-    """老库平滑升级：补齐任务进度 / 日志相关列。"""
-    table_name = qualified_table_name("audit_tasks", connection.profile)
-    existing = {row[1] for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
-    for name, ddl in (
-        ("progress", f"ALTER TABLE {table_name} ADD COLUMN progress INTEGER NOT NULL DEFAULT 0"),
-        ("step", f"ALTER TABLE {table_name} ADD COLUMN step TEXT NOT NULL DEFAULT ''"),
-        ("finished_at", f"ALTER TABLE {table_name} ADD COLUMN finished_at TEXT"),
-        ("error", f"ALTER TABLE {table_name} ADD COLUMN error TEXT"),
-        ("logs_json", f"ALTER TABLE {table_name} ADD COLUMN logs_json TEXT NOT NULL DEFAULT '[]'"),
-        ("source_type", f"ALTER TABLE {table_name} ADD COLUMN source_type TEXT NOT NULL DEFAULT 'svn'"),
-        ("source_ref", f"ALTER TABLE {table_name} ADD COLUMN source_ref TEXT NOT NULL DEFAULT ''"),
-        ("operator_user", f"ALTER TABLE {table_name} ADD COLUMN operator_user TEXT NOT NULL DEFAULT ''"),
-        ("client_ip", f"ALTER TABLE {table_name} ADD COLUMN client_ip TEXT NOT NULL DEFAULT ''"),
-    ):
-        if name not in existing:
-            connection.execute(ddl)
-    if "source_ref" not in existing:
-        connection.execute(f"UPDATE {table_name} SET source_ref = repo WHERE source_ref = ''")
-    if "operator_user" not in existing:
-        connection.execute(f"UPDATE {table_name} SET operator_user = author WHERE operator_user = ''")
-
-
-def _migrate_sqlite_runtime_table_names(connection: CompatConnection) -> None:
-    if connection.profile.type != "sqlite":
-        return
-    for logical_name in ("projects", "audit_tasks", "task_reports", "audit_results"):
-        new_name = qualified_table_name(logical_name, connection.profile)
-        if new_name == logical_name:
-            continue
-        legacy_exists = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            (logical_name,),
-        ).fetchone()
-        new_exists = connection.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-            (new_name,),
-        ).fetchone()
-        if legacy_exists and not new_exists:
-            connection.execute(f"ALTER TABLE {logical_name} RENAME TO {new_name}")
-
-
 def init_db() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    profile = _runtime_profile()
-    if profile.type == "sqlite":
-        with CompatConnection(profile) as bootstrap_connection:
-            _migrate_sqlite_runtime_table_names(bootstrap_connection)
+    profile = resolve_profile()
     initialize_schema(profile)
 
     with get_connection() as connection:
-        if connection.profile.type == "sqlite":
-            initialize_schema(connection.profile)
-            _migrate_audit_tasks(connection)
-
         project_count = connection.execute("SELECT COUNT(*) FROM {{table:projects}}").fetchone()[0]
         if project_count:
             return

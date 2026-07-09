@@ -8,7 +8,6 @@ from .tables import RUNTIME_TABLES, render_table_tokens
 
 SCHEMA_DIR = Path(__file__).resolve().parent
 SCHEMA_FILES = {
-    "sqlite": SCHEMA_DIR / "schema_sqlite.sql",
     "postgresql": SCHEMA_DIR / "schema_pg.sql",
     "dws": SCHEMA_DIR / "schema_dws.sql",
 }
