@@ -8,8 +8,10 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import database  # noqa: E402
+from db.connection import CompatConnection  # noqa: E402
 from db.profiles import DatabaseProfile  # noqa: E402
+from db.runtime_store import upsert_task_report  # noqa: E402
+from db.schema import init_db  # noqa: E402
 
 
 def pg_profile() -> DatabaseProfile:
@@ -38,10 +40,7 @@ class SequenceCursor:
 
     def execute(self, sql, params=()):
         self.executed.append((sql, params))
-        if "SELECT COUNT(*) FROM dwp.p_audit_project_config" in sql:
-            self.description = [("count",)]
-            self.fetchone_queue.append((0,))
-        elif "RETURNING id" in sql:
+        if "RETURNING id" in sql:
             self.description = [("id",)]
             self.fetchone_queue.append((42,))
         elif "SELECT report_json" in sql:
@@ -87,8 +86,8 @@ class SequenceConnection:
 class DatabaseCompatTests(unittest.TestCase):
     def test_execute_insert_uses_returning_id(self):
         fake = SequenceConnection()
-        with patch("database.connect", return_value=fake):
-            inserted_id = database.CompatConnection(pg_profile()).execute(
+        with patch("db.connection.connect", return_value=fake):
+            inserted_id = CompatConnection(pg_profile()).execute(
                 "INSERT INTO {{table:projects}} (name) VALUES (?)",
                 ("demo",),
                 expect_lastrowid=True,
@@ -98,8 +97,8 @@ class DatabaseCompatTests(unittest.TestCase):
 
     def test_upsert_task_report_uses_active_profile_connection(self):
         fake = SequenceConnection()
-        with patch("database.resolve_profile", return_value=pg_profile()), patch("database.connect", return_value=fake):
-            database.upsert_task_report(3, '{"ok": true}', "2026-07-09 12:00:00")
+        with patch("db.connection.resolve_profile", return_value=pg_profile()), patch("db.connection.connect", return_value=fake):
+            upsert_task_report(3, '{"ok": true}', "2026-07-09 12:00:00")
         statements = [sql for sql, _ in fake.cursor_obj.executed]
         self.assertEqual(
             statements,
@@ -109,16 +108,10 @@ class DatabaseCompatTests(unittest.TestCase):
             ],
         )
 
-    def test_init_db_initializes_schema_and_seeds_demo_rows(self):
-        fake = SequenceConnection()
-        with patch("database.resolve_profile", return_value=pg_profile()), patch("database.connect", return_value=fake), patch("database.initialize_schema") as init_schema:
-            database.init_db()
-        init_schema.assert_called_once()
-        executed_sql = [sql for sql, _ in fake.cursor_obj.executed]
-        self.assertIn("SELECT COUNT(*) FROM dwp.p_audit_project_config", executed_sql[0])
-        self.assertTrue(any("INSERT INTO dwp.p_audit_project_config" in sql for sql in executed_sql))
-        self.assertTrue(any("INSERT INTO dwp.p_audit_run" in sql for sql in executed_sql))
-        self.assertTrue(any("INSERT INTO dwp.fine_report_items" in sql for sql in executed_sql))
+    def test_init_db_only_initializes_runtime_tables(self):
+        with patch("db.schema.ensure_runtime_tables") as ensure_runtime_tables:
+            init_db()
+        ensure_runtime_tables.assert_called_once_with(None, runner=None)
 
 
 if __name__ == "__main__":

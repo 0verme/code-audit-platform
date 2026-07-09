@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Any, Callable, Iterable, Iterator, Sequence
 
-from .connection import connect
+from .connection import connect, get_connection
 from .errors import SqlExecutionError
 from .profiles import DatabaseProfile, resolve_profile
 from .tables import render_table_tokens
@@ -195,3 +195,25 @@ def _rollback(connection: Any) -> None:
         connection.rollback()
     except Exception:
         pass
+
+
+def execute_query(sql: str, params: Params = None, profile: str | DatabaseProfile | None = None):
+    with get_connection(profile) as connection:
+        return connection.execute(sql, params).fetchall()
+
+
+def execute_one(sql: str, params: Params = None, profile: str | DatabaseProfile | None = None):
+    with get_connection(profile) as connection:
+        return connection.execute(sql, params).fetchone()
+
+
+def execute_insert(sql: str, params: Params = None, profile: str | DatabaseProfile | None = None) -> int | None:
+    with get_connection(profile) as connection:
+        cursor = connection.execute(sql, params, expect_lastrowid=True)
+        return cursor.lastrowid
+
+
+def execute_update(sql: str, params: Params = None, profile: str | DatabaseProfile | None = None) -> int | None:
+    with get_connection(profile) as connection:
+        cursor = connection.execute(sql, params)
+        return cursor.rowcount

@@ -22,7 +22,14 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from database import get_connection, upsert_task_report
+from db.runtime_store import (
+    finalize_task,
+    get_task_report_payload,
+    get_task_row_payload,
+    replace_audit_results,
+    update_task_runtime_state,
+    upsert_task_report,
+)
 
 try:
     from .run import AuditRunState, AuditTask, AuditTaskStatus
@@ -299,36 +306,11 @@ def get_audit_run_state(task_id: int) -> AuditRunState | None:
 
 
 def _task_row_payload(task_id: int) -> dict | None:
-    with get_connection() as connection:
-        row = connection.execute(
-            """
-            SELECT id, repo, source_ref, workflow, status, revision, author, operator_user,
-                   client_ip, started_at, duration, ai_enabled, debug_enabled, progress,
-                   step, finished_at, error, logs_json, source_type
-            FROM {{table:audit_tasks}}
-            WHERE id = ?
-            """,
-            (task_id,),
-        ).fetchone()
-    if row is None:
-        return None
-    payload = dict(row)
-    try:
-        payload["logs"] = json.loads(payload.pop("logs_json") or "[]")
-    except (TypeError, ValueError):
-        payload["logs"] = []
-    return payload
+    return get_task_row_payload(task_id)
 
 
 def _task_report_payload(task_id: int) -> dict | None:
-    with get_connection() as connection:
-        row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
-    if row is None:
-        return None
-    try:
-        return json.loads(row["report_json"])
-    except (TypeError, ValueError):
-        return None
+    return get_task_report_payload(task_id)
 
 
 def _status_from_task_status(status: str) -> str:
@@ -362,6 +344,7 @@ def get_audit_run_status(task_id: int) -> dict | None:
         }
 
     payload["task"] = task
+    payload["status"] = _status_from_task_status(task.get("status", ""))
     payload["taskStatus"] = task.get("status")
     payload["finalReportReady"] = _task_report_payload(task_id) is not None
     return payload
@@ -485,16 +468,12 @@ class TaskRun:
         print(f"[task {self.task_id}] {level} {msg}", flush=True)
 
     def update(self, progress=None, step=None):
-        with get_connection() as connection:
-            sets, args = ["logs_json = ?"], [json.dumps(self.logs, ensure_ascii=False)]
-            if progress is not None:
-                sets.append("progress = ?")
-                args.append(int(progress))
-            if step is not None:
-                sets.append("step = ?")
-                args.append(step)
-            args.append(self.task_id)
-            connection.execute(f"UPDATE {{table:audit_tasks}} SET {', '.join(sets)} WHERE id = ?", args)
+        update_task_runtime_state(
+            self.task_id,
+            json.dumps(self.logs, ensure_ascii=False),
+            progress=progress,
+            step=step,
+        )
         if step:
             self.log(f"当前步骤：{step}")
 
@@ -524,8 +503,6 @@ class TaskRun:
             self.log(f"{label} 不可用，已降级跳过: {exc}", "WARN")
             return default
 
-    # ---- 结果落库 ----
-
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
         if report is not None:
@@ -534,19 +511,16 @@ class TaskRun:
             self._ensure_run_state().mark_finished()
         else:
             self._ensure_run_state().mark_finished(error=error or status)
-        with get_connection() as connection:
-            connection.execute(
-                """
-                UPDATE {{table:audit_tasks}}
-                SET status = ?, duration = ?, finished_at = ?, error = ?, progress = ?, step = ?, logs_json = ?
-                WHERE id = ?
-                """,
-                (
-                    status, duration, datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    error, 100 if report else 0, "完成" if report else "失败",
-                    json.dumps(self.logs, ensure_ascii=False), self.task_id,
-                ),
-            )
+        finalize_task(
+            self.task_id,
+            status=status,
+            duration=duration,
+            finished_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            error=error,
+            progress=100 if report else 0,
+            step="completed" if report else "failed",
+            logs_json=json.dumps(self.logs, ensure_ascii=False),
+        )
         if report is not None:
             upsert_task_report(
                 self.task_id,
@@ -555,19 +529,9 @@ class TaskRun:
             )
 
     def save_category_rows(self, grouped_rows):
-        """同步写 audit_results，保留 /api/audit-results 旧接口可用。"""
-        with get_connection() as connection:
-            connection.execute("DELETE FROM {{table:audit_results}} WHERE task_id = ?", (self.task_id,))
-            for category, rows in grouped_rows.items():
-                for row in rows:
-                    connection.execute(
-                        """
-                        INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (self.task_id, category, row.get("file") or "", row.get("line") or 0,
-                         row.get("rule") or "", row.get("level") or "info", row.get("msg") or ""),
-                    )
+        """Sync audit_results to preserve the legacy /api/audit-results endpoint."""
+        replace_audit_results(self.task_id, grouped_rows)
+
 
     # ---- 主入口 ----
 

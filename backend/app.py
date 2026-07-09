@@ -8,26 +8,23 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import audit.engine as audit_engine
-from database import execute_insert, get_connection, init_db
+from db.runtime_store import (
+    fail_orphan_tasks,
+    get_audit_task as load_audit_task,
+    get_task_report_row,
+    list_audit_results,
+    list_audit_tasks,
+    list_fine_report_items,
+    list_projects,
+)
+from db.sql_runner import execute_insert
 
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-init_db()
 
 
-def _fail_orphan_tasks():
-    with get_connection() as connection:
-        connection.execute(
-            """
-            UPDATE {{table:audit_tasks}}
-            SET status = 'fail', step = 'interrupted', error = 'backend restarted while task was running'
-            WHERE status IN ('running', 'queued')
-            """
-        )
-
-
-_fail_orphan_tasks()
+fail_orphan_tasks()
 
 
 TASK_COLUMNS = """
@@ -97,24 +94,19 @@ def health():
 
 @app.get("/api/projects")
 def get_projects():
-    with get_connection() as connection:
-        rows = connection.execute(
-            "SELECT id, name, project_key, repo_path, workflow, description FROM {{table:projects}} ORDER BY id"
-        ).fetchall()
+    rows = list_projects()
     return jsonify([dict(row) for row in rows])
 
 
 @app.get("/api/audit-tasks")
 def get_audit_tasks():
-    with get_connection() as connection:
-        rows = connection.execute(f"SELECT {TASK_COLUMNS} FROM {{table:audit_tasks}} ORDER BY id DESC").fetchall()
+    rows = list_audit_tasks()
     return jsonify([task_row_to_dict(row) for row in rows])
 
 
 @app.get("/api/audit-tasks/<int:task_id>")
 def get_audit_task(task_id: int):
-    with get_connection() as connection:
-        row = connection.execute(f"SELECT {TASK_COLUMNS} FROM {{table:audit_tasks}} WHERE id = ?", (task_id,)).fetchone()
+    row = load_audit_task(task_id)
     if row is None:
         return jsonify({"error": "task not found"}), 404
     return jsonify(task_row_to_dict(row))
@@ -122,8 +114,7 @@ def get_audit_task(task_id: int):
 
 @app.get("/api/audit-tasks/<int:task_id>/report")
 def get_audit_task_report(task_id: int):
-    with get_connection() as connection:
-        row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
+    row = get_task_report_row(task_id)
     if row is None:
         return jsonify({"error": "report not ready"}), 404
     return app.response_class(row["report_json"], mimetype="application/json")
@@ -237,32 +228,13 @@ def create_audit_run():
 @app.get("/api/audit-results")
 def get_audit_results():
     task_id = request.args.get("task_id", type=int)
-    query = """
-        SELECT id, task_id, category, file_name, line_no, rule_name, level, message
-        FROM {{table:audit_results}}
-    """
-    args = ()
-    if task_id is not None:
-        query += " WHERE task_id = ?"
-        args = (task_id,)
-    query += " ORDER BY id"
-    with get_connection() as connection:
-        rows = connection.execute(query, args).fetchall()
+    rows = list_audit_results(task_id)
     return jsonify([dict(row) for row in rows])
 
 
 @app.get("/api/fine-report/items")
 def get_fine_report_items():
-    with get_connection() as connection:
-        rows = connection.execute(
-            """
-            SELECT id, title, file_path, report_type, change_type, connection_name,
-                   focus, dataset_sql, dataset_rows, issues_json, ref_tables_json
-            FROM {{table:fine_report_items}}
-            ORDER BY id
-            """
-        ).fetchall()
-
+    rows = list_fine_report_items()
     items = []
     for row in rows:
         item = dict(row)

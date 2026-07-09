@@ -13,17 +13,21 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import audit.engine as audit_engine  # noqa: E402
-import database  # noqa: E402
+from db import connection as db_connection  # noqa: E402
+from db.runtime_store import upsert_task_report  # noqa: E402
+from db.schema import init_db  # noqa: E402
+from db.sql_runner import execute_insert  # noqa: E402
 
 
 class LocalAuditTaskTests(unittest.TestCase):
     def test_create_audit_task_accepts_local_source(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
             try:
+                init_db()
                 app_module = importlib.import_module("app")
                 captured = {}
 
@@ -57,7 +61,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(captured["source_type"], "local")
                 self.assertEqual(captured["workflow"], "hcyt")
 
-                with database.get_connection() as connection:
+                with db_connection.get_connection() as connection:
                     row = connection.execute(
                         "SELECT source_type, source_ref, operator_user, client_ip FROM {{table:audit_tasks}} WHERE id = ?",
                         (body["id"],),
@@ -67,17 +71,18 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(row["operator_user"], "local-user")
                 self.assertTrue(row["client_ip"])
             finally:
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
     def test_create_audit_task_keeps_svn_default(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
             body = {}
             try:
+                init_db()
                 app_module = importlib.import_module("app")
                 captured = {}
 
@@ -91,16 +96,17 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(response.get_json()["sourceType"], "svn")
                 self.assertEqual(captured["args"][6], "svn")
             finally:
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
     def test_create_audit_task_accepts_git_source_and_infers_type(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
             try:
+                init_db()
                 app_module = importlib.import_module("app")
                 with patch.object(app_module.audit_engine, "start_task", lambda *args, **kwargs: None):
                     response = app_module.app.test_client().post(
@@ -113,16 +119,17 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(body["sourceType"], "git")
                 self.assertEqual(body["sourceRef"], "git@gitlab.example.com:team/repo.git")
             finally:
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
     def test_create_audit_run_alias_returns_run_id_and_partial_status(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
             try:
+                init_db()
                 app_module = importlib.import_module("app")
 
                 def fake_start_task(task_id, _repo, workflow, *_args, **_kwargs):
@@ -159,18 +166,19 @@ class LocalAuditTaskTests(unittest.TestCase):
             finally:
                 if body.get("id"):
                     app_module.audit_engine._run_states.pop(body["id"], None)
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
     def test_audit_run_status_falls_back_to_database_report(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
             try:
+                init_db()
                 app_module = importlib.import_module("app")
-                task_id = database.execute_insert(
+                task_id = execute_insert(
                     """
                     INSERT INTO {{table:audit_tasks}} (
                         repo, source_ref, workflow, status, revision, author, started_at, duration, progress
@@ -189,7 +197,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                         100,
                     ),
                 )
-                database.upsert_task_report(
+                upsert_task_report(
                     task_id,
                     json.dumps({"task": {"status": "pass"}, "changes": [{"path": "demo.sql"}]}),
                     datetime.now().isoformat(),
@@ -203,17 +211,17 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(body["report"]["changes"], [{"path": "demo.sql"}])
                 self.assertEqual(body["partialReport"]["finalReport"]["task"]["status"], "pass")
             finally:
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
     def test_task_run_marks_audit_run_state_running_immediately(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             try:
-                database.init_db()
-                task_id = database.execute_insert(
+                init_db()
+                task_id = execute_insert(
                     """
                     INSERT INTO {{table:audit_tasks}} (
                         repo, workflow, status, revision, author, started_at, duration, progress
@@ -229,17 +237,18 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(audit_engine.get_audit_run_status(task_id)["status"], "running")
             finally:
                 audit_engine._run_states.pop(task_id, None)
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
 
     def test_audit_run_partial_result_preserves_final_report_compatibility_fields(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
             try:
+                init_db()
                 app_module = importlib.import_module("app")
-                task_id = database.execute_insert(
+                task_id = execute_insert(
                     """
                     INSERT INTO {{table:audit_tasks}} (
                         repo, source_ref, workflow, status, revision, author, started_at, duration, progress
@@ -266,7 +275,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                     "unifiedAssetIssues": [{"rule_code": "missing-root", "object_name": "DM.TABLE_A"}],
                     "lineageSummary": {"resultTables": ["DM.TABLE_A"], "jobs": [], "recvPlans": [], "sysNames": [], "outfiles": [], "warnings": [], "stats": {}},
                 }
-                database.upsert_task_report(task_id, json.dumps(final_report), datetime.now().isoformat())
+                upsert_task_report(task_id, json.dumps(final_report), datetime.now().isoformat())
 
                 response = app_module.app.test_client().get(f"/api/audit-runs/{task_id}/partial-result")
                 self.assertEqual(response.status_code, 200)
@@ -281,17 +290,17 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(body["report"]["unifiedAssetIssues"], final_report["unifiedAssetIssues"])
                 self.assertEqual(body["report"]["lineageSummary"], final_report["lineageSummary"])
             finally:
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
     def test_report_meta_contains_local_source_fields(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
-            old_db_path = database.DB_PATH
-            database.DB_PATH = db_path
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
             try:
-                database.init_db()
-                task_id = database.execute_insert(
+                init_db()
+                task_id = execute_insert(
                     """
                     INSERT INTO {{table:audit_tasks}} (
                         repo, workflow, status, revision, author, started_at, duration, source_type
@@ -312,7 +321,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 report["workspaceRoot"] = workspace["workspace_root"]
                 run.finish("pass", report=report)
 
-                with database.get_connection() as connection:
+                with db_connection.get_connection() as connection:
                     row = connection.execute("SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?", (task_id,)).fetchone()
                 saved = json.loads(row["report_json"])
                 self.assertEqual(saved["sourceType"], "local")
@@ -320,7 +329,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(saved["task"]["sourceType"], "local")
                 self.assertEqual(saved["task"]["workspaceRoot"], "C:\\path\\to\\local-hcyt-workspace")
             finally:
-                database.DB_PATH = old_db_path
+                db_connection.DB_PATH = old_db_path
 
 
 if __name__ == "__main__":
