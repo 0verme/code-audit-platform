@@ -10,7 +10,7 @@ for path in (BACKEND_DIR, SVN_CHECK_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-import engine  # noqa: E402
+import audit.engine as audit_engine  # noqa: E402
 from services import re_service  # noqa: E402
 
 
@@ -84,11 +84,11 @@ class FakeModules:
 
 class EngineLineageSummaryTests(unittest.TestCase):
     def _run_empty_hcyt_report(self, metadata_service=None):
-        previous_mods = engine._mods
+        previous_mods = audit_engine._mods
         fake_modules = FakeModules(metadata_service=metadata_service)
-        engine._mods = fake_modules
+        audit_engine._mods = fake_modules
         try:
-            run = engine.TaskRun.__new__(engine.TaskRun)
+            run = audit_engine.TaskRun.__new__(audit_engine.TaskRun)
             run.task_id = 1
             run.repo = "svn://repo/hcyt/demo"
             run.workflow = "hcyt"
@@ -116,7 +116,7 @@ class EngineLineageSummaryTests(unittest.TestCase):
             report["workspaceRoot"] = svn_result["workspace_root"]
             return report, fake_modules
         finally:
-            engine._mods = previous_mods
+            audit_engine._mods = previous_mods
 
     def test_hcyt_report_contains_stable_lineage_summary(self):
         report, fake_modules = self._run_empty_hcyt_report(MetadataService())
@@ -131,7 +131,7 @@ class EngineLineageSummaryTests(unittest.TestCase):
         self.assertTrue(fake_modules.re_service.outfile_lookup_called)
 
     def test_lineage_summary_empty_input_is_stable(self):
-        summary = engine._build_lineage_summary_payload(FakeModules(metadata_service=None))
+        summary = audit_engine._build_lineage_summary_payload(FakeModules(metadata_service=None))
 
         self.assertEqual(summary["resultTables"], [])
         self.assertEqual(summary["jobs"], [])
@@ -167,11 +167,11 @@ class EngineLineageSummaryTests(unittest.TestCase):
         json.dumps(report, ensure_ascii=False)
 
     def test_schedule_shape_error_degrades_to_warning(self):
-        previous_mods = engine._mods
+        previous_mods = audit_engine._mods
         fake_modules = FakeModules(metadata_service=MetadataService())
-        engine._mods = fake_modules
+        audit_engine._mods = fake_modules
         try:
-            run = engine.TaskRun.__new__(engine.TaskRun)
+            run = audit_engine.TaskRun.__new__(audit_engine.TaskRun)
             run.task_id = 1
             run.repo = "svn://repo/hcyt/demo"
             run.workflow = "hcyt"
@@ -197,7 +197,7 @@ class EngineLineageSummaryTests(unittest.TestCase):
             }
             report = run.run_hcyt(svn_result)
         finally:
-            engine._mods = previous_mods
+            audit_engine._mods = previous_mods
 
         self.assertEqual(report["task"]["status"], "warn")
         self.assertTrue(any("shape mismatch" in row["msg"] for row in report["schedule"]["rows"]))
@@ -210,7 +210,7 @@ class EngineLineageSummaryTests(unittest.TestCase):
             "sqlChecks": [],
             "pyScripts": [],
             "assetIssues": [],
-            "lineageSummary": engine._empty_lineage_summary(),
+            "lineageSummary": audit_engine._empty_lineage_summary(),
         }
 
         json.dumps(fine_report, ensure_ascii=False)

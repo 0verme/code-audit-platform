@@ -5,9 +5,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 SVN_CHECK_DIR = Path(__file__).resolve().parents[1] / "backend" / "svn_check"
-if str(SVN_CHECK_DIR) not in sys.path:
-    sys.path.insert(0, str(SVN_CHECK_DIR))
+for path in (BACKEND_DIR, SVN_CHECK_DIR):
+    if str(path) not in sys.path:
+        sys.path.insert(0, str(path))
 
 from services import audit_metadata_service as service  # noqa: E402
 from core import public_data  # noqa: E402

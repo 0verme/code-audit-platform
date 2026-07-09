@@ -7,7 +7,7 @@ from datetime import datetime
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-import engine
+import audit.engine as audit_engine
 from database import execute_insert, get_connection, init_db
 
 
@@ -131,7 +131,7 @@ def get_audit_task_report(task_id: int):
 
 @app.get("/api/audit-runs/<int:run_id>/status")
 def get_audit_run_status(run_id: int):
-    payload = engine.get_audit_run_status(run_id)
+    payload = audit_engine.get_audit_run_status(run_id)
     if payload is None:
         return jsonify({"error": "audit run not found"}), 404
     return jsonify(payload)
@@ -139,7 +139,7 @@ def get_audit_run_status(run_id: int):
 
 @app.get("/api/audit-runs/<int:run_id>/partial-result")
 def get_audit_run_partial_result(run_id: int):
-    payload = engine.get_audit_run_partial_result(run_id)
+    payload = audit_engine.get_audit_run_partial_result(run_id)
     if payload is None:
         return jsonify({"error": "audit run not found"}), 404
     return jsonify(payload)
@@ -170,7 +170,7 @@ def create_audit_task():
     if source_type == "unknown":
         return jsonify({"error": "sourceType is unknown and could not be inferred"}), 400
 
-    workflow = engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
+    workflow = audit_engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
     if source_type == "local":
         workflow = (payload.get("workflow") or "hcyt").strip().lower()
         if workflow != "hcyt":
@@ -210,7 +210,7 @@ def create_audit_task():
         ),
     )
 
-    engine.start_task(task_id, source_ref, workflow, ai_enabled, debug_enabled, operator_user, source_type)
+    audit_engine.start_task(task_id, source_ref, workflow, ai_enabled, debug_enabled, operator_user, source_type)
     return jsonify(
         {
             "id": task_id,

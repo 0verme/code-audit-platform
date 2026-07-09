@@ -12,8 +12,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+import audit.engine as audit_engine  # noqa: E402
 import database  # noqa: E402
-import engine  # noqa: E402
 
 
 class LocalAuditTaskTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                     )
                     return None
 
-                with patch.object(app_module.engine, "start_task", fake_start_task):
+                with patch.object(app_module.audit_engine, "start_task", fake_start_task):
                     response = app_module.app.test_client().post(
                         "/api/audit-tasks",
                         json={
@@ -81,7 +81,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 app_module = importlib.import_module("app")
                 captured = {}
 
-                with patch.object(app_module.engine, "start_task", lambda *args, **kwargs: captured.update(args=args, kwargs=kwargs)):
+                with patch.object(app_module.audit_engine, "start_task", lambda *args, **kwargs: captured.update(args=args, kwargs=kwargs)):
                     response = app_module.app.test_client().post(
                         "/api/audit-tasks",
                         json={"repo": "svn://example.com/repos/branches/demo-hcyt", "workflow": "hcyt"},
@@ -102,7 +102,7 @@ class LocalAuditTaskTests(unittest.TestCase):
             sys.modules.pop("app", None)
             try:
                 app_module = importlib.import_module("app")
-                with patch.object(app_module.engine, "start_task", lambda *args, **kwargs: None):
+                with patch.object(app_module.audit_engine, "start_task", lambda *args, **kwargs: None):
                     response = app_module.app.test_client().post(
                         "/api/audit-tasks",
                         json={"sourceRef": "git@gitlab.example.com:team/repo.git", "workflow": "hcyt"},
@@ -126,12 +126,12 @@ class LocalAuditTaskTests(unittest.TestCase):
                 app_module = importlib.import_module("app")
 
                 def fake_start_task(task_id, _repo, workflow, *_args, **_kwargs):
-                    state = app_module.engine.create_audit_run_state(task_id, workflow)
+                    state = app_module.audit_engine.create_audit_run_state(task_id, workflow)
                     state.mark_running()
                     state.set_section("changes", [{"path": "demo.sql"}])
                     state.get_task("source_load").mark_success(summary={"files": 1})
 
-                with patch.object(app_module.engine, "start_task", fake_start_task):
+                with patch.object(app_module.audit_engine, "start_task", fake_start_task):
                     response = app_module.app.test_client().post(
                         "/api/audit-runs",
                         json={"repo": "svn://example.com/repos/branches/demo-hcyt", "workflow": "hcyt"},
@@ -158,7 +158,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(partial["partialReport"]["changes"], [{"path": "demo.sql"}])
             finally:
                 if body.get("id"):
-                    app_module.engine._run_states.pop(body["id"], None)
+                    app_module.audit_engine._run_states.pop(body["id"], None)
                 database.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
@@ -223,12 +223,12 @@ class LocalAuditTaskTests(unittest.TestCase):
                     ("C:\\path\\to\\local-hcyt-workspace", "hcyt", "running", "-", "tester", datetime.now().isoformat(), "0s", 0),
                 )
 
-                run = engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
+                run = audit_engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
 
                 self.assertEqual(run.run_state.status.value, "running")
-                self.assertEqual(engine.get_audit_run_status(task_id)["status"], "running")
+                self.assertEqual(audit_engine.get_audit_run_status(task_id)["status"], "running")
             finally:
-                engine._run_states.pop(task_id, None)
+                audit_engine._run_states.pop(task_id, None)
                 database.DB_PATH = old_db_path
 
     def test_audit_run_partial_result_preserves_final_report_compatibility_fields(self):
@@ -301,7 +301,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                     ("C:\\path\\to\\local-hcyt-workspace", "hcyt", "running", "-", "tester", datetime.now().isoformat(), "0s", "local"),
                 )
 
-                run = engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
+                run = audit_engine.TaskRun(task_id, "C:\\path\\to\\local-hcyt-workspace", "hcyt", source_type="local")
                 workspace = {
                     "source_type": "local",
                     "workspace_root": "C:\\path\\to\\local-hcyt-workspace",

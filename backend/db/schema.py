@@ -6,10 +6,11 @@ from .profiles import DatabaseProfile, resolve_profile
 from .sql_runner import SQLRunner
 from .tables import RUNTIME_TABLES, render_table_tokens
 
-SCHEMA_DIR = Path(__file__).resolve().parent
+SQL_DIR = Path(__file__).resolve().parent / "sql"
 SCHEMA_FILES = {
-    "postgresql": SCHEMA_DIR / "schema_pg.sql",
-    "dws": SCHEMA_DIR / "schema_dws.sql",
+    "sqlite": SQL_DIR / "sqlite" / "schema.sql",
+    "postgresql": SQL_DIR / "postgresql" / "schema.sql",
+    "dws": SQL_DIR / "dws" / "schema.sql",
 }
 
 

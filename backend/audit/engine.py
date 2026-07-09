@@ -25,13 +25,13 @@ from pathlib import Path
 from database import get_connection, upsert_task_report
 
 try:
-    from audit_run import AuditRunState, AuditTask, AuditTaskStatus
-except ImportError:  # pragma: no cover - package-style imports in tests/tools
-    from .audit_run import AuditRunState, AuditTask, AuditTaskStatus
+    from .run import AuditRunState, AuditTask, AuditTaskStatus
+except ImportError:  # pragma: no cover - direct module execution fallback
+    from run import AuditRunState, AuditTask, AuditTaskStatus
 
 # 把拷贝进来的真实项目加入模块搜索路径，保持其内部 `from core...`、
 # `from services...`、`from shared...` 等绝对导入原样可用。
-SVN_CHECK_DIR = Path(__file__).resolve().parent / "svn_check"
+SVN_CHECK_DIR = Path(__file__).resolve().parents[1] / "svn_check"
 if str(SVN_CHECK_DIR) not in sys.path:
     sys.path.insert(0, str(SVN_CHECK_DIR))
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from .errors import DatabaseDriverError
@@ -25,9 +26,20 @@ def _resolve_profile(profile: str | DatabaseProfile | None = None) -> DatabasePr
 
 def connect(profile: str | DatabaseProfile | None = None) -> Any:
     resolved = _resolve_profile(profile)
+    if resolved.type == "sqlite":
+        return connect_sqlite(resolved)
     if resolved.type in {"postgresql", "dws"}:
         return connect_postgresql(resolved)
     raise DatabaseDriverError(f"Unsupported database type: {resolved.type}")
+
+
+def connect_sqlite(profile: DatabaseProfile) -> sqlite3.Connection:
+    path = str(profile.config.get("path") or profile.config.get("database") or "").strip()
+    if not path:
+        raise DatabaseDriverError("SQLite profile requires 'path' or 'database'")
+    connection = sqlite3.connect(path)
+    connection.row_factory = sqlite3.Row
+    return connection
 
 
 def connect_postgresql(profile: DatabaseProfile) -> Any:

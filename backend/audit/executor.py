@@ -13,9 +13,9 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
 try:
-    from .audit_run import AuditRunState, AuditTask, AuditTaskStatus
+    from .run import AuditRunState, AuditTask, AuditTaskStatus
 except ImportError:  # pragma: no cover - direct backend script execution
-    from audit_run import AuditRunState, AuditTask, AuditTaskStatus
+    from run import AuditRunState, AuditTask, AuditTaskStatus
 
 
 AuditTaskHandler = Callable[[AuditRunState], Any]

@@ -2,13 +2,16 @@
 """Initialize metadata schema in the active PostgreSQL or DWS profile."""
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-from db.connection import connect
-from db.profiles import resolve_profile
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
+from db.connection import connect  # noqa: E402
+from db.profiles import resolve_profile  # noqa: E402
 
-BACKEND_DIR = Path(__file__).resolve().parent
 SCHEMA_SQL = BACKEND_DIR / "svn_check" / "migrate" / "postgres_schema.sql"
 EXPECTED_TABLES = [
     "p_job_hjj",

@@ -41,6 +41,8 @@ def _resolve_profile(profile: str | DatabaseProfile | None = None) -> DatabasePr
 
 def table_schema(profile: str | DatabaseProfile | None = None) -> str:
     resolved = _resolve_profile(profile)
+    if resolved.type == "sqlite":
+        return ""
     return str(resolved.config.get("schema") or DEFAULT_RUNTIME_SCHEMA).strip()
 
 

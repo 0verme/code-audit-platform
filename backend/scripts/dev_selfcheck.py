@@ -7,12 +7,17 @@ compatibility layer.
 """
 
 import json
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
-import engine
-from database import execute_insert, init_db
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+import audit.engine as audit_engine  # noqa: E402
+from database import execute_insert, init_db  # noqa: E402
 
 
 DWS_SQL = """\
@@ -104,7 +109,7 @@ def run_hcyt(root):
     shell_file.write_bytes(b"#!/bin/sh\r\necho demo\r\n")
 
     task_id = make_task("hcyt")
-    run = engine.TaskRun(task_id, "local-selfcheck/hcyt", "hcyt")
+    run = audit_engine.TaskRun(task_id, "local-selfcheck/hcyt", "hcyt")
     report = run.run_hcyt(svn_stub(root, [dws, hive, py_file, shell_file]))
     report["logs"] = run.logs
     run.finish(report["task"]["status"], report=report)
@@ -121,7 +126,7 @@ def run_nups(root):
     sql_file.write_text("create table nups_data.t (a varchar2(10));\nalter table nups_data.t add b int;\n", encoding="utf-8")
 
     task_id = make_task("nups")
-    run = engine.TaskRun(task_id, "local-selfcheck/nups", "nups")
+    run = audit_engine.TaskRun(task_id, "local-selfcheck/nups", "nups")
     report = run.run_nups(svn_stub(root, [py_file, sql_file]))
     report["logs"] = run.logs
     run.finish(report["task"]["status"], report=report)
@@ -136,7 +141,7 @@ def run_fine(root):
     cpt.write_text(CPT_XML, encoding="utf-8")
 
     task_id = make_task("fine-report")
-    run = engine.TaskRun(task_id, "local-selfcheck/fine-report", "fine-report")
+    run = audit_engine.TaskRun(task_id, "local-selfcheck/fine-report", "fine-report")
     report = run.run_fine(svn_stub(root, [cpt]))
     report["logs"] = run.logs
     run.finish(report["task"]["status"], report=report)
@@ -146,9 +151,9 @@ def run_fine(root):
 
 def main():
     init_db()
-    engine._load_real_modules()
-    if engine._mods is None:
-        raise SystemExit(f"engine import failed:\n{engine._import_error}")
+    audit_engine._load_real_modules()
+    if audit_engine._mods is None:
+        raise SystemExit(f"engine import failed:\n{audit_engine._import_error}")
 
     root = Path(tempfile.mkdtemp(prefix="svncheck_self_"))
     run_hcyt(root)

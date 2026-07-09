@@ -81,6 +81,8 @@ class SQLRunner:
 
     def normalize_sql(self, sql: str) -> str:
         sql = render_table_tokens(sql, self.profile)
+        if self.profile.type == "sqlite":
+            return sql
         return sql.replace("?", "%s")
 
     def _connect(self):
@@ -143,6 +145,8 @@ class TransactionRunner:
 
     def normalize_sql(self, sql: str) -> str:
         sql = render_table_tokens(sql, self.profile)
+        if self.profile.type == "sqlite":
+            return sql
         return sql.replace("?", "%s")
 
     def _sql_for_insert_id(self, sql: str, *, return_id: bool) -> str:
