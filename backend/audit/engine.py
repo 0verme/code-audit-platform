@@ -44,6 +44,7 @@ from .result_normalizer import (
     text_to_messages,
     text_to_rows,
 )
+from .run_failure_result import build_engine_load_failure_result, build_failure_result
 from .run_result_finalizer import finalize_run_result
 from .run_registry import (
     _run_states,
@@ -352,7 +353,8 @@ class TaskRun:
             if _mods is None:
                 self.log("真实审查引擎加载失败", "ERR")
                 self.log(_import_error or "未知错误", "ERR")
-                self.finish("fail", error=f"真实审查引擎加载失败。\n{_import_error}")
+                failure = build_engine_load_failure_result(_import_error)
+                self.finish(failure["status"], error=failure["error"])
                 return
 
             workflow = resolve_workflow(self.repo, self.workflow)
@@ -405,12 +407,11 @@ class TaskRun:
             self.log("任务完成")
             self.finish(report["task"]["status"], report=report)
         except Exception as exc:
-            message = str(exc)
-            if self.source_type == "svn" and (isinstance(exc, FileNotFoundError) or "WinError 2" in message):
-                message += "（未找到 svn 命令行客户端，请安装 SVN 并加入 PATH）"
+            failure = build_failure_result(exc, source_type=self.source_type)
+            message = failure["error"]
             self.log(f"任务异常: {message}", "ERR")
             self.log(traceback.format_exc(), "ERR")
-            self.finish("fail", error=message)
+            self.finish(failure["status"], error=message)
 
     # ---- 公共构建 ----
 
