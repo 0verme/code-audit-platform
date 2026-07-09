@@ -27,6 +27,7 @@ from .compat import (
     build_legacy_nups_audit_result_rows,
 )
 from .issue_adapter import asset_issue_to_dict
+from .hcyt_report_builder import build_hcyt_report
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
     build_ai as _build_ai,
@@ -658,33 +659,27 @@ class TaskRun:
                                     dwo_lists or dwf_lists, plan_xls, seq_xls, job_xls, py_lists) if flag)
 
         self.save_category_rows(grouped)
-        report = {
-            "task": self.build_task_meta(svn_result, status, {
+        report = build_hcyt_report(
+            task=self.build_task_meta(svn_result, status, {
                 "changedFiles": len(changes), "checks": checks, "errors": errors,
                 "warnings": warnings, "conflicts": len(conflicts),
                 "sqlFiles": len(exported),
             }),
-            "svn": self.build_svn_section(svn_result),
-            "changes": changes,
-            "conflicts": conflicts,
-            "dws": grouped["dws"],
-            "hive": grouped["hive"],
-            "python": grouped["python"],
-            "sbin": grouped["sbin"],
-            "config": grouped["config"],
-            "recv": grouped["recv"],
-            "sqlChecks": sql_checks,
-            "configFiles": config_files,
-            "schedule": schedule,
-            "pyScripts": py_scripts,
-            "refTables": ref_tables,
-            "deps": deps,
-            "assetIssues": asset_issues,
-            "unifiedAssetIssues": unified_asset_issues,
-            "lineageSummary": lineage_summary,
-        }
-        if ai:
-            report["ai"] = ai
+            svn=self.build_svn_section(svn_result),
+            changes=changes,
+            conflicts=conflicts,
+            grouped=grouped,
+            sql_checks=sql_checks,
+            config_files=config_files,
+            schedule=schedule,
+            py_scripts=py_scripts,
+            ref_tables=ref_tables,
+            deps=deps,
+            asset_issues=asset_issues,
+            unified_asset_issues=unified_asset_issues,
+            lineage_summary=lineage_summary,
+            ai=ai,
+        )
         return report
 
     def build_config_files(self, config_paths):
