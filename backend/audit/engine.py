@@ -22,6 +22,17 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
+from .issue_adapter import asset_issue_to_dict
+from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
+from .result_normalizer import (
+    dedupe_tables,
+    format_duration,
+    normalize_table,
+    rule_label,
+    text_to_messages,
+    text_to_rows,
+)
+from .source_resolver import classify_change, detect_workflow
 from db.runtime_store import (
     finalize_task,
     get_task_report_payload,
@@ -30,6 +41,11 @@ from db.runtime_store import (
     update_task_runtime_state,
     upsert_task_report,
 )
+
+_json_safe = json_safe
+_empty_lineage_summary = empty_lineage_summary
+_lineage_warning = lineage_warning
+_rule_label = rule_label
 
 try:
     from .run import AuditRunState, AuditTask, AuditTaskStatus
@@ -131,164 +147,8 @@ def _load_real_modules():
 
 
 # ---------------------------------------------------------------------------
-# 通用工具
-# ---------------------------------------------------------------------------
-
-def detect_workflow(branch_url: str, fallback: str = "hcyt") -> str:
-    if "/hcyt/" in branch_url:
-        return "hcyt"
-    if "/NUPS/" in branch_url or "/nups/" in branch_url:
-        return "nups"
-    if "/fine-report/" in branch_url:
-        return "fine-report"
-    return fallback or "hcyt"
-
-
-def format_duration(elapsed_seconds: float) -> str:
-    total = max(0, int(elapsed_seconds))
-    if total < 60:
-        return f"{total}秒"
-    if total < 3600:
-        minutes, seconds = divmod(total, 60)
-        return f"{minutes}分{seconds:02d}秒"
-    hours, remainder = divmod(total, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    return f"{hours}时{minutes:02d}分{seconds:02d}秒"
-
-
-def _rule_label(line: str) -> str:
-    for sep in ("：", ":", "，", ",", " "):
-        idx = line.find(sep)
-        if 0 < idx <= 30:
-            return line[:idx]
-    return line[:24] or "规则检查"
-
-
-def text_to_rows(result_text, warn_text, file_name="", err_level="err", warn_level="warn"):
-    """把规则返回的红字/蓝字文本拆成 {file,line,rule,level,msg} 行。"""
-    rows = []
-    for raw, level in ((result_text, err_level), (warn_text, warn_level)):
-        if not raw or not isinstance(raw, str):
-            continue
-        for line in raw.split("\n"):
-            line = line.strip()
-            if not line or line == "存在问题:":
-                continue
-            rows.append({"file": file_name, "line": None, "rule": _rule_label(line),
-                         "level": level, "msg": line})
-    return rows
-
-
-def text_to_messages(result_text, warn_text, err_level="err", warn_level="warn"):
-    """与 text_to_rows 类似，但用于卡片内的纯文本提示（不含 file 列）。"""
-    msgs = []
-    for raw, level in ((result_text, err_level), (warn_text, warn_level)):
-        if not raw or not isinstance(raw, str):
-            continue
-        for line in raw.split("\n"):
-            line = line.strip()
-            if line and line != "存在问题:":
-                msgs.append({"level": level, "msg": line})
-    return msgs
-
-
-def classify_change(path: str) -> str:
-    lower = path.lower()
-    if "dws.sql" in lower:
-        return "DWS SQL"
-    if "hive.sql" in lower:
-        return "Hive SQL"
-    if lower.endswith(".sql"):
-        return "SQL"
-    if lower.endswith(".py"):
-        return "Python"
-    if lower.endswith(".sh") or "/sbin/" in lower:
-        return "后置脚本"
-    if lower.endswith((".xls", ".xlsx")):
-        return "调度表"
-    if lower.endswith(".json"):
-        return "配置文件"
-    if lower.endswith((".cpt", ".frm")):
-        return "报表模板"
-    if lower.endswith(".txt"):
-        return "目录/权限"
-    return "其他"
-
-
-def normalize_table(name) -> str:
-    return "" if name is None else str(name).strip().upper()
-
-
-def dedupe_tables(names):
-    seen, result = set(), []
-    for name in names or []:
-        normalized = normalize_table(name)
-        if normalized and normalized not in seen:
-            seen.add(normalized)
-            result.append(normalized)
-    return result
-
-
-def asset_issue_to_dict(issue):
-    return {
-        "issueType": getattr(issue, "issue_type", ""),
-        "issueTitle": getattr(issue, "issue_title", ""),
-        "issueDesc": getattr(issue, "issue_desc", ""),
-        "assetType": getattr(issue, "asset_type", ""),
-        "sourceModule": getattr(issue, "source_module", ""),
-        "sourceFile": getattr(issue, "source_file", ""),
-        "severity": getattr(issue, "severity", ""),
-        "suggestion": getattr(issue, "suggestion", ""),
-        "portalModule": getattr(issue, "portal_module", ""),
-        "actionLabel": getattr(issue, "action_label", ""),
-        "schemaName": getattr(issue, "schema_name", ""),
-        "tableName": getattr(issue, "table_name", ""),
-        "fieldName": getattr(issue, "field_name", ""),
-        "rootWord": getattr(issue, "root_word", ""),
-        "objectName": ".".join(
-            value
-            for value in (
-                getattr(issue, "schema_name", ""),
-                getattr(issue, "table_name", ""),
-                getattr(issue, "field_name", ""),
-            )
-            if value
-        ) or getattr(issue, "root_word", ""),
-        "issueKey": getattr(issue, "issue_key", ""),
-        "hashKey": getattr(issue, "issue_hash_key", ""),
-        "portalUrl": getattr(issue, "portal_url", ""),
-        "sourceRule": getattr(issue, "portal_module", "") or getattr(issue, "issue_type", ""),
-    }
-
-
-# ---------------------------------------------------------------------------
 # 任务执行
 # ---------------------------------------------------------------------------
-
-def _json_safe(value):
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Path):
-        return value.name
-    if isinstance(value, dict):
-        return {str(k): _json_safe(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [_json_safe(v) for v in value]
-    return str(value)
-
-
-def _empty_lineage_summary(warnings=None):
-    return {
-        "resultTables": [],
-        "jobs": [],
-        "recvPlans": [],
-        "sysNames": [],
-        "outfiles": [],
-        "warnings": list(warnings or []),
-        "stats": {},
-    }
 
 
 def create_audit_run_state(task_id: int, workflow: str) -> AuditRunState:
@@ -372,10 +232,6 @@ def get_audit_run_partial_result(task_id: int) -> dict | None:
     }
 
 
-def _lineage_warning(label, exc):
-    return f"{label} unavailable: {type(exc).__name__}"
-
-
 def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None):
     warnings = []
     merge_df = None
@@ -389,7 +245,7 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
             job_outfile_rows = metadata_service.list_job_outfiles() or []
             job_outfile_lookup = m.re_service.build_job_outfile_lookup(job_outfile_rows)
         except Exception as exc:
-            warnings.append(_lineage_warning("job outfile metadata", exc))
+            warnings.append(lineage_warning("job outfile metadata", exc))
             job_outfile_lookup = {}
 
     if job_df is not None and program_xls:
@@ -402,7 +258,7 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
                 merge_program = program_df
             merge_df = m.re_service.merge_job_program(merge_job, merge_program)
         except Exception as exc:
-            warnings.append(_lineage_warning("merge metadata", exc))
+            warnings.append(lineage_warning("merge metadata", exc))
     elif job_df is None:
         warnings.append("job metadata unavailable")
 
@@ -414,11 +270,11 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
             metadata_service=metadata_service,
         )
     except Exception as exc:
-        summary = _empty_lineage_summary([_lineage_warning("lineage summary", exc)])
+        summary = empty_lineage_summary([lineage_warning("lineage summary", exc)])
 
-    summary = _json_safe(summary)
+    summary = json_safe(summary)
     if not isinstance(summary, dict):
-        summary = _empty_lineage_summary(["lineage summary unavailable"])
+        summary = empty_lineage_summary(["lineage summary unavailable"])
     for key in ("resultTables", "jobs", "recvPlans", "sysNames", "outfiles", "warnings"):
         if not isinstance(summary.get(key), list):
             summary[key] = []
@@ -1008,7 +864,7 @@ class TaskRun:
             for line in raw.split("\n"):
                 line = line.strip()
                 if line:
-                    rows.append({"rule": _rule_label(line), "level": level, "msg": line})
+                    rows.append({"rule": rule_label(line), "level": level, "msg": line})
         return rows
 
     def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows):
@@ -1179,7 +1035,7 @@ class TaskRun:
 
         # 旧接口 audit_results 也写一份
         self.save_category_rows({"nups": [
-            {"file": c["script"], "line": 0, "rule": _rule_label(m["msg"]), "level": m["level"], "msg": m["msg"]}
+            {"file": c["script"], "line": 0, "rule": rule_label(m["msg"]), "level": m["level"], "msg": m["msg"]}
             for c in sql_checks for m in c["messages"]
         ]})
 
@@ -1267,7 +1123,7 @@ class TaskRun:
             viewlet = ""
             if isinstance(result, tuple) and len(result) >= 3:
                 text, _cnt, detail = result[0], result[1], result[2]
-                issues = [{"cat": "dataset", "loc": file_name, "rule": _rule_label(line), "level": "err", "msg": line}
+                issues = [{"cat": "dataset", "loc": file_name, "rule": rule_label(line), "level": "err", "msg": line}
                           for line in str(text or "").split("\n") if line.strip() and line.strip() != "存在问题:"]
                 viewlet = str(detail[0]) if detail and detail[0] else ""
                 title = viewlet or file_name
