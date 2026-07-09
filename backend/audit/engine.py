@@ -44,6 +44,7 @@ from .result_normalizer import (
     text_to_messages,
     text_to_rows,
 )
+from .run_result_finalizer import finalize_run_result
 from .run_registry import (
     _run_states,
     create_audit_run_state as _create_audit_run_state,
@@ -392,14 +393,14 @@ class TaskRun:
                 )
             )
 
-            report.update(
-                build_source_summary(
-                    svn_result,
-                    source_ref=self.repo,
-                    fallback_source_type=self.source_type,
-                )
+            report = finalize_run_result(
+                report,
+                svn_result=svn_result,
+                source_ref=self.repo,
+                fallback_source_type=self.source_type,
+                logs=self.logs,
+                build_source_summary=build_source_summary,
             )
-            report["logs"] = self.logs
             self.update(progress=100, step="完成")
             self.log("任务完成")
             self.finish(report["task"]["status"], report=report)
