@@ -29,6 +29,7 @@ from .compat import (
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
+from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
@@ -519,8 +520,7 @@ class TaskRun:
         (dws_url, hive_url, schame_config_lists, sbin_lists, recv_lists, dwo_lists, dwf_lists,
          py_lists, plan_xls, seq_xls, job_xls, program_xls, cale_xls, grouped, changes, conflicts
          ) = input_files.as_run_inputs()
-        self.set_partial("changes", changes)
-        self.set_partial("conflicts", conflicts)
+        publish_hcyt_progress(self.set_partial, build_source_classified_progress(changes=changes, conflicts=conflicts))
         self.task_success("classify_files", summary={"changedFiles": len(changes)})
         self.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
 

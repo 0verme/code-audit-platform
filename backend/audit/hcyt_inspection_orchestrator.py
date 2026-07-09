@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .issue_adapter import asset_issue_to_dict
+from .hcyt_progress_events import (
+    build_lineage_checked_progress,
+    build_program_checked_progress,
+    publish_hcyt_progress,
+)
 
 
 @dataclass
@@ -83,10 +88,12 @@ def run_hcyt_inspections(
     if grouped is not None:
         grouped["python"] += py_rows
     if set_partial is not None:
-        set_partial("python", grouped["python"] if grouped is not None else py_rows)
-        set_partial("pyScripts", py_scripts)
-        set_partial("refTables", ref_tables)
-        set_partial("deps", deps)
+        publish_hcyt_progress(set_partial, build_program_checked_progress(
+            python_rows=grouped["python"] if grouped is not None else py_rows,
+            py_scripts=py_scripts,
+            ref_tables=ref_tables,
+            deps=deps,
+        ))
     if task_success is not None:
         result_rows = grouped["python"] if grouped is not None else py_rows
         task_success("python_scripts", result=result_rows, summary={"issues": len(result_rows)})
@@ -108,9 +115,11 @@ def run_hcyt_inspections(
         db_job_rows=db_job_rows,
     )
     if set_partial is not None:
-        set_partial("assetIssues", asset_issues)
-        set_partial("unifiedAssetIssues", unified_asset_issues)
-        set_partial("lineageSummary", lineage_summary)
+        publish_hcyt_progress(set_partial, build_lineage_checked_progress(
+            asset_issues=asset_issues,
+            unified_asset_issues=unified_asset_issues,
+            lineage_summary=lineage_summary,
+        ))
     if task_success is not None:
         task_success("lineage", result=lineage_summary, summary=lineage_summary.get("stats", {}))
     return HcytInspectionResult(
