@@ -59,6 +59,7 @@ from .source_resolver import (
     resolve_workspace,
     resolve_workflow,
 )
+from db.profiles import get_active_profile
 from db.runtime_store import (
     persist_task_run_completion,
     replace_audit_results,
@@ -790,7 +791,11 @@ class TaskRun:
                         m.re_service.build_dependency_table_lookup(merged))
             program_lookup, dependency_lookup = self.safe("JOB/PROGRAM 调度关联", build_lookups, (None, None))
 
-        registered = set(self.safe("结果表登记库(lineage)", m.load_registered_result_tables, set()))
+        registered = set(self.safe(
+            "结果表登记库(lineage)",
+            lambda: m.load_registered_result_tables(profile=get_active_profile().name),
+            set(),
+        ))
         para_tables = set(self.safe(
             "码值参数表(all_para_table_lists)",
             lambda: {normalize_table(r[0]) for r in m.public_data.all_para_table_lists() if r and r[0]},
@@ -1005,7 +1010,11 @@ class TaskRun:
 
         # --- 报表模板 ---
         self.update(progress=55, step="帆软模板检查")
-        registered = set(self.safe("结果表登记库(lineage)", m.load_registered_result_tables, set()))
+        registered = set(self.safe(
+            "结果表登记库(lineage)",
+            lambda: m.load_registered_result_tables(profile=get_active_profile().name),
+            set(),
+        ))
         para_tables = set(self.safe(
             "码值参数表(all_para_table_lists)",
             lambda: {normalize_table(r[0]) for r in m.public_data.all_para_table_lists() if r and r[0]},
