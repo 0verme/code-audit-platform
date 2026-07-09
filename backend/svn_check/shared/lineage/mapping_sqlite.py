@@ -1,4 +1,16 @@
 # -*- coding: utf-8 -*-
+"""Lineage compatibility module with mixed short-term responsibilities.
+
+Current responsibilities intentionally remain co-located:
+- online metadata query
+- SQLite cache build
+- Excel import
+- lineage traversal
+
+This module is still part of the active compatibility path and is documented
+before any future split work. This round does not change behavior.
+"""
+
 from __future__ import annotations
 
 import sqlite3

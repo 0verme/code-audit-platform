@@ -1,3 +1,10 @@
+"""Runtime schema entry points for the audit platform DB layer.
+
+This module only manages runtime schema loading and initialization from
+`backend/db/sql/*/schema.sql`. It does not own the legacy-compatible
+`svn_check` metadata schema under `backend/svn_check/migrate`.
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
