@@ -24,6 +24,14 @@ from pathlib import Path
 
 from .issue_adapter import asset_issue_to_dict
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
+from .report_builder import (
+    build_ai as _build_ai,
+    build_changes as _build_changes,
+    build_config_files as _build_config_files,
+    build_conflicts as _build_conflicts,
+    build_job_table as _build_job_table,
+    build_task_meta as _build_task_meta,
+)
 from .result_normalizer import (
     dedupe_tables,
     format_duration,
@@ -39,7 +47,7 @@ from .run_registry import (
     get_audit_run_state as _get_audit_run_state,
     get_audit_run_status as _get_audit_run_status,
 )
-from .source_resolver import classify_change, detect_workflow
+from .source_resolver import detect_workflow
 from db.runtime_store import (
     finalize_task,
     replace_audit_results,
@@ -386,22 +394,17 @@ class TaskRun:
         return self.safe("下载链接", lambda: _mods.re_service.build_export_download_url(path), "") or ""
 
     def build_task_meta(self, svn_result, status, extra):
-        revision = svn_result.get("create_revision", "")
-        meta = {
-            "status": status,
-            "repo": self.repo,
-            "sourceRef": self.repo,
-            "module": self.workflow,
-            "workflow": WORKFLOW_NAMES.get(self.workflow, self.workflow),
-            "revision": f"r{revision}" if revision else "-",
-            "author": self.author,
-            "startedAt": datetime.fromtimestamp(self.start_ts).strftime("%Y-%m-%d %H:%M:%S"),
-            "duration": format_duration(time.time() - self.start_ts),
-            "sourceType": svn_result.get("source_type", self.source_type),
-            "workspaceRoot": svn_result.get("workspace_root", ""),
-        }
-        meta.update(extra)
-        return meta
+        return _build_task_meta(
+            svn_result=svn_result,
+            status=status,
+            extra=extra,
+            repo=self.repo,
+            workflow=self.workflow,
+            workflow_names=WORKFLOW_NAMES,
+            author=self.author,
+            start_ts=self.start_ts,
+            source_type=self.source_type,
+        )
 
     def build_svn_section(self, svn_result):
         """SVN 变更文件清单 + trunk 重叠（Streamlit 顶部那个折叠区）。"""
@@ -411,25 +414,10 @@ class TaskRun:
         }
 
     def build_changes(self, svn_result, path_map=None):
-        path_map = path_map or {}
-        rows = []
-        for path in svn_result.get("branch_changed_files", []):
-            local = path_map.get(path)
-            rows.append({
-                "type": "M",
-                "path": path,
-                "cat": classify_change(path),
-                "downloadUrl": self.download_url(local) if local else "",
-            })
-        return rows
+        return _build_changes(svn_result, self.download_url, path_map)
 
     def build_conflicts(self, svn_result):
-        return [
-            {"path": path, "trunkRev": "trunk@HEAD",
-             "mineRev": f"r{svn_result.get('create_revision', '')}" if svn_result.get("create_revision") else "branch",
-             "note": "分支与最新 trunk 都改了该文件，合并前请人工核对。"}
-            for path in svn_result.get("trunk_conflict_files", [])
-        ]
+        return _build_conflicts(svn_result)
 
     @staticmethod
     def status_of(errors, warnings):
@@ -442,20 +430,14 @@ class TaskRun:
         return errors, warnings
 
     def build_ai(self, targets, errors, warnings):
-        if not self.ai_enabled:
-            return None
-        findings = []
-        for path in (targets or [])[:10]:
-            result = self.safe("AI 大模型", lambda p=path: _mods.call_sql_llm(p), None)
-            if result:
-                findings.append({"sev": "info", "title": Path(path).name, "body": str(result)})
-        verdict = "err" if errors else ("warn" if warnings else "ok")
-        summary = f"静态规则共发现 {errors} 个错误、{warnings} 个警告。" + (
-            "建议修复后再合并。" if errors else "整体符合规范。")
-        return {"model": "行内大模型（svn_check ai_service）", "verdict": verdict,
-                "summary": summary, "findings": findings}
-
-    # ---- 结果表标注（禁用 / 源系统）：复刻 public_stream 的展示逻辑 ----
+        return _build_ai(
+            ai_enabled=self.ai_enabled,
+            targets=targets,
+            errors=errors,
+            warnings=warnings,
+            safe=self.safe,
+            call_sql_llm=_mods.call_sql_llm,
+        )
 
     def load_result_table_annotations(self):
         m = _mods
@@ -681,25 +663,8 @@ class TaskRun:
         return report
 
     def build_config_files(self, config_paths):
-        """schema_config 的 JSON 内容表格化（dict -> 字段/值；list[dict] -> 列+行）。"""
-        files = []
-        for path in config_paths:
-            name = Path(path).name
-            try:
-                data = json.loads(Path(path).read_text(encoding="utf-8"))
-            except Exception as exc:
-                files.append({"name": name, "error": f"无法按 JSON 解析: {exc}", "columns": [], "rows": []})
-                continue
-            if isinstance(data, dict):
-                files.append({"name": name, "columns": ["字段", "值"],
-                              "rows": [[k, "" if v is None else str(v)] for k, v in data.items()]})
-            elif isinstance(data, list) and data and all(isinstance(i, dict) for i in data):
-                columns = sorted({k for item in data for k in item.keys()})
-                files.append({"name": name, "columns": columns,
-                              "rows": [["" if item.get(c) is None else str(item.get(c, "")) for c in columns] for item in data]})
-            else:
-                files.append({"name": name, "columns": ["结果"], "rows": [[json.dumps(data, ensure_ascii=False)]]})
-        return files
+        """schema_config ??JSON ?????????dict -> ???/???list[dict] -> ???????"""
+        return _build_config_files(config_paths)
 
     def run_hcyt_schedule(self, plan_xls, seq_xls, cale_xls, job_xls):
         """调度清单表格（PLAN/SEQ/CALE/JOB）+ 规则告警，复刻 hcyt_stream._render_schedule_section。"""
@@ -769,29 +734,9 @@ class TaskRun:
                 "_job_df": job_df, "_r_plan": r_plan, "_db_job_rows": db_job_rows}
 
     def build_job_table(self, job_source, db_job_rows):
-        """JOB 前 4 列展示 + 行状态（new=线上不存在 / disabled=线上禁用再上线）。
-        复刻 hcyt_stream.build_job_display_df 的着色逻辑。"""
-        display = job_source.iloc[:, :4].fillna("")
-        display.columns = ["计划名", "作业流名", "作业名", "作业描述"]
-
-        def norm(v):
-            return "" if v is None else str(v).strip().upper()
-
-        prod = {}
-        for row in (db_job_rows or []):
-            if len(row) > 23 and norm(row[2]):
-                prod[norm(row[2])] = row
-
-        row_states = []
-        for _, r in display.iterrows():
-            prod_row = prod.get(norm(r["作业名"]))
-            if prod_row is None:
-                row_states.append("new" if db_job_rows else "")
-            elif str(prod_row[23]).strip() in ("9", "9.0"):
-                row_states.append("disabled")
-            else:
-                row_states.append("")
-        return ({"columns": list(display.columns), "rows": display.astype(str).values.tolist()}, row_states)
+        """JOB ??4 ?????+ ??????new=????????/ disabled=??????????????
+        ??? hcyt_stream.build_job_display_df ??????????"""
+        return _build_job_table(job_source, db_job_rows)
 
     @staticmethod
     def _schedule_rows(result_text, warn_text):
