@@ -6,7 +6,7 @@ import types
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -21,6 +21,41 @@ from db.sql_runner import execute_insert  # noqa: E402
 
 
 class LocalAuditTaskTests(unittest.TestCase):
+    def _insert_task(self, repo, workflow="hcyt", source_type="svn"):
+        return execute_insert(
+            """
+            INSERT INTO {{table:audit_tasks}} (
+                repo, workflow, status, revision, author, started_at, duration, source_type
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                repo,
+                workflow,
+                "running",
+                "-",
+                "tester",
+                datetime.now().isoformat(),
+                "0s",
+                source_type,
+            ),
+        )
+
+    def _load_saved_report(self, task_id):
+        with db_connection.get_connection() as connection:
+            row = connection.execute(
+                "SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        return json.loads(row["report_json"])
+
+    def _load_task_row(self, task_id):
+        with db_connection.get_connection() as connection:
+            return connection.execute(
+                "SELECT status, error, progress, step FROM {{table:audit_tasks}} WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+
     def test_create_audit_task_accepts_local_source(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
@@ -391,6 +426,213 @@ class LocalAuditTaskTests(unittest.TestCase):
             finally:
                 audit_engine._mods = previous_mods
                 audit_engine._run_states.pop(task_id, None)
+                db_connection.DB_PATH = old_db_path
+
+    def test_task_run_svn_source_normalizes_report_source_fields(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
+            previous_mods = audit_engine._mods
+            try:
+                init_db()
+                repo = "svn://example.com/repos/branches/demo-hcyt"
+                task_id = self._insert_task(repo)
+                audit_engine._mods = types.SimpleNamespace(
+                    svn_main=lambda *_args, **_kwargs: {
+                        "create_revision": "123",
+                        "exported_paths": ["demo.sql"],
+                    }
+                )
+                run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")
+                run.update = lambda *args, **kwargs: None
+                run.run_hcyt = lambda _svn_result: {"task": {"status": "pass"}}
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    run.run()
+
+                saved = self._load_saved_report(task_id)
+                row = self._load_task_row(task_id)
+                self.assertEqual(saved["sourceType"], "svn")
+                self.assertEqual(saved["sourceRef"], repo)
+                self.assertEqual(saved["workspaceRoot"], "")
+                self.assertEqual(saved["logs"], run.logs)
+                self.assertEqual(saved["task"]["status"], "pass")
+                self.assertEqual(row["status"], "pass")
+                self.assertEqual(row["progress"], 100)
+                self.assertEqual(row["step"], "completed")
+            finally:
+                audit_engine._mods = previous_mods
+                audit_engine._run_states.pop(task_id, None)
+                db_connection.DB_PATH = old_db_path
+
+    def test_task_run_local_source_uses_workspace_loader_contract(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
+            previous_mods = audit_engine._mods
+            try:
+                init_db()
+                repo = "C:\\path\\to\\local-hcyt-workspace"
+                task_id = self._insert_task(repo, source_type="local")
+                load_local_workspace = Mock(
+                    return_value={
+                        "source_type": "local",
+                        "workspace_root": repo,
+                        "exported_paths": ["demo.sql"],
+                    }
+                )
+                svn_main = Mock()
+                audit_engine._mods = types.SimpleNamespace(
+                    load_local_workspace=load_local_workspace,
+                    svn_main=svn_main,
+                )
+                run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="local")
+                run.update = lambda *args, **kwargs: None
+                run.run_hcyt = lambda _svn_result: {"task": {"status": "pass"}}
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    run.run()
+
+                saved = self._load_saved_report(task_id)
+                load_local_workspace.assert_called_once_with(repo, "hcyt")
+                svn_main.assert_not_called()
+                self.assertEqual(saved["sourceType"], "local")
+                self.assertEqual(saved["sourceRef"], repo)
+                self.assertEqual(saved["workspaceRoot"], repo)
+                self.assertEqual(saved["logs"], run.logs)
+            finally:
+                audit_engine._mods = previous_mods
+                audit_engine._run_states.pop(task_id, None)
+                db_connection.DB_PATH = old_db_path
+
+    def test_task_run_local_source_rejects_non_hcyt_workflow(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
+            previous_mods = audit_engine._mods
+            try:
+                init_db()
+                repo = "C:\\workspace\\nups\\demo"
+                task_id = self._insert_task(repo, workflow="hcyt", source_type="local")
+                load_local_workspace = Mock()
+                svn_main = Mock()
+                audit_engine._mods = types.SimpleNamespace(
+                    load_local_workspace=load_local_workspace,
+                    svn_main=svn_main,
+                )
+                run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="local")
+                run.update = lambda *args, **kwargs: None
+                run.run_hcyt = Mock()
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    run.run()
+
+                row = self._load_task_row(task_id)
+                self.assertEqual(row["status"], "fail")
+                self.assertIn(
+                    "Local workspace source currently supports hcyt workflow only",
+                    row["error"],
+                )
+                load_local_workspace.assert_not_called()
+                svn_main.assert_not_called()
+                run.run_hcyt.assert_not_called()
+            finally:
+                audit_engine._mods = previous_mods
+                audit_engine._run_states.pop(task_id, None)
+                db_connection.DB_PATH = old_db_path
+
+    def test_task_run_svn_cli_hint_only_applies_to_svn_source(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
+            previous_mods = audit_engine._mods
+            svn_task_id = None
+            local_task_id = None
+            try:
+                init_db()
+                svn_repo = "svn://example.com/repos/branches/demo-hcyt"
+                svn_task_id = self._insert_task(svn_repo, source_type="svn")
+                audit_engine._mods = types.SimpleNamespace(
+                    svn_main=Mock(side_effect=FileNotFoundError("svn missing"))
+                )
+                svn_run = audit_engine.TaskRun(svn_task_id, svn_repo, "hcyt", source_type="svn")
+                svn_run.update = lambda *args, **kwargs: None
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    svn_run.run()
+
+                svn_row = self._load_task_row(svn_task_id)
+                self.assertIn("svn missing", svn_row["error"])
+                self.assertIn("未找到 svn 命令行客户端，请安装 SVN 并加入 PATH", svn_row["error"])
+
+                local_repo = "C:\\path\\to\\local-hcyt-workspace"
+                local_task_id = self._insert_task(local_repo, source_type="local")
+                audit_engine._mods = types.SimpleNamespace(
+                    load_local_workspace=Mock(side_effect=FileNotFoundError("svn missing")),
+                    svn_main=Mock(),
+                )
+                local_run = audit_engine.TaskRun(local_task_id, local_repo, "hcyt", source_type="local")
+                local_run.update = lambda *args, **kwargs: None
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    local_run.run()
+
+                local_row = self._load_task_row(local_task_id)
+                self.assertIn("svn missing", local_row["error"])
+                self.assertNotIn("未找到 svn 命令行客户端，请安装 SVN 并加入 PATH", local_row["error"])
+            finally:
+                audit_engine._mods = previous_mods
+                audit_engine._run_states.pop(svn_task_id, None)
+                audit_engine._run_states.pop(local_task_id, None)
+                db_connection.DB_PATH = old_db_path
+
+    def test_task_run_dispatches_to_matching_workflow_runner_only(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
+            db_path = Path(tmp) / "app.db"
+            old_db_path = db_connection.DB_PATH
+            db_connection.DB_PATH = db_path
+            previous_mods = audit_engine._mods
+            try:
+                init_db()
+                audit_engine._mods = types.SimpleNamespace(
+                    svn_main=lambda *_args, **_kwargs: {
+                        "create_revision": "123",
+                        "exported_paths": ["demo.sql"],
+                    }
+                )
+                cases = (
+                    ("svn://example.com/repos/branches/hcyt/demo", "run_hcyt"),
+                    ("svn://example.com/repos/branches/nups/demo", "run_nups"),
+                    ("svn://example.com/repos/branches/fine-report/demo", "run_fine"),
+                )
+
+                with patch.object(audit_engine, "_load_real_modules", lambda: None):
+                    for repo, expected_runner in cases:
+                        task_id = self._insert_task(repo)
+                        run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")
+                        run.update = lambda *args, **kwargs: None
+                        run.run_hcyt = Mock(return_value={"task": {"status": "pass"}})
+                        run.run_nups = Mock(return_value={"task": {"status": "pass"}})
+                        run.run_fine = Mock(return_value={"task": {"status": "pass"}})
+
+                        run.run()
+
+                        calls = {
+                            "run_hcyt": run.run_hcyt.call_count,
+                            "run_nups": run.run_nups.call_count,
+                            "run_fine": run.run_fine.call_count,
+                        }
+                        self.assertEqual(calls[expected_runner], 1, repo)
+                        for runner_name, count in calls.items():
+                            if runner_name != expected_runner:
+                                self.assertEqual(count, 0, repo)
+                        audit_engine._run_states.pop(task_id, None)
+            finally:
+                audit_engine._mods = previous_mods
                 db_connection.DB_PATH = old_db_path
 
 
