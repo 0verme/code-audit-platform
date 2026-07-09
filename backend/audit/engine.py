@@ -34,6 +34,7 @@ from .hcyt_progress_events import build_source_classified_progress, publish_hcyt
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
 from .nups_report_builder import build_nups_report
+from .nups_runner import run_nups as _run_nups
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
 from .report_builder import (
     build_ai as _build_ai,
@@ -745,60 +746,8 @@ class TaskRun:
     # ===================================================================
 
     def run_nups(self, svn_result):
-        m = _mods
-        exported = svn_result["exported_paths"]
-        sql_lists, py_lists = m.nups_rule.get_nups_type(exported)
+        return _run_nups(self.build_workflow_runtime(svn_result))
 
-        self.update(progress=45, step="NUPS SQL 检查")
-        sql_checks = []
-        for path in sql_lists or []:
-            result = self.safe("NUPS SQL 规则", lambda p=path: m.nups_rule.rule_dws(p), ("", 0))
-            sql_checks.append({
-                "script": m.re_service.get_filename(path),
-                "downloadUrl": self.download_url(path),
-                "messages": text_to_messages(result[0], ""),
-            })
-
-        self.update(progress=65, step="NUPS 加工程序检查")
-        py_scripts = []
-        for path in py_lists or []:
-            file_name = m.re_service.get_filename(path)
-            result = self.safe(f"NUPS 加工程序规则({file_name})", lambda p=path: m.nups_rule.rule_dws_py(p), ("", 0, []))
-            sql_tables = dedupe_tables(result[2] if len(result) > 2 else [])
-            table_name = self.safe("表名解析", lambda p=path: m.nups_rule.get_program_table_name(p), "")
-            py_scripts.append({
-                "script": file_name,
-                "downloadUrl": self.download_url(path),
-                "path": m.re_service.safe_remove_prefix(path),
-                "table": table_name,
-                "messages": text_to_messages(result[0], ""),
-                "sqlRefs": sql_tables,
-            })
-
-        all_rows = [{"level": msg["level"], "msg": msg["msg"]} for c in sql_checks for msg in c["messages"]]
-        all_rows += [{"level": msg["level"], "msg": msg["msg"]} for s in py_scripts for msg in s["messages"]]
-        errors = sum(1 for r in all_rows if r["level"] == "err")
-        warnings = sum(1 for r in all_rows if r["level"] == "warn")
-        ai = self.build_ai(py_lists or sql_lists or [], errors, warnings)
-        conflicts = self.build_conflicts(svn_result)
-        status = self.status_of(errors + len(conflicts), warnings)
-
-        # 旧接口 audit_results 也写一份
-        self.save_category_rows(build_legacy_nups_audit_result_rows(sql_checks, rule_label))
-
-        return build_nups_report(
-            task=self.build_task_meta(svn_result, status, {
-                "changedFiles": len(svn_result.get("branch_changed_files", [])),
-                "checks": len(sql_lists or []) + len(py_lists or []),
-                "errors": errors, "warnings": warnings, "conflicts": len(conflicts),
-            }),
-            svn=self.build_svn_section(svn_result),
-            changes=self.build_changes(svn_result),
-            conflicts=conflicts,
-            sql_checks=sql_checks,
-            py_scripts=py_scripts,
-            ai=ai,
-        )
 
     # ===================================================================
     # FineReport 工作流
