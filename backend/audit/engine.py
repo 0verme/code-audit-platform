@@ -29,6 +29,7 @@ from .compat import (
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
+from .hcyt_program_runner import run_hcyt_programs as _run_hcyt_programs
 from .hcyt_rule_runner import run_hcyt_rules
 from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule, schedule_rows as _schedule_rows
 from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
@@ -656,131 +657,62 @@ class TaskRun:
         return _schedule_rows(result_text, warn_text, rule_label=rule_label)
 
     def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows):
-        m = _mods
-        py_scripts, py_rows, ref_tables, deps, asset_issues = [], [], [], [], []
-        if not py_lists:
-            return py_scripts, py_rows, ref_tables, deps, asset_issues
-
-        # 调度关联（JOB/PROGRAM Excel + 线上库）
-        program_lookup = dependency_lookup = None
-        if job_df is not None and program_xls:
-            def build_lookups():
-                program_df = m.re_service.load_xls_to_df(program_xls)
-                merge_job = m.hcyt.all_job_df(job_df, db_job_rows) if db_job_rows is not None else job_df
-                try:
-                    merge_program = m.hcyt.all_program_df(program_df)
-                except Exception:
-                    merge_program = program_df
-                prog_path_col = merge_program.columns[4]
-                merged = m.re_service.merge_job_program(merge_job, merge_program)
-                return (m.re_service.build_program_lookup(merged, prog_path_col, tail_levels=4),
-                        m.re_service.build_dependency_table_lookup(merged))
-            program_lookup, dependency_lookup = self.safe("JOB/PROGRAM 调度关联", build_lookups, (None, None))
-
-        registered = set(self.safe(
-            "结果表登记库(lineage)",
-            lambda: m.load_registered_result_tables(profile=get_active_profile().name),
-            set(),
-        ))
-        para_tables = set(self.safe(
-            "码值参数表(all_para_table_lists)",
-            lambda: {normalize_table(r[0]) for r in m.public_data.all_para_table_lists() if r and r[0]},
-            set()))
-        disabled, sys_name_map = self.load_result_table_annotations()
-        disabled_job_names = set(self.safe(
-            "禁用作业(all_job)",
-            lambda: {str(r[2]).strip().upper() for r in (db_job_rows or m.public_data.all_job() or [])
-                     if len(r) > 23 and r[2] and str(r[23]).strip() in ("9", "9.0")},
-            set()))
-
-        upstream_tables, job_names = [], []
-        for path in py_lists:
-            file_name = m.re_service.get_filename(path)
-            result = self.safe(f"加工程序规则({file_name})", lambda p=path: m.hcyt.rule_dws_py(p), ("", "", 0, []))
-            lint = text_to_rows(result[0], result[1], file_name)
-            sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
-            table_name = self.safe("表名解析", lambda p=path: m.hcyt.get_program_table_name(p), "")
-            source_text = self.safe(f"加工程序内容读取({file_name})", lambda p=path: m.re_service.read_data_from_file(p), "")
-            asset_issues += self.safe(
-                f"加工程序资产表待核对 issue({file_name})",
-                lambda names=sql_tables, source=file_name: m.hcyt_python_rule.build_asset_table_review_issues(
-                    names, "hcyt", source
-                ),
-                [],
-            )
-            asset_issues += self.safe(
-                f"加工程序词根结构化 issue({file_name})",
-                lambda text=source_text, source=file_name: m.hcyt_ddl_rule.collect_root_missing_issues(
-                    text, "hcyt", source
-                ),
-                [],
-            )
-
-            job_name, freq, yilai_tables = "", "", None
-            if program_lookup is not None:
-                def lookup(p=path):
-                    info = m.re_service.get_program_lookup_result(
-                        program_lookup, m.re_service.safe_remove_prefix(p), tail_levels=4)
-                    yilai = m.re_service.get_yilai_table_from_lookup(info[2], dependency_lookup)
-                    return info[0], info[1], yilai
-                looked = self.safe(f"调度信息关联({file_name})", lookup, ("", "", None))
-                job_name = str(looked[0] or "")
-                freq = CALE_MAP.get(looked[1], str(looked[1] or ""))
-                yilai_tables = dedupe_tables(looked[2]) if looked[2] is not None else None
-
-            current_result_tables = registered | ({normalize_table(table_name)} if table_name else set())
-            result_tables = [t for t in sql_tables if t in current_result_tables]
-            code_tables = [t for t in sql_tables if t in para_tables]
-            middle_tables = [t for t in sql_tables if t not in current_result_tables and t not in para_tables]
-
-            compare_rows = []
-            if yilai_tables is not None:
-                left, right = set(result_tables), set(yilai_tables)
-                for name in sorted(left & right):
-                    ann = self.annotate_table(name, disabled, sys_name_map)
-                    compare_rows.append({"sql": name, "dep": name, "state": "same", **ann})
-                for name in sorted(left - right):
-                    ann = self.annotate_table(name, disabled, sys_name_map)
-                    compare_rows.append({"sql": name, "dep": None, "state": "missing", **ann})
-                for name in sorted(right - left):
-                    compare_rows.append({"sql": None, "dep": name, "state": "extra",
-                                         "name": name, "disabled": False, "sysNames": [], "highlight": False})
-                upstream_tables += yilai_tables
-                focus = "重点检查 SQL 结果表依赖与调度依赖是否一致。"
-            else:
-                focus = "调度依赖比对不可用（行内库/调度Excel缺失），请人工核对结果表依赖。"
-
-            if job_name:
-                job_names.append(job_name)
-            py_rows += lint
-            py_scripts.append({
-                "script": file_name,
-                "downloadUrl": self.download_url(path),
-                "table": table_name,
-                "job": job_name,
-                "jobDisabled": normalize_table(job_name) in disabled_job_names if job_name else False,
-                "freq": freq,
-                "focus": focus,
-                "lint": lint,
-                "result": compare_rows,
-                "codeval": code_tables,
-                "temp": middle_tables,
-            })
-
-            seen = {item["name"] for item in ref_tables}
-            for names, ttype in ((result_tables, "result"), (code_tables, "src"), (middle_tables, "mid")):
-                for name in names:
-                    if name not in seen:
-                        ref_tables.append({"name": name, "type": ttype})
-                        seen.add(name)
-
-        upstream_tables = dedupe_tables(upstream_tables)[:16]
-        if upstream_tables or job_names:
-            deps = [
-                {"lane": "上游 / 调度依赖表", "nodes": [{"name": n, "q": ""} for n in upstream_tables]},
-                {"lane": "本次作业", "nodes": [{"name": n, "q": "", "focus": True} for n in sorted(set(job_names))]},
-            ]
-        return py_scripts, py_rows, ref_tables, deps, asset_issues
+        return _run_hcyt_programs(
+            py_lists,
+            job_df,
+            program_xls,
+            db_job_rows,
+            safe=self.safe,
+            modules=type(
+                "HcytProgramRunnerModules",
+                (),
+                {
+                    "re_service": _mods.re_service,
+                    "hcyt": _mods.hcyt,
+                    "public_data": getattr(
+                        _mods,
+                        "public_data",
+                        type(
+                            "NoopPublicData",
+                            (),
+                            {
+                                "all_para_table_lists": staticmethod(lambda: []),
+                                "all_job": staticmethod(lambda: []),
+                            },
+                        )(),
+                    ),
+                    "hcyt_python_rule": getattr(
+                        _mods,
+                        "hcyt_python_rule",
+                        type(
+                            "NoopPythonRule",
+                            (),
+                            {"build_asset_table_review_issues": staticmethod(lambda *args, **kwargs: [])},
+                        )(),
+                    ),
+                    "hcyt_ddl_rule": getattr(
+                        _mods,
+                        "hcyt_ddl_rule",
+                        type(
+                            "NoopDdlRule",
+                            (),
+                            {"collect_root_missing_issues": staticmethod(lambda *args, **kwargs: [])},
+                        )(),
+                    ),
+                    "load_registered_result_tables": staticmethod(
+                        getattr(_mods, "load_registered_result_tables", lambda *, profile: set())
+                    ),
+                    "text_to_rows": staticmethod(text_to_rows),
+                },
+            )(),
+            download_url=self.download_url,
+            load_result_table_annotations=self.load_result_table_annotations,
+            annotate_table=self.annotate_table,
+            profile_name=get_active_profile().name,
+            normalize_table=normalize_table,
+            dedupe_tables=dedupe_tables,
+            cale_map=CALE_MAP,
+        )
 
     # ===================================================================
     # NUPS 工作流
