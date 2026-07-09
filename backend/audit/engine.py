@@ -32,11 +32,16 @@ from .result_normalizer import (
     text_to_messages,
     text_to_rows,
 )
+from .run_registry import (
+    _run_states,
+    create_audit_run_state as _create_audit_run_state,
+    get_audit_run_partial_result as _get_audit_run_partial_result,
+    get_audit_run_state as _get_audit_run_state,
+    get_audit_run_status as _get_audit_run_status,
+)
 from .source_resolver import classify_change, detect_workflow
 from db.runtime_store import (
     finalize_task,
-    get_task_report_payload,
-    get_task_row_payload,
     replace_audit_results,
     update_task_runtime_state,
     upsert_task_report,
@@ -78,8 +83,6 @@ WORKFLOW_NAMES = {
 _load_lock = threading.Lock()
 _mods = None
 _import_error: str | None = None
-_run_state_lock = threading.RLock()
-_run_states: dict[int, AuditRunState] = {}
 
 
 DEFAULT_AUDIT_TASKS = (
@@ -152,84 +155,19 @@ def _load_real_modules():
 
 
 def create_audit_run_state(task_id: int, workflow: str) -> AuditRunState:
-    run_state = AuditRunState(run_id=task_id, workflow=workflow)
-    for task in DEFAULT_AUDIT_TASKS:
-        run_state.add_task(task)
-    with _run_state_lock:
-        _run_states[int(task_id)] = run_state
-    return run_state
+    return _create_audit_run_state(task_id, workflow, DEFAULT_AUDIT_TASKS)
 
 
 def get_audit_run_state(task_id: int) -> AuditRunState | None:
-    with _run_state_lock:
-        return _run_states.get(int(task_id))
-
-
-def _task_row_payload(task_id: int) -> dict | None:
-    return get_task_row_payload(task_id)
-
-
-def _task_report_payload(task_id: int) -> dict | None:
-    return get_task_report_payload(task_id)
-
-
-def _status_from_task_status(status: str) -> str:
-    if status in {"running", "queued"}:
-        return "running"
-    if status in {"pass", "warn", "fail"}:
-        return "success"
-    return "failed"
+    return _get_audit_run_state(task_id)
 
 
 def get_audit_run_status(task_id: int) -> dict | None:
-    task = _task_row_payload(task_id)
-    if task is None:
-        return None
-
-    run_state = get_audit_run_state(task_id)
-    if run_state is not None:
-        payload = run_state.to_dict(include_results=False)
-    else:
-        payload = {
-            "runId": task_id,
-            "workflow": task.get("workflow", ""),
-            "status": _status_from_task_status(task.get("status", "")),
-            "progress": {
-                "percent": int(task.get("progress") or 0),
-                "running": [task.get("step")] if task.get("step") else [],
-            },
-            "tasks": {},
-            "partialReport": {},
-            "logs": task.get("logs", []),
-        }
-
-    payload["task"] = task
-    payload["status"] = _status_from_task_status(task.get("status", ""))
-    payload["taskStatus"] = task.get("status")
-    payload["finalReportReady"] = _task_report_payload(task_id) is not None
-    return payload
+    return _get_audit_run_status(task_id)
 
 
 def get_audit_run_partial_result(task_id: int) -> dict | None:
-    status_payload = get_audit_run_status(task_id)
-    if status_payload is None:
-        return None
-    final_report = _task_report_payload(task_id)
-    partial_report = dict(status_payload.get("partialReport") or {})
-    if final_report is not None:
-        partial_report.setdefault("finalReport", final_report)
-    return {
-        "runId": task_id,
-        "workflow": status_payload.get("workflow", ""),
-        "status": status_payload.get("status", ""),
-        "taskStatus": status_payload.get("taskStatus"),
-        "progress": status_payload.get("progress", {}),
-        "tasks": status_payload.get("tasks", {}),
-        "partialReport": partial_report,
-        "finalReportReady": final_report is not None,
-        "report": final_report,
-        "logs": status_payload.get("logs", []),
-    }
+    return _get_audit_run_partial_result(task_id)
 
 
 def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None):
