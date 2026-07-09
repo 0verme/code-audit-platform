@@ -29,6 +29,7 @@ from .compat import (
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
+from .hcyt_rule_runner import run_hcyt_rules
 from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule, schedule_rows as _schedule_rows
 from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
 from .hcyt_report_builder import build_hcyt_report
@@ -513,75 +514,50 @@ class TaskRun:
 
         # --- SQL / 脚本 / 配置类规则 ---
         self.update(progress=35, step="SQL 与配置规则检查")
-        sql_checks = {}
-        asset_issues = []
-        if dws_url:
-            self.task_running("dws_sql")
-            result = self.safe("dws.sql 规则", lambda: m.hcyt.rule_dws(dws_url), ("", "", 0))
-            grouped["dws"] += text_to_rows(result[0], result[1], m.re_service.get_filename(dws_url), warn_level="info")
-            sql_checks["dws"] = {"script": m.re_service.get_filename(dws_url), "downloadUrl": self.download_url(dws_url)}
-            dws_file_name = m.re_service.get_filename(dws_url)
-            dws_sql_text = self.safe("dws.sql 内容读取", lambda: m.re_service.read_data_from_file(dws_url), "")
-            asset_issues += self.safe(
-                "dws.sql 词根结构化 issue",
-                lambda: m.hcyt_ddl_rule.collect_root_missing_issues(dws_sql_text, "hcyt", dws_file_name),
-                [],
-            )
-            asset_issues += self.safe(
-                "dws.sql 资产表待核对 issue",
-                lambda: m.hcyt_sql_rule.collect_created_table_review_issues(dws_url, "hcyt", dws_file_name),
-                [],
-            )
-            self.set_partial("dws", grouped["dws"])
-            self.task_success("dws_sql", result=grouped["dws"], summary={"issues": len(grouped["dws"])})
-        else:
-            self.task_skipped("dws_sql", "no dws.sql file")
-        if hive_url:
-            self.task_running("hive_sql")
-            result = self.safe("hive.sql 规则", lambda: m.hcyt.rule_hive(hive_url), ("", "", 0))
-            grouped["hive"] += text_to_rows(result[0], result[1], m.re_service.get_filename(hive_url), warn_level="info")
-            sql_checks["hive"] = {"script": m.re_service.get_filename(hive_url), "downloadUrl": self.download_url(hive_url)}
-            self.set_partial("hive", grouped["hive"])
-            self.task_success("hive_sql", result=grouped["hive"], summary={"issues": len(grouped["hive"])})
-        else:
-            self.task_skipped("hive_sql", "no hive.sql file")
-        if sbin_lists:
-            self.task_running("post_scripts")
-            result = self.safe("sbin 规则", lambda: m.hcyt.rule_sbin(sbin_lists), ("", "", 0))
-            grouped["sbin"] += text_to_rows(result[0], result[1], "sbin")
-            self.set_partial("sbin", grouped["sbin"])
-            self.task_success("post_scripts", result=grouped["sbin"], summary={"issues": len(grouped["sbin"])})
-        else:
-            self.task_skipped("post_scripts", "no post script files")
-        if recv_lists:
-            self.task_running("recv_config")
-            result = self.safe("recv 卸数规则", lambda: m.hcyt.rule_recv_json(recv_lists), ("", "", 0))
-            grouped["recv"] += text_to_rows(result[0], result[1], "recv_json")
-            self.set_partial("recv", grouped["recv"])
-            self.task_success("recv_config", result=grouped["recv"], summary={"issues": len(grouped["recv"])})
-        else:
-            self.task_skipped("recv_config", "no recv config files")
-
-        # schema_config：规则告警 + JSON 表格化（Streamlit render_schema_config_tables）
-        config_files = []
-        if schame_config_lists:
-            self.task_running("config_files")
-            result = self.safe("schema_config 规则", lambda: m.hcyt.rule_config(schame_config_lists), ("", "", 0))
-            grouped["config"] += text_to_rows(result[0], result[1], "SCHEMA_CONFIG", err_level="warn")
-            config_files = self.build_config_files(schame_config_lists)
-            self.set_partial("config", grouped["config"])
-            self.set_partial("configFiles", config_files)
-            self.task_success("config_files", result=grouped["config"], summary={"issues": len(grouped["config"])})
-        else:
-            self.task_skipped("config_files", "no schema config files")
-
-        # dwo / dwf
-        for path in dwo_lists or []:
-            result = self.safe("dwo 规则", lambda p=path: m.hcyt.rule_dwo(p), ("", "", 0))
-            grouped["python"] += text_to_rows(result[0], result[1], m.re_service.get_filename(path))
-        for path in dwf_lists or []:
-            result = self.safe("dwf 规则", lambda p=path: m.hcyt.rule_dwf(p), ("", "", 0))
-            grouped["python"] += text_to_rows(result[0], result[1], m.re_service.get_filename(path))
+        sql_checks, asset_issues, config_files = run_hcyt_rules(
+            dws_url,
+            hive_url,
+            schame_config_lists,
+            sbin_lists,
+            recv_lists,
+            dwo_lists,
+            dwf_lists,
+            safe=self.safe,
+            modules=type(
+                "HcytRuleRunnerModules",
+                (),
+                {
+                    "re_service": m.re_service,
+                    "hcyt": m.hcyt,
+                    "hcyt_ddl_rule": getattr(
+                        m,
+                        "hcyt_ddl_rule",
+                        type(
+                            "NoopDdlRule",
+                            (),
+                            {"collect_root_missing_issues": staticmethod(lambda *args, **kwargs: [])},
+                        )(),
+                    ),
+                    "hcyt_sql_rule": getattr(
+                        m,
+                        "hcyt_sql_rule",
+                        type(
+                            "NoopSqlRule",
+                            (),
+                            {"collect_created_table_review_issues": staticmethod(lambda *args, **kwargs: [])},
+                        )(),
+                    ),
+                    "text_to_rows": staticmethod(text_to_rows),
+                },
+            )(),
+            grouped=grouped,
+            task_running=self.task_running,
+            task_success=self.task_success,
+            task_skipped=self.task_skipped,
+            set_partial=self.set_partial,
+            download_url=self.download_url,
+            build_config_files=self.build_config_files,
+        )
 
         # --- 调度 Excel：清单表格 + 规则 ---
         self.update(progress=50, step="调度规范检查")
