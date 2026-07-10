@@ -19,6 +19,8 @@
 
 ## 3. 重点复核结论
 
+> A5 状态（2026-07-11）：已新增真实临时 SQLite 的 task completion 故障注入基线，以及后续原子完成协议设计，详见 [`task_completion_atomicity_design.md`](task_completion_atomicity_design.md)。该基线刻意记录当前非原子行为，尚未改变生产持久化逻辑。
+
 ### local source 与无认证 API
 
 `app.py` 的 `/api/*` 无认证，`CORS(... origins="*")`；创建任务接受多个本地路径别名，直接 API 能绕过 UI 开关。`workspace_service.py` 仅验证目录存在，`resolve()` 后递归 `os.walk()`；没有后端开关、allowlist、文件数/大小限制，也未显式拒绝 UNC、junction 或 symlink 越界。`resolve()` 不是授权边界。
