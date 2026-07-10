@@ -28,12 +28,14 @@ from .hcyt_runner import run_hcyt as _run_hcyt
 from .hcyt_ai_review import run_hcyt_ai_review
 from .hcyt_file_classifier import collect_hcyt_input_files
 from .hcyt_inspection_orchestrator import run_hcyt_inspections
-from .hcyt_program_runner import run_hcyt_programs as _run_hcyt_programs
 from .hcyt_rule_runner import run_hcyt_rules
-from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule, schedule_rows as _schedule_rows
 from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
 from .hcyt_report_builder import build_hcyt_report
 from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
+from .hcyt_subworkflow_runtime import (
+    run_hcyt_programs as _run_hcyt_programs,
+    run_hcyt_schedule as _run_hcyt_schedule,
+)
 from .nups_report_builder import build_nups_report
 from .nups_runner import run_nups as _run_nups
 from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
@@ -383,7 +385,7 @@ class TaskRun:
             build_config_files=self.build_config_files,
             build_job_table=self.build_job_table,
             build_ai=self.build_ai,
-            get_active_profile_name=lambda: get_active_profile().name,
+            get_active_profile_name=self.get_active_profile_name,
             collect_hcyt_input_files=collect_hcyt_input_files,
             build_source_classified_progress=build_source_classified_progress,
             publish_hcyt_progress=publish_hcyt_progress,
@@ -513,6 +515,10 @@ class TaskRun:
             call_sql_llm=_mods.call_sql_llm,
         )
 
+    @staticmethod
+    def get_active_profile_name():
+        return get_active_profile().name
+
     def load_result_table_annotations(self):
         return _load_result_table_annotations(
             safe=self.safe,
@@ -552,17 +558,13 @@ class TaskRun:
             safe=self.safe,
             modules=_mods,
             build_job_table=self.build_job_table,
-            schedule_rows_fn=self._schedule_rows,
+            rule_label=rule_label,
         )
 
     def build_job_table(self, job_source, db_job_rows):
         """JOB ??4 ?????+ ??????new=????????/ disabled=??????????????
         ??? hcyt_stream.build_job_display_df ??????????"""
         return _build_job_table(job_source, db_job_rows)
-
-    @staticmethod
-    def _schedule_rows(result_text, warn_text):
-        return _schedule_rows(result_text, warn_text, rule_label=rule_label)
 
     def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows):
         return _run_hcyt_programs(
@@ -571,55 +573,15 @@ class TaskRun:
             program_xls,
             db_job_rows,
             safe=self.safe,
-            modules=type(
-                "HcytProgramRunnerModules",
-                (),
-                {
-                    "re_service": _mods.re_service,
-                    "hcyt": _mods.hcyt,
-                    "public_data": getattr(
-                        _mods,
-                        "public_data",
-                        type(
-                            "NoopPublicData",
-                            (),
-                            {
-                                "all_para_table_lists": staticmethod(lambda: []),
-                                "all_job": staticmethod(lambda: []),
-                            },
-                        )(),
-                    ),
-                    "hcyt_python_rule": getattr(
-                        _mods,
-                        "hcyt_python_rule",
-                        type(
-                            "NoopPythonRule",
-                            (),
-                            {"build_asset_table_review_issues": staticmethod(lambda *args, **kwargs: [])},
-                        )(),
-                    ),
-                    "hcyt_ddl_rule": getattr(
-                        _mods,
-                        "hcyt_ddl_rule",
-                        type(
-                            "NoopDdlRule",
-                            (),
-                            {"collect_root_missing_issues": staticmethod(lambda *args, **kwargs: [])},
-                        )(),
-                    ),
-                    "load_registered_result_tables": staticmethod(
-                        getattr(_mods, "load_registered_result_tables", lambda *, profile: set())
-                    ),
-                    "text_to_rows": staticmethod(text_to_rows),
-                },
-            )(),
+            modules=_mods,
             download_url=self.download_url,
             load_result_table_annotations=self.load_result_table_annotations,
             annotate_table=self.annotate_table,
-            profile_name=get_active_profile().name,
+            profile_name=self.get_active_profile_name(),
             normalize_table=normalize_table,
             dedupe_tables=dedupe_tables,
             cale_map=CALE_MAP,
+            text_to_rows=text_to_rows,
         )
 
     # ===================================================================
