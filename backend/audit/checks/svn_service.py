@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import yaml
 
@@ -20,6 +21,103 @@ from audit.checks.re_service import get_export_base
 ROOT_DIR = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT_DIR / 'configs' / 'svn.yaml'
 DEFAULT_SVN_BIN = 'svn'
+SENSITIVE_URL_QUERY_KEYS = {
+    'access_token', 'apikey', 'api_key', 'authorization', 'credential',
+    'password', 'passwd', 'secret', 'token',
+}
+
+
+def sanitize_svn_url_for_log(value: str) -> str:
+    """Return a diagnostic-safe view of an SVN URL without changing its path."""
+    if not isinstance(value, str):
+        return value
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return value
+    if parsed.scheme.lower() not in {'http', 'https', 'svn', 'svn+ssh', 'file'}:
+        return value
+
+    netloc = parsed.netloc
+    if '@' in netloc:
+        userinfo, host = netloc.rsplit('@', 1)
+        username, separator, _password = userinfo.partition(':')
+        netloc = f'{username}:***@{host}' if separator else f'{username}@{host}'
+
+    query_parts = []
+    for part in parsed.query.split('&'):
+        key, separator, value_part = part.partition('=')
+        if separator and unquote(key).lower() in SENSITIVE_URL_QUERY_KEYS:
+            query_parts.append(f'{key}=***')
+        else:
+            query_parts.append(part)
+    return urlunsplit((parsed.scheme, netloc, parsed.path, '&'.join(query_parts), parsed.fragment))
+
+
+def sanitize_svn_command_for_log(command) -> list[str]:
+    """Copy an SVN command for logs, redacting password arguments and URL secrets."""
+    if not command:
+        return []
+
+    safe_command = []
+    redact_next = False
+    for argument in command:
+        value = str(argument)
+        if redact_next:
+            safe_command.append('***')
+            redact_next = False
+        elif value == '--password':
+            safe_command.append(value)
+            redact_next = True
+        elif value.startswith('--password='):
+            safe_command.append('--password=***')
+        else:
+            safe_command.append(sanitize_svn_url_for_log(value))
+    return safe_command
+
+
+def _sanitize_svn_text_for_log(value, command=()) -> str:
+    """Redact command-derived credentials when SVN or its exceptions echo them."""
+    safe_text = str(value)
+    command_values = list(command or ())
+    for index, argument in enumerate(command_values):
+        argument = str(argument)
+        if argument == '--password' and index + 1 < len(command_values):
+            password = str(command_values[index + 1])
+            if password:
+                safe_text = safe_text.replace(password, '***')
+        elif argument.startswith('--password='):
+            password = argument.split('=', 1)[1]
+            if password:
+                safe_text = safe_text.replace(password, '***')
+        sanitized_argument = sanitize_svn_url_for_log(argument)
+        if sanitized_argument != argument:
+            safe_text = safe_text.replace(argument, sanitized_argument)
+    return re.sub(
+        r"(?:https?|svn(?:\+ssh)?|file)://[^\s'\"\]\)]+",
+        lambda match: sanitize_svn_url_for_log(match.group(0)),
+        safe_text,
+    )
+
+
+def _svn_output_summary(value: str, command) -> str:
+    return _sanitize_svn_text_for_log(value, command)[:500]
+
+
+def _log_svn_exception(event: str, exc: BaseException, command=(), **fields) -> None:
+    """Keep diagnostic detail without allowing exception formatting to expose a command."""
+    safe_command = sanitize_svn_command_for_log(command)
+    safe_fields = {
+        key: sanitize_svn_url_for_log(value) if key.endswith('url') else value
+        for key, value in fields.items()
+    }
+    safe_fields.update(
+        exception_type=type(exc).__name__,
+        exception_message=_sanitize_svn_text_for_log(exc, command),
+    )
+    if command:
+        safe_fields['command'] = safe_command
+    log_exception_event(event, RuntimeError('SVN command failed; see sanitized fields'), **safe_fields)
 
 
 def build_compare_url(base_url: str, revision: str | None = None) -> str:
@@ -93,17 +191,18 @@ def build_svn_command(project_config: dict, *args: str) -> list[str]:
 
 def run_svn_text(project_config: dict, *args: str) -> tuple[int, str, str]:
     command = build_svn_command(project_config, *args)
+    safe_command = sanitize_svn_command_for_log(command)
     start_ts = time.time()
     log_task_event(
         "svn_command",
         "start",
-        command=command,
+        command=safe_command,
     )
     timeout = int(project_config.get('timeout', 120))
     try:
         result = subprocess.run(command, capture_output=True, timeout=timeout)
     except Exception as exc:
-        log_exception_event("SVN_COMMAND_EXCEPTION", exc, command=command)
+        _log_svn_exception("SVN_COMMAND_EXCEPTION", exc, command=command)
         raise
 
     elapsed_seconds = round(time.time() - start_ts, 3)
@@ -112,7 +211,7 @@ def run_svn_text(project_config: dict, *args: str) -> tuple[int, str, str]:
     log_task_event(
         "svn_command",
         "end",
-        command=command,
+        command=safe_command,
         returncode=result.returncode,
         elapsed_seconds=elapsed_seconds,
         stdout_length=len(stdout),
@@ -121,9 +220,17 @@ def run_svn_text(project_config: dict, *args: str) -> tuple[int, str, str]:
     if elapsed_seconds >= 10:
         log_warning_event(
             "SVN_COMMAND_SLOW",
-            command=command,
+            command=safe_command,
             returncode=result.returncode,
             elapsed_seconds=elapsed_seconds,
+        )
+    if result.returncode != 0:
+        log_warning_event(
+            "SVN_COMMAND_FAILED",
+            command=safe_command,
+            returncode=result.returncode,
+            stdout_summary=_svn_output_summary(stdout, command),
+            stderr_summary=_svn_output_summary(stderr, command),
         )
     return result.returncode, stdout, stderr
 
@@ -135,7 +242,7 @@ def strip_peg_revision(url: str) -> str:
 def get_repo_root(project_config: dict, url: str) -> str:
     code, stdout, stderr = run_svn_text(project_config, 'info', '--xml', strip_peg_revision(url))
     if code != 0:
-        raise RuntimeError(f'svn info 执行失败:\n{stderr}')
+        raise RuntimeError(f'svn info 执行失败:\n{_sanitize_svn_text_for_log(stderr, build_svn_command(project_config))}')
     root = ET.fromstring(stdout).findtext('.//repository/root')
     if not root:
         raise RuntimeError('未找到 SVN repository root')
@@ -159,7 +266,7 @@ def get_branch_origin(project_config: dict, branch_url: str) -> tuple[str, str]:
 
         code, stdout, stderr = run_svn_text(project_config, 'log', '--xml', '--verbose', '--stop-on-copy', log_target)
         if code != 0:
-            raise RuntimeError(f'svn log 执行失败:\n{stderr}')
+            raise RuntimeError(f'svn log 执行失败:\n{_sanitize_svn_text_for_log(stderr, build_svn_command(project_config))}')
 
         root = ET.fromstring(stdout)
         entries = root.findall('./logentry')
@@ -192,16 +299,16 @@ def get_branch_origin(project_config: dict, branch_url: str) -> tuple[str, str]:
 
     origin_url, origin_revision = resolve_origin(branch_url)
     print('branch create revision:', origin_revision)
-    print('branch origin:', origin_url)
+    print('branch origin:', sanitize_svn_url_for_log(origin_url))
     return origin_url, origin_revision
 
 
 def diff_between_urls(project_config: dict, left_url: str, right_url: str) -> str:
     code, stdout, stderr = run_svn_text(project_config, 'diff', '--summarize', left_url, right_url)
     if code != 0:
-        raise RuntimeError(f'svn diff 执行失败:\n{stderr}')
-    print('diff left:', left_url)
-    print('diff right:', right_url)
+        raise RuntimeError(f'svn diff 执行失败:\n{_sanitize_svn_text_for_log(stderr, build_svn_command(project_config))}')
+    print('diff left:', sanitize_svn_url_for_log(left_url))
+    print('diff right:', sanitize_svn_url_for_log(right_url))
     return stdout
 
 
@@ -261,31 +368,36 @@ def export_svn_file(project_config: dict, repo_rel_path: str, branch_url: str, l
 
     code, _, stderr = run_svn_text(project_config, 'export', '--force', file_url, str(local_path))
     if code != 0:
-        raise RuntimeError(f'export 失败:\n{stderr}\nURL: {file_url}')
+        safe_stderr = _sanitize_svn_text_for_log(stderr, build_svn_command(project_config))
+        raise RuntimeError(f'export 失败:\n{safe_stderr}\nURL: {sanitize_svn_url_for_log(file_url)}')
     return str(local_path)
 
 
 def svn_main(project: str, branch_url: str):
-    log_task_event("svn_main", "start", project=project, branch_url=branch_url)
+    safe_branch_url = sanitize_svn_url_for_log(branch_url)
+    log_task_event("svn_main", "start", project=project, branch_url=safe_branch_url)
     project_config = get_project_config(project)
     marker = project_config['marker']
     branch_name = branch_url.rstrip('/').rsplit('/', 1)[-1]
     local_export_root = get_export_base() / branch_name
 
     try:
-        log_task_event("svn_main.resolve_origin", "start", project=project, branch_url=branch_url)
+        log_task_event("svn_main.resolve_origin", "start", project=project, branch_url=safe_branch_url)
         base_source_url, create_revision = get_branch_origin(project_config, branch_url)
         log_task_event(
             "svn_main.resolve_origin",
             "end",
-            base_source_url=base_source_url,
+            base_source_url=sanitize_svn_url_for_log(base_source_url),
             create_revision=create_revision,
         )
 
         base_compare_url = build_compare_url(base_source_url, create_revision)
         latest_trunk_url = build_compare_url(base_source_url)
 
-        log_task_event("svn_main.diff", "start", branch_url=branch_url, base_compare_url=base_compare_url)
+        log_task_event(
+            "svn_main.diff", "start", branch_url=safe_branch_url,
+            base_compare_url=sanitize_svn_url_for_log(base_compare_url),
+        )
         branch_diff_text = diff_between_urls(project_config, base_compare_url, branch_url)
         trunk_diff_text = diff_between_urls(project_config, base_compare_url, latest_trunk_url)
         log_task_event(
@@ -319,8 +431,14 @@ def svn_main(project: str, branch_url: str):
                 try:
                     result_paths.append(future.result())
                 except Exception as exc:
-                    print(f'export failed: {repo_rel_path} -> {exc}')
-                    log_exception_event("SVN_EXPORT_EXCEPTION", exc, repo_rel_path=repo_rel_path, branch_url=branch_url)
+                    safe_message = _sanitize_svn_text_for_log(exc, build_svn_command(project_config))
+                    print(f'export failed: {repo_rel_path} -> {safe_message}')
+                    _log_svn_exception(
+                        "SVN_EXPORT_EXCEPTION", exc,
+                        command=build_svn_command(project_config),
+                        repo_rel_path=repo_rel_path,
+                        branch_url=safe_branch_url,
+                    )
         result_paths.sort()
         log_task_event(
             "svn_main.export",
@@ -332,7 +450,7 @@ def svn_main(project: str, branch_url: str):
             "svn_main",
             "end",
             project=project,
-            branch_url=branch_url,
+            branch_url=safe_branch_url,
             exported_count=len(result_paths),
             branch_changed_count=len(branch_changed_files),
             trunk_changed_count=len(trunk_changed_files),
@@ -348,12 +466,16 @@ def svn_main(project: str, branch_url: str):
             'latest_trunk_url': latest_trunk_url,
         }
     except Exception as exc:
-        log_exception_event("SVN_MAIN_EXCEPTION", exc, project=project, branch_url=branch_url)
+        _log_svn_exception(
+            "SVN_MAIN_EXCEPTION", exc, project=project, branch_url=safe_branch_url,
+            command=build_svn_command(project_config),
+        )
         raise
 
 
 if __name__ == '__main__':
     branch_url = 'svn://svnj.app.cz/hcyt/branches/history/branch_14334_20260323155547'
     print(time.strftime('%Y-%m-%d %H:%M:%S'))
-    print(svn_main('hcyt', branch_url))
+    result = svn_main('hcyt', branch_url)
+    print({key: sanitize_svn_url_for_log(value) if isinstance(value, str) else value for key, value in result.items()})
     print(time.strftime('%Y-%m-%d %H:%M:%S'))
