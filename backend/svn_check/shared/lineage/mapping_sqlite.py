@@ -21,6 +21,15 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from shared.db.router import select_sql_with_profile
+from shared.lineage.identifiers import (
+    compact_identifier,
+    normalize_identifier,
+    normalize_registered_table_name,
+    normalize_token,
+    normalize_value,
+    parse_input_table_name,
+)
+from shared.lineage import registered_tables as registered_tables_helpers
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 MAPPING_XLSX_PATH = ROOT_DIR / 'resources' / 'xlsx' / 'mapping.xlsx'
@@ -36,43 +45,6 @@ HEADER_ALIASES = {
     'source_table': {'源表'},
     'source_column': {'源字段'},
 }
-
-
-def normalize_value(value) -> str:
-    if value is None:
-        return ''
-    return str(value).strip().replace('\n', '').replace('\r', '')
-
-
-def normalize_token(value) -> str:
-    return normalize_value(value).upper().replace(' ', '')
-
-
-def parse_input_table_name(table_name: str) -> tuple[str, str]:
-    normalized = normalize_token(table_name)
-    if '.' in normalized:
-        schema, table = normalized.split('.', 1)
-        return schema, table
-    return '', normalized
-
-
-def normalize_identifier(schema: str, table: str, column: str) -> tuple[str, str, str]:
-    normalized_schema = normalize_token(schema)
-    normalized_table = normalize_token(table)
-    if not normalized_schema and '.' in normalized_table:
-        normalized_schema, normalized_table = normalized_table.split('.', 1)
-    return normalized_schema, normalized_table, normalize_token(column)
-
-
-def compact_identifier(identifier: tuple[str, str, str]) -> str:
-    schema, table, column = identifier
-    table_name = f'{schema}.{table}' if schema else table
-    return f'{table_name}.{column}'
-
-
-def normalize_registered_table_name(table_name: str) -> str:
-    clean_name = normalize_value(table_name).split(' ')[0]
-    return normalize_token(clean_name)
 
 
 def detect_header_row(ws) -> tuple[int, dict[str, int]]:
@@ -243,21 +215,10 @@ def get_mapping_db_status(db_path: str | Path = MAPPING_DB_PATH, xlsx_path: str 
 
 
 def load_registered_result_tables(profile: str = 'czcb') -> set[str]:
-    sql = """
-        SELECT substr(p.k,5) AS table_name
-        FROM dwp.p_job_hjj j
-        INNER JOIN dwp.p_program_hjj p
-        ON j.e = p.b
-        WHERE substr(p.k,5) IS NOT NULL
-    """
-    rows = select_sql_with_profile(profile, sql) or []
-    result_tables = set()
-    for row in rows:
-        table_name = normalize_value(row[0]) if row else ''
-        normalized_table_name = normalize_registered_table_name(table_name)
-        if normalized_table_name:
-            result_tables.add(normalized_table_name)
-    return result_tables
+    return registered_tables_helpers.load_registered_result_tables(
+        profile=profile,
+        select_sql_with_profile=select_sql_with_profile,
+    )
 
 
 def filter_registered_result_nodes(
@@ -265,13 +226,12 @@ def filter_registered_result_nodes(
     result_tables: set[str] | None = None,
     profile: str = 'czcb',
 ) -> list[tuple[str, str, str]]:
-    result_tables = result_tables if result_tables is not None else load_registered_result_tables(profile)
-    filtered_nodes = []
-    for schema, table, column in nodes:
-        full_name = normalize_registered_table_name(f'{schema}.{table}' if schema else table)
-        if full_name in result_tables:
-            filtered_nodes.append((schema, table, column))
-    return filtered_nodes
+    return registered_tables_helpers.filter_registered_result_nodes(
+        nodes=nodes,
+        result_tables=result_tables,
+        profile=profile,
+        load_registered_result_tables_func=load_registered_result_tables,
+    )
 
 
 def find_start_nodes_in_sqlite(table_name: str, column_name: str, db_path: str | Path = MAPPING_DB_PATH) -> list[tuple[str, str, str]]:
