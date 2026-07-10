@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""统一数据库路由：平台运行库与元数据访问共用同一 profile 解析入口。"""
+"""Metadata DB compatibility shim for shared profile-based routing."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -32,11 +32,18 @@ def _impl(profile: str | None = None):
     return _module_for_type(_resolve(profile).type)
 
 
-def select_sql_with_profile(profile: str | None, sql_str: str):
+def _resolve_backend(profile: str | None = None) -> tuple[DatabaseProfile, object]:
+    """Resolve the metadata backend module without changing compat semantics."""
+
     resolved = _resolve(profile)
-    return _impl(resolved.name).select_sql_with_profile(resolved.name, sql_str)
+    return resolved, _impl(resolved.name)
+
+
+def select_sql_with_profile(profile: str | None, sql_str: str):
+    resolved, backend = _resolve_backend(profile)
+    return backend.select_sql_with_profile(resolved.name, sql_str)
 
 
 def run_sql_with_profile(profile: str | None, sql_str: str):
-    resolved = _resolve(profile)
-    return _impl(resolved.name).run_sql_with_profile(resolved.name, sql_str)
+    resolved, backend = _resolve_backend(profile)
+    return backend.run_sql_with_profile(resolved.name, sql_str)
