@@ -1,5 +1,9 @@
 # Development Guide
 
+## Lineage mapping resources
+
+Lineage imports use `backend/data/lineage/mapping.xlsx`; the rebuildable SQLite cache is `backend/data/lineage/mapping_lineage.db`. Neither production resource is stored in Git. Deployment must provide the Excel file, then rebuild the cache through the existing importer, or set `LINEAGE_MAPPING_EXCEL_PATH` and `LINEAGE_MAPPING_DB_PATH`. Empty overrides use the defaults; relative overrides are resolved from `backend`, not the process working directory. A missing Excel or cache is reported as `unavailable` with its path and is never treated as a successful empty lineage result. These resources no longer use `backend/svn_check`.
+
 ## 本地开发环境准备
 
 建议版本：
