@@ -55,9 +55,9 @@
 | `backend/svn_check/shared/db/gaussdb.py` | 生产代码 | profile 驱动的 Gauss/DWS 查询兼容 adapter | shared DB router、tests | 是 | 迁移到 metadata | `backend/db/metadata/compat/gaussdb.py` | 是 | shared DB router contracts | 高 | 连接/profile/异常降级不变 |
 | `backend/svn_check/shared/db/postgres.py` | 生产代码 | profile 驱动的 PostgreSQL 查询兼容 adapter | shared DB router、tests | 是 | 迁移到 metadata | `backend/db/metadata/compat/postgres.py` | 是 | shared DB router contracts | 高 | 不改变连接与事务语义 |
 | `backend/svn_check/shared/db/router.py` | 生产代码 | metadata DB 类型和 profile 分派 | metadata service、lineage、tests | 是 | 迁移到 metadata | `backend/db/metadata/compat/router.py` | 是 | 新旧 router、profile contracts | 高 | 不修改 runtime DB 行为或 profile 默认值 |
-| `backend/svn_check/shared/graph/README.md` | 文档 | 无生产调用的历史依赖图模块说明 | 仅 docs | 否 | 删除 | 无 | 否 | 删除前保留扫描记录；删除后无需测试 | 低 | 复核模块名、函数名和 import 均无生产调用 |
-| `backend/svn_check/shared/graph/__init__.py` | 生产代码 | 历史依赖图包标记 | 仅 graph 契约测试 | 否 | 删除 | 无 | 否 | 删除对应纯兼容测试 | 中 | 确认外部/隐藏调用不存在 |
-| `backend/svn_check/shared/graph/dependency.py` | 生产代码 | 内存依赖图、环检测和反向依赖 | 仅 `test_shared_graph_dependency.py` | 否 | 删除 | 无 | 否 | 删除对应历史模块测试 | 中 | 逐函数 `rg`；确认 schedule 规则未调用 |
+| `backend/svn_check/shared/graph/README.md` | 文档 | 无生产调用的历史依赖图模块说明 | 迁移计划、功能同步登记 | 待确认 | 待确认 | 待定 | 待定 | 保留扫描记录与 graph 契约测试 | 中 | 既有迁移计划解除“不能直接删除”约束，调度能力完成去向确认 |
+| `backend/svn_check/shared/graph/__init__.py` | 生产代码 | 历史依赖图包标记 | graph 契约测试 | 待确认 | 待确认 | 待定 | 待定 | 保留旧 graph 导入和算法契约 | 中 | 确认无外部/隐藏调用，并为仍需能力建立新路径 |
+| `backend/svn_check/shared/graph/dependency.py` | 生产代码 | 内存依赖图、环检测和反向依赖 | `test_shared_graph_dependency.py`；功能登记将其列为调度依赖参考 | 待确认 | 待确认 | 倾向 `backend/audit/checks/dependency.py` | 是（若迁移） | 保留 5 个算法入口的现有断言 | 高 | 不删除覆盖点；阶段 5 结合 schedule 规则决定迁移或退役 |
 | `backend/svn_check/shared/lineage/README.md` | 文档 | lineage 混合职责与风险说明 | 开发者文档 | 是 | 迁移到 lineage | `backend/lineage/README.md` | 否 | 文档路径扫描 | 低 | lineage 实现迁移后更新 |
 | `backend/svn_check/shared/lineage/__init__.py` | 生产代码 | 旧 lineage 包入口 | engine、lineage tests | 是 | 暂留兼容壳 | `backend/lineage/__init__.py` | 是 | 新旧 lineage imports | 高 | 所有实现先迁至新包 |
 | `backend/svn_check/shared/lineage/cache_store.py` | 生产代码 | SQLite cache 创建、meta 与新鲜度判断 | mapping_sqlite、contract tests | 是 | 迁移到 lineage | `backend/lineage/cache_store.py` | 是 | cache/meta/freshness contracts | 高 | 路径、建表、时间与新鲜度语义不变 |
@@ -80,7 +80,13 @@
 
 ## 阶段 2 候选与保护项
 
-阶段 2 当前唯一明确候选是 `backend/svn_check/shared/graph`。删除前必须重新检索目录名、模块名以及 `parse_job_dependencies`、`build_dependency_graph`、`find_cycles`、`build_reverse_dependency_graph`、`find_all_dependent_jobs`；如果发现生产或外部运行入口，则停止删除并把项目改为待确认。
+阶段 2 已重新检索 `backend/svn_check/shared/graph` 的目录名、模块名以及 `parse_job_dependencies`、`build_dependency_graph`、`find_cycles`、`build_reverse_dependency_graph`、`find_all_dependent_jobs`。没有发现生产代码调用，但发现以下删除阻断条件：
+
+- `docs/db_runtime_metadata_migration_plan.md` 明确要求不能直接删除该目录，必须先完成归档评估。
+- `docs/feature_sync_register.md` 把 `shared/graph/dependency.py` 记录为 HCYT 调度审计的依赖参考，能力去向尚未最终确认。
+- `tests/test_shared_graph_dependency.py` 对 5 个算法入口保留行为契约；删除模块必然同时删除现有测试覆盖点，违反本任务全局约束。
+
+因此阶段 2 **无安全删除项**。本阶段只记录复核结论，不删除文件、不迁移文件、不修改业务代码或测试断言。`shared/graph` 改列为“待确认”，在阶段 5 结合调度规则迁移决定其去向；若能力仍需保留，应先迁移实现和测试，再处理旧路径。
 
 下列项目明确受保护，不能在阶段 2 删除：
 
