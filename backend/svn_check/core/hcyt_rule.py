@@ -1,3 +1,6 @@
-# -*- coding: utf-8 -*-
-# 此文件保留为向后兼容的导入 shim，逻辑已拆分至 core/hcyt/ 子包。
-from core.hcyt import *  # noqa: F401, F403
+"""Deprecated compatibility path. Real implementation lives in :mod:`audit.checks.hcyt_rule`."""
+
+import sys
+from audit.checks import hcyt_rule as _impl
+
+sys.modules[__name__] = _impl
