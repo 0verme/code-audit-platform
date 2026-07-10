@@ -8,6 +8,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import audit.engine as audit_engine
+from audit.source_resolver import UnsupportedAuditSourceError, validate_supported_source_type
 from db.runtime_store import (
     fail_orphan_tasks,
     get_audit_task as load_audit_task,
@@ -160,6 +161,10 @@ def create_audit_task():
         return jsonify({"error": "sourceRef is required"}), 400
     if source_type == "unknown":
         return jsonify({"error": "sourceType is unknown and could not be inferred"}), 400
+    try:
+        source_type = validate_supported_source_type(source_type)
+    except UnsupportedAuditSourceError as exc:
+        return jsonify({"error": str(exc), "errorCode": "unsupported_audit_source"}), 400
 
     workflow = audit_engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
     if source_type == "local":

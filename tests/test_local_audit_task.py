@@ -135,7 +135,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
-    def test_create_audit_task_accepts_git_source_and_infers_type(self):
+    def test_create_audit_task_rejects_git_sources_before_creating_or_starting_tasks(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
             db_path = Path(tmp) / "app.db"
             old_db_path = db_connection.DB_PATH
@@ -144,16 +144,26 @@ class LocalAuditTaskTests(unittest.TestCase):
             try:
                 init_db()
                 app_module = importlib.import_module("app")
-                with patch.object(app_module.audit_engine, "start_task", lambda *args, **kwargs: None):
-                    response = app_module.app.test_client().post(
-                        "/api/audit-tasks",
-                        json={"sourceRef": "git@gitlab.example.com:team/repo.git", "workflow": "hcyt"},
-                    )
+                start_task = Mock()
+                with patch.object(app_module.audit_engine, "start_task", start_task):
+                    for payload in (
+                        {"sourceRef": "svn://example.com/repos/branches/demo-hcyt", "sourceType": "git", "workflow": "hcyt"},
+                        {"sourceRef": "svn://example.com/repos/branches/demo-hcyt", "source_type": "git", "workflow": "hcyt"},
+                        {"sourceRef": "git@gitlab.example.com:team/repo.git", "workflow": "hcyt"},
+                    ):
+                        response = app_module.app.test_client().post("/api/audit-tasks", json=payload)
 
-                self.assertEqual(response.status_code, 201)
-                body = response.get_json()
-                self.assertEqual(body["sourceType"], "git")
-                self.assertEqual(body["sourceRef"], "git@gitlab.example.com:team/repo.git")
+                        self.assertEqual(response.status_code, 400)
+                        body = response.get_json()
+                        self.assertEqual(body["errorCode"], "unsupported_audit_source")
+                        self.assertEqual(body["error"], "Git audit source is not supported in the current version.")
+
+                start_task.assert_not_called()
+                with db_connection.get_connection() as connection:
+                    task_count = connection.execute(
+                        "SELECT COUNT(*) AS count FROM {{table:audit_tasks}}",
+                    ).fetchone()["count"]
+                self.assertEqual(task_count, 0)
             finally:
                 db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)

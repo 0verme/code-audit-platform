@@ -49,7 +49,7 @@ mock/API 是前端启动或构建时的部署配置，不是页面运行时开�
 - `VITE_AUDIT_DATA_MODE=mock`：提交审查直接使用 `frontend/src/mock/data.js` 中的演示数据，不依赖后端任务接口。
 - `VITE_AUDIT_DATA_MODE=api`：提交审查调用后端 `POST /api/audit-tasks` 创建真实任务，并轮询任务和报告接口。
 - API 模式下接口失败会显示明确错误，不会自动降级展示 mock 结果。
-- 创建真实任务时，后端 `POST /api/audit-tasks` 支持 `sourceType=svn` 或 `sourceType=local`；本地目录模式当前只支持 `hcyt` 工作流键。
+- 创建真实任务时，后端 `POST /api/audit-tasks` 支持 `sourceType=svn` 或 `sourceType=local`；本地目录模式是否可用取决于启用配置，且当前只支持 `hcyt` 工作流键。Git 仓库当前不支持：Git URL 会被识别并明确拒绝，不会回退到 SVN loader。
 
 ## 常用测试命令
 

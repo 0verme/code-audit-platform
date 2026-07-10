@@ -7,6 +7,7 @@ import {
   detectWorkflow,
 } from "./auditWorkflows.js";
 import {
+  GIT_SOURCE_UNSUPPORTED_MESSAGE,
   detectAuditSource,
   inferAuditSourceType,
   normalizeAuditSourceType,
@@ -46,16 +47,16 @@ test("unmatched repository path cannot be submitted", () => {
   assert.equal(buildAuditSubmitPayload({ path: "svn+ssh://svn.example.com/repos/branches/unknown-module" }), null);
 });
 
-test("recognized repository path submit payload contains workflow and type", () => {
+test("svn repository path submit payload contains workflow and type", () => {
   assert.deepEqual(
     buildAuditSubmitPayload({
-      path: "https://git.example.com/report/fine-report.git",
+      path: "svn://svn.example.com/report/fine-report",
       ai: true,
       dbg: true,
     }),
     {
-      path: "https://git.example.com/report/fine-report.git",
-      sourceType: "git",
+      path: "svn://svn.example.com/report/fine-report",
+      sourceType: "svn",
       ai: true,
       dbg: true,
       workflow: "fine-report",
@@ -72,12 +73,15 @@ test("svn path is detected as svn source", () => {
   assert.equal(source.valid, true);
 });
 
-test("https git path is detected as git source", () => {
+test("https git path is detected and blocked as unsupported", () => {
   const source = detectAuditSource("https://git.example.com/report/fine-report.git");
   assert.equal(source.sourceType, "git");
-  assert.equal(source.label, "Git");
-  assert.equal(source.tag, "Git");
-  assert.equal(source.valid, true);
+  assert.equal(source.label, "Git（暂不支持）");
+  assert.equal(source.tag, "Unsupported");
+  assert.equal(source.valid, false);
+  assert.equal(source.reason, GIT_SOURCE_UNSUPPORTED_MESSAGE);
+  assert.equal(canSubmitAudit("https://git.example.com/report/fine-report.git"), false);
+  assert.equal(buildAuditSubmitPayload({ path: "https://git.example.com/report/fine-report.git" }), null);
 });
 
 test("windows local path is detected as local directory", () => {
@@ -124,9 +128,13 @@ test("local directory can be submitted in development or when explicitly enabled
   );
 });
 
-test("git ssh and svn+ssh paths are inferred correctly", () => {
+test("git ssh paths are detected and blocked while svn+ssh remains available", () => {
   assert.equal(inferAuditSourceType("ssh://git.example.com/team/repo.git"), "git");
-  assert.equal(inferAuditSourceType("ssh://git.example.com/team/repo.git"), "git");
+  const source = detectAuditSource("git@gitlab.example.com:team/repo.git");
+  assert.equal(source.sourceType, "git");
+  assert.equal(source.valid, false);
+  assert.equal(source.reason, GIT_SOURCE_UNSUPPORTED_MESSAGE);
+  assert.equal(canSubmitAudit("git@gitlab.example.com:team/repo.git"), false);
   assert.equal(inferAuditSourceType("svn+ssh://svn.example.com/project/branch"), "svn");
 });
 
@@ -143,7 +151,9 @@ test("recent task source metadata can be resolved from legacy fields", () => {
 
   assert.equal(source.sourceRef, "https://git.example.com/report/fine-report.git");
   assert.equal(source.sourceType, "git");
-  assert.equal(source.tag, "Git");
+  assert.equal(source.tag, "Unsupported");
+  assert.equal(source.valid, false);
+  assert.equal(source.reason, GIT_SOURCE_UNSUPPORTED_MESSAGE);
 });
 
 test("source type detection and workflow detection are independent", () => {

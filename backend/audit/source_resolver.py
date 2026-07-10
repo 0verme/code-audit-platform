@@ -1,6 +1,23 @@
 from __future__ import annotations
 
 
+SUPPORTED_AUDIT_SOURCE_TYPES = frozenset({"svn", "local"})
+GIT_SOURCE_UNSUPPORTED_MESSAGE = "Git audit source is not supported in the current version."
+
+
+class UnsupportedAuditSourceError(ValueError):
+    """Raised when a recognized audit source has no loader in this version."""
+
+
+def validate_supported_source_type(source_type: str) -> str:
+    normalized = str(source_type or "").strip().lower()
+    if normalized in SUPPORTED_AUDIT_SOURCE_TYPES:
+        return normalized
+    if normalized == "git":
+        raise UnsupportedAuditSourceError(GIT_SOURCE_UNSUPPORTED_MESSAGE)
+    raise UnsupportedAuditSourceError(f"Audit source type '{normalized or 'unknown'}' is not supported.")
+
+
 def resolve_workflow(source_ref: str, fallback: str = "hcyt") -> str:
     if "/hcyt/" in source_ref:
         return "hcyt"
@@ -29,6 +46,7 @@ def resolve_workspace(
     svn_loader,
     local_loader,
 ) -> dict:
+    source_type = validate_supported_source_type(source_type)
     if source_type == "local":
         validate_source_workflow(source_type, workflow)
         return local_loader(source_ref, workflow)
@@ -49,6 +67,7 @@ def build_source_load_step(source_type: str) -> str:
 
 
 def normalize_source_payload(payload: dict, *, source_type: str) -> dict:
+    source_type = validate_supported_source_type(source_type)
     if source_type == "local":
         return payload
     normalized = dict(payload)

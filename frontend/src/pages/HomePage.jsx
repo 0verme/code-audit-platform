@@ -117,8 +117,7 @@ export default function HomePage({
         </div>
         <h1 className="hero-title">代码提交审查平台</h1>
         <p className="hero-sub">
-          输入 SVN / Git
-          仓库地址或本地目录路径，平台将自动识别来源类型与审查工作流。
+          输入 SVN 仓库地址或本地目录路径，平台将自动识别来源类型与审查工作流。
         </p>
       </div>
 
@@ -134,7 +133,7 @@ export default function HomePage({
             spellCheck={false}
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
-            placeholder="svn://...、https://...git 或 C:\\path\\to\\workspace"
+            placeholder="svn://... 或 C:\\path\\to\\workspace"
           />
           {detectedSource.sourceType !== "unknown" ? (
             <span

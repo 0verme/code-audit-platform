@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import Mock
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -8,6 +9,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from audit.source_resolver import (  # noqa: E402
+    GIT_SOURCE_UNSUPPORTED_MESSAGE,
+    UnsupportedAuditSourceError,
     build_source_label,
     build_source_load_step,
     build_source_summary,
@@ -114,6 +117,22 @@ class SourceResolverTests(unittest.TestCase):
         self.assertEqual(resolved["source_type"], "svn")
         self.assertEqual(resolved["workspace_root"], "")
         self.assertEqual(resolved["exported_paths"], ["demo.sql"])
+
+    def test_resolve_workspace_rejects_git_without_calling_any_loader(self):
+        svn_loader = Mock()
+        local_loader = Mock()
+
+        with self.assertRaisesRegex(UnsupportedAuditSourceError, f"^{GIT_SOURCE_UNSUPPORTED_MESSAGE}$"):
+            resolve_workspace(
+                "git@gitlab.example.com:team/repo.git",
+                "hcyt",
+                "git",
+                svn_loader=svn_loader,
+                local_loader=local_loader,
+            )
+
+        svn_loader.assert_not_called()
+        local_loader.assert_not_called()
 
     def test_resolve_workspace_propagates_local_loader_exceptions_verbatim(self):
         def local_loader(_source_ref, _workflow):

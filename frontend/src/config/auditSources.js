@@ -1,13 +1,16 @@
 export const LOCAL_SOURCE_DISABLED_MESSAGE =
-  "当前部署模式不支持读取本地目录，请使用 SVN/Git 地址，或在本地开发模式下启用本地目录审查。";
+  "当前部署模式不支持读取本地目录，请使用 SVN 地址，或在本地开发模式下启用本地目录审查。";
+
+export const GIT_SOURCE_UNSUPPORTED_MESSAGE =
+  "当前版本暂不支持 Git 仓库审计；当前支持 SVN 仓库和允许启用的本地目录。";
 
 export const UNKNOWN_SOURCE_MESSAGE =
-  "审查路径未识别来源类型，请输入 svn://、svn+ssh://、Git 仓库地址或本地目录路径。";
+  "审查路径未识别来源类型，请输入 svn://、svn+ssh:// 或本地目录路径。";
 
 export const AUDIT_SOURCE_LABELS = {
   local: "本地目录",
   svn: "SVN",
-  git: "Git",
+  git: "Git（暂不支持）",
   selfcheck: "自检任务",
   unknown: "未识别",
 };
@@ -15,7 +18,7 @@ export const AUDIT_SOURCE_LABELS = {
 export const AUDIT_SOURCE_TAGS = {
   local: "Local",
   svn: "SVN",
-  git: "Git",
+  git: "Unsupported",
   selfcheck: "Self",
   unknown: "Unknown",
 };
@@ -106,10 +109,14 @@ export function resolveAuditSourceMeta(record, options = {}) {
     normalized = inferred;
   }
   const localSourceEnabled = isLocalSourceEnabled(options);
-  const valid = normalized !== "unknown" && (normalized !== "local" || localSourceEnabled);
-  const reason = normalized === "local" && !localSourceEnabled
-    ? LOCAL_SOURCE_DISABLED_MESSAGE
-    : (normalized === "unknown" ? UNKNOWN_SOURCE_MESSAGE : undefined);
+  const valid = normalized !== "unknown"
+    && normalized !== "git"
+    && (normalized !== "local" || localSourceEnabled);
+  const reason = normalized === "git"
+    ? GIT_SOURCE_UNSUPPORTED_MESSAGE
+    : (normalized === "local" && !localSourceEnabled
+      ? LOCAL_SOURCE_DISABLED_MESSAGE
+      : (normalized === "unknown" ? UNKNOWN_SOURCE_MESSAGE : undefined));
   const presentation = getAuditSourcePresentation(normalized);
 
   return {
