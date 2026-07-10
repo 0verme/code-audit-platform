@@ -6,16 +6,13 @@ from unittest.mock import patch
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
-SVN_CHECK_DIR = Path(__file__).resolve().parents[1] / "backend" / "svn_check"
-for path in (BACKEND_DIR, SVN_CHECK_DIR):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
-from services import audit_metadata_service as service  # noqa: E402
-from services import db_service as legacy_db_service  # noqa: E402
-from core import public_data  # noqa: E402
-from metadata.services import audit_metadata_service as new_service  # noqa: E402
-from metadata.services import db_service as new_db_service  # noqa: E402
+from metadata.services import audit_metadata_service as service  # noqa: E402
+from metadata.services import db_service as db_service  # noqa: E402
+from metadata.services import public_data  # noqa: E402
+from db.metadata.compat import router  # noqa: E402
 from scripts import init_pg  # noqa: E402
 
 
@@ -31,21 +28,15 @@ class AttrRow:
 
 
 class AuditMetadataServiceTests(unittest.TestCase):
-    def test_new_metadata_path_owns_implementation_and_legacy_path_forwards(self):
-        self.assertIs(service.list_term_roots, new_service.list_term_roots)
-        self.assertIs(service._normalize_single_column_rows, new_service._normalize_single_column_rows)
-        self.assertIs(service.db_router, new_service.db_router)
-        self.assertIs(legacy_db_service.select_sql, new_db_service.select_sql)
+    def test_metadata_path_owns_implementation(self):
+        self.assertIs(service.db_router, router)
+        self.assertTrue(callable(db_service.select_sql))
 
     def test_metadata_init_uses_new_sql_path_without_changing_schema(self):
         new_sql_path = BACKEND_DIR / "metadata" / "init" / "postgres_schema.sql"
-        legacy_sql_path = BACKEND_DIR / "svn_check" / "migrate" / "postgres_schema.sql"
 
         self.assertEqual(init_pg.SCHEMA_SQL, new_sql_path)
-        self.assertEqual(
-            new_sql_path.read_bytes(),
-            legacy_sql_path.read_bytes(),
-        )
+        self.assertTrue(new_sql_path.is_file())
 
     def test_single_column_normalizer_handles_common_row_shapes(self):
         rows = [

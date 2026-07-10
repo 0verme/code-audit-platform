@@ -6,13 +6,11 @@ from unittest.mock import patch
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
-SVN_CHECK_DIR = BACKEND_DIR / "svn_check"
-for path in (BACKEND_DIR, SVN_CHECK_DIR):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from db.profiles import DatabaseProfile  # noqa: E402
-from shared.db import gaussdb, postgres, router  # noqa: E402
+from db.metadata.compat import gaussdb, postgres, router  # noqa: E402
 
 
 def profile(name: str, db_type: str) -> DatabaseProfile:

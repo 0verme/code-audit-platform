@@ -10,7 +10,7 @@ PyYAML
 openpyxl
 psycopg[binary]>=3.1
 
-# 数据库后端（在 svn_check/configs/database.yaml 的 backend 段或
+# 数据库后端（在 audit/configs/database.yaml 的 profiles 配置中或
 # 环境变量 SVN_CHECK_DB_BACKEND 中选择 postgres / gaussdb）
 # - Postgres（测试环境）：
 psycopg[binary]>=3.1

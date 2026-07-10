@@ -48,7 +48,7 @@ This directory does not define the `svn_check` metadata schema.
 
 In particular:
 
-- `backend/svn_check/migrate/postgres_schema.sql` is metadata schema initialization SQL
+- `backend/metadata/init/postgres_schema.sql` is metadata schema initialization SQL
 - it is not a replacement for the runtime schema files under `backend/db/sql/*`
 
 ## Current Risks
