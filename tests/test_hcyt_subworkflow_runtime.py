@@ -7,10 +7,8 @@ import pandas as pd
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
-SVN_CHECK_DIR = BACKEND_DIR / "svn_check"
-for path in (BACKEND_DIR, SVN_CHECK_DIR):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from audit.hcyt_subworkflow_runtime import (  # noqa: E402
     run_hcyt_programs,

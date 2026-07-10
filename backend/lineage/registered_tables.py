@@ -5,7 +5,7 @@ from .identifiers import normalize_registered_table_name, normalize_value
 
 def load_registered_result_tables(profile: str = 'czcb', select_sql_with_profile=None) -> set[str]:
     if select_sql_with_profile is None:
-        from shared.db.router import select_sql_with_profile as default_select_sql_with_profile
+        from db.metadata.compat.router import select_sql_with_profile as default_select_sql_with_profile
 
         select_sql_with_profile = default_select_sql_with_profile
     sql = """

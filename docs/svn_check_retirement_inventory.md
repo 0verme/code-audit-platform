@@ -118,3 +118,9 @@
 旧 Python 文件已收敛为 import alias、转发函数或包引导；每个兼容文件顶部均声明 `Deprecated compatibility path`、真实实现位置和 `Do not add new logic here`。`mapping_sqlite.py` 仅保留两个为兼容 mock/patch 语义所需的薄转发函数，不包含 cache、Excel 或遍历实现。
 
 非 Python 资源暂时双写保留：新默认 SVN 配置资源位于 `backend/audit/configs`，旧 `backend/svn_check/configs` 留待调用方和文档切换后删除；metadata SQL 的权威入口位于 `backend/metadata/init/postgres_schema.sql`，旧 SQL 保持字节一致作为兼容资源。阶段 6 未修改 schema、profile 默认值、runtime store、API 返回结构或测试断言。
+
+## 阶段 7 调用方切换结果
+
+项目内部生产代码已不再导入 `services`、`core`、`shared.db` 或 `shared.lineage`：`backend/audit/engine.py` 直接加载新 audit、metadata 和 lineage 包，lineage 的默认 DB adapter 也已切到 `backend/db/metadata/compat`。绝大多数测试只把 `backend` 加入模块搜索路径并从新包导入；旧导入只保留在专门的兼容契约测试中。
+
+DB 默认配置入口已切到 `backend/audit/configs/database.yaml`，本地被忽略的配置文件随之迁移且不进入版本控制。旧 facade 和旧资源仍保留到阶段 8，但项目内部已进入待删除状态。日志 logger 名、外部 URL 中的 `svn_check` 文本以及 lineage 默认 cache/Excel 路径属于行为兼容值，不是旧 Python import。

@@ -9,7 +9,7 @@ import yaml
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_DIR.parent
-DEFAULT_CONFIG_PATH = BACKEND_DIR / "svn_check" / "configs" / "database.yaml"
+DEFAULT_CONFIG_PATH = BACKEND_DIR / "audit" / "configs" / "database.yaml"
 
 CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"

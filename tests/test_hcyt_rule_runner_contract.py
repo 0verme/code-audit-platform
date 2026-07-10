@@ -4,10 +4,8 @@ from pathlib import Path
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
-SVN_CHECK_DIR = BACKEND_DIR / "svn_check"
-for path in (BACKEND_DIR, SVN_CHECK_DIR):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
 from audit.result_normalizer import text_to_rows  # noqa: E402
@@ -79,7 +77,7 @@ class HcytRuleRunnerContractTests(unittest.TestCase):
             task_skipped=lambda key, reason=None: task_events.append(("skipped", key, reason)),
             set_partial=lambda key, value: partial_order.append(key),
             download_url=lambda path: f"download://{Path(path).name}",
-            build_config_files=lambda paths: [{"path": path}],
+            build_config_files=lambda paths: [{"path": path} for path in paths],
         )
 
         self.assertEqual(partial_order, ["dws", "hive", "sbin", "recv", "config", "configFiles"])

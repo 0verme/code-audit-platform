@@ -15,7 +15,7 @@ for path in (BACKEND_DIR, SVN_CHECK_DIR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from shared.lineage import mapping_sqlite  # noqa: E402
+from lineage import mapping_compat as mapping_sqlite  # noqa: E402
 from lineage import mapping_compat as new_mapping  # noqa: E402
 
 
@@ -300,10 +300,11 @@ class MappingSqliteContractTests(unittest.TestCase):
 
     def test_import_paths_remain_compatible(self):
         from shared.lineage.mapping_sqlite import load_registered_result_tables  # noqa: PLC0415
+        from shared.lineage import mapping_sqlite as legacy_mapping  # noqa: PLC0415
         from shared.lineage import mapping_sqlite as imported_module  # noqa: PLC0415
 
-        self.assertIs(load_registered_result_tables, mapping_sqlite.load_registered_result_tables)
-        self.assertIs(imported_module, mapping_sqlite)
+        self.assertIs(load_registered_result_tables, legacy_mapping.load_registered_result_tables)
+        self.assertIs(imported_module, legacy_mapping)
         self.assertIs(mapping_sqlite.normalize_identifier, new_mapping.normalize_identifier)
         self.assertIs(mapping_sqlite.recreate_mapping_sqlite, new_mapping.recreate_mapping_sqlite)
         self.assertEqual(mapping_sqlite.MAPPING_DB_PATH, new_mapping.MAPPING_DB_PATH)

@@ -5,12 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-SVN_CHECK_DIR = Path(__file__).resolve().parents[1] / "backend" / "svn_check"
-if str(SVN_CHECK_DIR) not in sys.path:
-    sys.path.insert(0, str(SVN_CHECK_DIR))
 
-from core.asset_issue import create_audit_asset_issue  # noqa: E402
-from services.portal_link_builder import (  # noqa: E402
+from audit.rules.asset_issue import create_audit_asset_issue  # noqa: E402
+from audit.rules.portal_link_builder import (  # noqa: E402
     build_data_warehouse_link,
     build_portal_link,
     build_root_management_link,

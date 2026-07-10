@@ -5,10 +5,8 @@ from pathlib import Path
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
-SVN_CHECK_DIR = BACKEND_DIR / "svn_check"
-for path in (BACKEND_DIR, SVN_CHECK_DIR):
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
 
 from audit.fine_runner import run_fine  # noqa: E402
 from audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402

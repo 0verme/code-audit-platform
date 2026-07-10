@@ -4,11 +4,8 @@ import unittest
 from pathlib import Path
 
 
-SVN_CHECK_DIR = Path(__file__).resolve().parents[1] / "backend" / "svn_check"
-if str(SVN_CHECK_DIR) not in sys.path:
-    sys.path.insert(0, str(SVN_CHECK_DIR))
 
-from services import re_service  # noqa: E402
+from audit.checks import re_service  # noqa: E402
 
 
 class RowLike:

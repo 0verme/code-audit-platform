@@ -26,7 +26,7 @@ Thumbs.db
 __pycache__/
 
 # 真实数据库连接信息（含口令），不入库；用 database.example.yaml 作模板
-backend/svn_check/configs/database.yaml
+backend/audit/configs/database.yaml
 
 # Codex local state
 .codex/

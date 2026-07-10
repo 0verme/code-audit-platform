@@ -15,7 +15,6 @@
 from __future__ import annotations
 
 import json
-import sys
 import threading
 import time
 import traceback
@@ -94,9 +93,6 @@ except ImportError:  # pragma: no cover - direct module execution fallback
 
 # 把拷贝进来的真实项目加入模块搜索路径，保持其内部 `from core...`、
 # `from services...`、`from shared...` 等绝对导入原样可用。
-SVN_CHECK_DIR = Path(__file__).resolve().parents[1] / "svn_check"
-if str(SVN_CHECK_DIR) not in sys.path:
-    sys.path.insert(0, str(SVN_CHECK_DIR))
 
 CALE_MAP = {
     "SYS_MONTH_END_CALENDAR": "每月末",
@@ -148,20 +144,20 @@ def _load_real_modules():
         try:
             import types as _types
 
-            from services.svn_service import svn_main
-            from services.ai_service import call_sql_llm
-            from services import re_service
-            from services import audit_metadata_service
-            from services.workspace_service import load_local_workspace
-            import core.hcyt as hcyt
-            import core.nups_rule as nups_rule
-            import core.fine_rule as fine_rule
-            import core.public_data as public_data
-            from core.asset_issue import asset_issues_to_unified_issues, dedupe_issues
-            from core.hcyt import ddl_rule as hcyt_ddl_rule
-            from core.hcyt import python_rule as hcyt_python_rule
-            from core.hcyt import sql_rule as hcyt_sql_rule
-            from shared.lineage.mapping_sqlite import load_registered_result_tables
+            from audit.checks.svn_service import svn_main
+            from audit.checks.ai_service import call_sql_llm
+            from audit.checks import re_service
+            from metadata.services import audit_metadata_service
+            from audit.checks.workspace_service import load_local_workspace
+            from audit.checks import hcyt
+            from audit.checks import nups_rule
+            from audit.checks import fine_rule
+            from metadata.services import public_data
+            from audit.rules.asset_issue import asset_issues_to_unified_issues, dedupe_issues
+            from audit.checks.hcyt import ddl_rule as hcyt_ddl_rule
+            from audit.checks.hcyt import python_rule as hcyt_python_rule
+            from audit.checks.hcyt import sql_rule as hcyt_sql_rule
+            from lineage.mapping_compat import load_registered_result_tables
 
             _mods = _types.SimpleNamespace(
                 svn_main=svn_main,
