@@ -16,6 +16,7 @@ for path in (BACKEND_DIR, SVN_CHECK_DIR):
         sys.path.insert(0, str(path))
 
 from shared.lineage import mapping_sqlite  # noqa: E402
+from lineage import mapping_compat as new_mapping  # noqa: E402
 
 
 def alias(field_name: str) -> str:
@@ -303,6 +304,10 @@ class MappingSqliteContractTests(unittest.TestCase):
 
         self.assertIs(load_registered_result_tables, mapping_sqlite.load_registered_result_tables)
         self.assertIs(imported_module, mapping_sqlite)
+        self.assertIs(mapping_sqlite.normalize_identifier, new_mapping.normalize_identifier)
+        self.assertIs(mapping_sqlite.recreate_mapping_sqlite, new_mapping.recreate_mapping_sqlite)
+        self.assertEqual(mapping_sqlite.MAPPING_DB_PATH, new_mapping.MAPPING_DB_PATH)
+        self.assertEqual(mapping_sqlite.MAPPING_XLSX_PATH, new_mapping.MAPPING_XLSX_PATH)
 
 
 if __name__ == "__main__":
