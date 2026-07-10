@@ -24,6 +24,12 @@ This layer cannot be removed in the short term because active metadata and linea
 
 Deleting it would require logic migration, not just directory cleanup.
 
+Current expectation:
+
+- keep it as the metadata compat DB adapter for legacy `svn_check` paths
+- do not delete it in the current phase
+- only consider shrinking it toward a shim after test coverage is complete
+
 ## Boundary
 
 - this is not the runtime DB persistence layer

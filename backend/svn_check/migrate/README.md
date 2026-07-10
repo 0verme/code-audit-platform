@@ -14,6 +14,8 @@ Primary file:
 
 It is not the runtime schema for the audit platform.
 
+It must not be merged with `backend/db/sql/*/schema.sql`.
+
 Do not confuse it with:
 
 - `backend/db/sql/postgresql/schema.sql`
@@ -24,7 +26,10 @@ Do not confuse it with:
 
 - `backend/scripts/init_pg.py` reads this SQL file and initializes metadata-side tables in the active PostgreSQL or DWS profile
 
+`init_pg.py` still depends on this file as the metadata initialization entry.
+
 ## High-Risk Notes
 
 - this SQL file and `backend/db/sql/*/schema.sql` cannot be merged directly
 - the two schema families serve different domains and different call paths
+- this file remains metadata-only even when runtime and metadata profiles point to the same DB engine

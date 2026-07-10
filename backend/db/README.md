@@ -9,7 +9,10 @@ This directory owns runtime-side concerns only:
 - runtime DB connection/profile access
 - runtime schema loading
 - runtime table token rendering
-- runtime task/report/result persistence
+- runtime task persistence
+- runtime report persistence
+- runtime review detail persistence
+- runtime execution state persistence
 
 ## Runtime Schema Source
 
@@ -20,6 +23,18 @@ The current runtime table structure comes from:
 - `backend/db/sql/sqlite/schema.sql`
 
 These files are the runtime schema sources for platform execution storage.
+
+## Runtime Table Contract
+
+Runtime table names and runtime migration semantics are currently governed together by:
+
+- `backend/db/tables.py`
+- `backend/db/sql/*/schema.sql`
+- `backend/db/sql/postgresql/migrate_runtime_tables.sql`
+
+These files jointly define the runtime table naming and migration contract.
+
+Do not change only one of them in isolation.
 
 ## Main Runtime Flow
 
@@ -40,4 +55,5 @@ In particular:
 
 - runtime table definitions are currently expressed in `tables.py`, runtime schema SQL, and migration SQL
 - this is not yet a single source of truth
+- this round documents the contract only and does not change runtime behavior
 - documentation in this round does not change runtime behavior
