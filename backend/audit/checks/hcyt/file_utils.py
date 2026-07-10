@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from metadata.services.public_data import all_job, all_program
-from svn_check.services.re_service import match_any, match_path
+from audit.checks.re_service import match_any, match_path
 
 
 def is_dws_py(py_url):

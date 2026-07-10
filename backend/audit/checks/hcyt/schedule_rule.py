@@ -15,7 +15,7 @@ from metadata.services.public_data import (
     all_seqjob,
     get_job2,
 )
-from svn_check.services.re_service import extract_values, ifmiaoshu
+from audit.checks.re_service import extract_values, ifmiaoshu
 from audit.checks.dependency import build_dependency_graph, find_cycles
 
 REAL_JOB_PLAN_NAMES = {

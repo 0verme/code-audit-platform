@@ -1,4 +1,8 @@
-"""Deprecated compatibility package for audit rule imports."""
+"""Deprecated compatibility path.
+
+Real implementation lives in audit.rules and audit.checks.
+Do not add new logic here.
+"""
 
 import sys
 from pathlib import Path

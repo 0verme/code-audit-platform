@@ -1,4 +1,8 @@
-"""Deprecated compatibility package for shared imports."""
+"""Deprecated compatibility path.
+
+Real implementation lives in db.metadata.compat, lineage, and audit.checks.
+Do not add new logic here.
+"""
 
 import sys
 from pathlib import Path

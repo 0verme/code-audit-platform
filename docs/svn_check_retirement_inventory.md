@@ -104,3 +104,17 @@
 4. 旧路径收敛：兼容壳不得新增业务逻辑，且要标明真实实现位置。
 5. 调用方切换：生产代码和绝大多数测试改用新路径，只保留最小兼容测试。
 6. 最终删除：全仓确认没有必须保留的 `svn_check`/`shared` 引用，全量测试通过后才能删除旧目录。
+
+## 阶段 6 兼容壳收敛结果
+
+阶段 6 已检查 `backend/svn_check` 的全部剩余 Python 文件。真实实现位置如下：
+
+- metadata 查询与 DB facade：`backend/metadata/services`
+- metadata DB adapter：`backend/db/metadata/compat`
+- lineage helpers、cache、Excel loader、SQLite 查询与遍历：`backend/lineage`
+- HCYT、NUPS、FineReport、依赖图和工作区/SVN/诊断/通用检查服务：`backend/audit/checks`
+- asset issue 与门户链接规则：`backend/audit/rules`
+
+旧 Python 文件已收敛为 import alias、转发函数或包引导；每个兼容文件顶部均声明 `Deprecated compatibility path`、真实实现位置和 `Do not add new logic here`。`mapping_sqlite.py` 仅保留两个为兼容 mock/patch 语义所需的薄转发函数，不包含 cache、Excel 或遍历实现。
+
+非 Python 资源暂时双写保留：新默认 SVN 配置资源位于 `backend/audit/configs`，旧 `backend/svn_check/configs` 留待调用方和文档切换后删除；metadata SQL 的权威入口位于 `backend/metadata/init/postgres_schema.sql`，旧 SQL 保持字节一致作为兼容资源。阶段 6 未修改 schema、profile 默认值、runtime store、API 返回结构或测试断言。

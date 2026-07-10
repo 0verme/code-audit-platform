@@ -1,4 +1,8 @@
-"""Deprecated compatibility path. Real implementation lives in :mod:`metadata.services.public_data`."""
+"""Deprecated compatibility path.
+
+Real implementation lives in metadata.services.public_data.
+Do not add new logic here.
+"""
 
 import sys
 from metadata.services import public_data as _impl

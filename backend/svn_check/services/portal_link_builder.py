@@ -1,4 +1,8 @@
-"""Deprecated compatibility path. Real implementation lives in :mod:`audit.rules.portal_link_builder`."""
+"""Deprecated compatibility path.
+
+Real implementation lives in audit.rules.portal_link_builder.
+Do not add new logic here.
+"""
 
 import sys
 from audit.rules import portal_link_builder as _impl

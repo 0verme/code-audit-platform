@@ -1,4 +1,8 @@
-"""Deprecated compatibility path. Real implementation lives in :mod:`audit.checks.hcyt_rule`."""
+"""Deprecated compatibility path.
+
+Real implementation lives in audit.checks.hcyt_rule.
+Do not add new logic here.
+"""
 
 import sys
 from audit.checks import hcyt_rule as _impl

@@ -1,4 +1,8 @@
-"""Deprecated compatibility facade for :mod:`lineage.mapping_compat`."""
+"""Deprecated compatibility path.
+
+Real implementation lives in lineage.mapping_compat.
+Do not add new logic here.
+"""
 
 from lineage.mapping_compat import *  # noqa: F401,F403
 from lineage import mapping_compat as _impl

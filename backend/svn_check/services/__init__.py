@@ -1,4 +1,8 @@
-"""Deprecated compatibility package for service imports."""
+"""Deprecated compatibility path.
+
+Real implementation lives in audit.checks and metadata.services.
+Do not add new logic here.
+"""
 
 import sys
 from pathlib import Path

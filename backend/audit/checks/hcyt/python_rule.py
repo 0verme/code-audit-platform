@@ -8,7 +8,7 @@ from audit.checks.hcyt._sql_parser import detect_created_functions, detect_creat
 from audit.checks.hcyt.ddl_rule import check_table_name_rule, run_dws_ddl_rules
 from metadata.services.public_data import all_function_names, all_sstb, all_tab_partitions, all_view_names
 from audit.rules.portal_link_builder import build_portal_link
-from svn_check.services.re_service import (
+from audit.checks.re_service import (
     detect_file_format,
     extract_tables,
     find_dot_strings,

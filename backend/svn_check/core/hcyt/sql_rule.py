@@ -1,4 +1,8 @@
-"""Deprecated compatibility path. Real implementation lives in :mod:`audit.checks.hcyt.sql_rule`."""
+"""Deprecated compatibility path.
+
+Real implementation lives in audit.checks.hcyt.sql_rule.
+Do not add new logic here.
+"""
 
 import sys
 from audit.checks.hcyt import sql_rule as _impl

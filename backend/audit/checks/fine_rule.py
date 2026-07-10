@@ -4,7 +4,7 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 from metadata.services.public_data import all_role, all_fine
-from svn_check.services.re_service import read_data_from_file, find_hardcoded_dates, extract_tables, find_dot_strings
+from audit.checks.re_service import read_data_from_file, find_hardcoded_dates, extract_tables, find_dot_strings
 
 gjz_lists = ['DATETIME', 'DUAL', 'AGE','LAST_DAY']
 

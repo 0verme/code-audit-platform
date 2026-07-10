@@ -1,4 +1,8 @@
-"""Deprecated compatibility path. Real implementation lives in :mod:`audit.checks.dependency`."""
+"""Deprecated compatibility path.
+
+Real implementation lives in audit.checks.dependency.
+Do not add new logic here.
+"""
 
 import sys
 from audit.checks import dependency as _impl

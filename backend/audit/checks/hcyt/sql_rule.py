@@ -7,7 +7,7 @@ from audit.checks.hcyt._sql_parser import split_schema_table
 from audit.checks.hcyt.ddl_rule import extract_create_table_objects, load_metadata_name_set, run_dws_ddl_rules
 from metadata.services.public_data import all_function_names, all_view_names
 from audit.rules.portal_link_builder import build_portal_link
-from svn_check.services.re_service import find_dot_strings, read_data_from_file
+from audit.checks.re_service import find_dot_strings, read_data_from_file
 
 
 def _build_asset_table_review_issue(full_table_name, source_module, source_file, issue_desc):

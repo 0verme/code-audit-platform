@@ -1,7 +1,10 @@
-# -*- coding: utf-8 -*-
-# !/bin/python
-import time
+"""Deprecated compatibility path.
 
+Real implementation lives in audit.checks.ai_service.
+Do not add new logic here.
+"""
 
-def call_sql_llm(sql):
-    return f'AI审计功能还未做好,敬请期待'
+import sys
+from audit.checks import ai_service as _impl
+
+sys.modules[__name__] = _impl

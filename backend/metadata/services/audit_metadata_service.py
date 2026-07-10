@@ -5,7 +5,7 @@ import logging
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from svn_check.shared.db import router as db_router
+from db.metadata.compat import router as db_router
 from db.profiles import get_active_profile
 
 

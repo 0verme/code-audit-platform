@@ -19,7 +19,7 @@ from audit.checks.hcyt_rule import (
     split_schema_table,
 )
 from metadata.services.public_data import all_function_names, all_sstb, all_tab_partitions, all_view_names
-from svn_check.services.re_service import (
+from audit.checks.re_service import (
     extract_tables,
     find_dot_strings,
     find_hardcoded_dates,

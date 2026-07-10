@@ -16,7 +16,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from svn_check.shared.db.router import select_sql_with_profile
+from db.metadata.compat.router import select_sql_with_profile
 from . import cache_store as cache_store_helpers
 from .identifiers import (
     compact_identifier,

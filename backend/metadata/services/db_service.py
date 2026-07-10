@@ -3,7 +3,7 @@
 import logging
 
 from db.profiles import get_active_profile
-from svn_check.shared.db.router import select_sql_with_profile
+from db.metadata.compat.router import select_sql_with_profile
 
 logger = logging.getLogger("svn_check.db")
 
