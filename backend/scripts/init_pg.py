@@ -12,7 +12,7 @@ if str(BACKEND_DIR) not in sys.path:
 from db.connection import connect  # noqa: E402
 from db.profiles import resolve_profile  # noqa: E402
 
-SCHEMA_SQL = BACKEND_DIR / "svn_check" / "migrate" / "postgres_schema.sql"
+SCHEMA_SQL = BACKEND_DIR / "metadata" / "init" / "postgres_schema.sql"
 EXPECTED_TABLES = [
     "p_job_hjj",
     "p_program_hjj",

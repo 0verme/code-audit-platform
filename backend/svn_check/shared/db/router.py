@@ -18,11 +18,11 @@ def get_backend(profile: str | None = None) -> str:
 @lru_cache(maxsize=2)
 def _module_for_type(db_type: str):
     if db_type == "postgresql":
-        from shared.db import postgres
+        from . import postgres
 
         return postgres
     if db_type == "dws":
-        from shared.db import gaussdb
+        from . import gaussdb
 
         return gaussdb
     raise RuntimeError(f"Unsupported database type in router: {db_type}")

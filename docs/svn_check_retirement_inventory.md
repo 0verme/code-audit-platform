@@ -39,7 +39,7 @@
 | `backend/svn_check/core/nups_rule.py` | 生产代码 | NUPS SQL/Python/结果表规则 | engine、NUPS runner | 是 | 迁移到 audit checks | `backend/audit/checks/nups_rule.py` | 是 | NUPS runner/contract | 高 | 保持规则命中和前端字段 |
 | `backend/svn_check/core/public_data.py` | 生产代码 | 规则使用的 metadata 查询口径 facade | Fine/NUPS/HCYT 规则 | 是 | 迁移到 metadata | `backend/metadata/services/public_data.py` | 是 | 查询返回结构与降级回归 | 高 | metadata service/db service 先迁移；SQL 语义不变 |
 | `backend/svn_check/migrate/README.md` | 文档 | metadata schema 边界说明 | 开发者文档 | 是 | 迁移到 metadata | `backend/metadata/init/README.md` | 否 | 文档路径扫描 | 低 | SQL 与 init 入口迁移后更新 |
-| `backend/svn_check/migrate/postgres_schema.sql` | SQL | 独立 metadata 表初始化 | `backend/scripts/init_pg.py` | 是 | 迁移到 metadata | `backend/metadata/init/postgres_schema.sql` | 旧文件暂作资源兼容 | init SQL 路径解析、schema 内容一致性 | 高 | 禁止与 runtime schema 合并或改语义 |
+| `backend/svn_check/migrate/postgres_schema.sql` | SQL | 独立 metadata 表初始化的旧资源路径 | 兼容校验 | 是 | 暂留兼容壳 | `backend/metadata/init/postgres_schema.sql`（已迁移） | 是 | init SQL 路径解析、schema 内容一致性 | 高 | 禁止与 runtime schema 合并或改语义 |
 | `backend/svn_check/services/__init__.py` | 生产代码 | 旧服务包标记 | `from services ...` | 是 | 暂留兼容壳 | 按服务拆分后最终删除 | 是 | 新旧服务导入 | 中 | 所有服务实现迁出 |
 | `backend/svn_check/services/ai_service.py` | 生产代码 | SQL LLM 调用占位/节流入口 | `backend/audit/engine.py` | 是 | 迁移到 audit checks | `backend/audit/checks/ai_service.py` | 是 | AI review 降级/契约测试 | 中 | 保持当前返回和异常行为 |
 | `backend/svn_check/services/audit_metadata_service.py` | 生产代码 | metadata 查询、归一和安全降级 | engine、public_data、re_service、tests | 是 | 迁移到 metadata | `backend/metadata/services/audit_metadata_service.py` | 是 | 新旧导入、全部查询契约 | 高 | profile、SQL、返回结构、日志降级不变 |
@@ -73,7 +73,7 @@
 ## 现役调用链摘要
 
 - `backend/audit/engine.py` 把 `backend/svn_check` 插入 `sys.path`，直接导入 `services.*`、`core.*` 和 `shared.lineage.mapping_sqlite`。
-- `backend/scripts/init_pg.py` 直接读取 `backend/svn_check/migrate/postgres_schema.sql`。
+- `backend/scripts/init_pg.py` 已在阶段 3 切换为读取 `backend/metadata/init/postgres_schema.sql`；旧 SQL 资源保留相同字节作为兼容路径。
 - `backend/db/profiles.py` 的默认配置路径仍指向 `backend/svn_check/configs/database.yaml`。
 - 多组 HCYT、NUPS、FineReport、metadata、lineage、workspace 和 DB router 测试仍通过旧路径导入真实实现。
 - `shared.graph` 没有生产调用方；当前唯一代码调用来自该历史模块自身的契约测试。
