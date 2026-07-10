@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from typing import TypedDict
 
+from runtime_security import RuntimeSecuritySettings, get_runtime_security_settings, resolve_local_roots
+
 
 IGNORED_WORKSPACE_DIRS = {
     ".git",
@@ -55,29 +57,62 @@ def _build_workspace_info(
     }
 
 
-def _validate_local_workspace(local_dir: str) -> Path:
+def _is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def validate_local_workspace(local_dir: str, security_settings: RuntimeSecuritySettings | None = None) -> Path:
     raw_value = (local_dir or "").strip()
     if not raw_value:
         raise ValueError("Local workspace path is required")
+    if raw_value.startswith("\\\\") or raw_value.startswith("//"):
+        raise ValueError("UNC local workspace paths are not allowed")
+
+    settings = security_settings or get_runtime_security_settings()
+    if not settings.local_source_enabled:
+        raise PermissionError("Local workspace audit source is disabled.")
+    allowed_roots = resolve_local_roots(settings)
+    if not allowed_roots:
+        raise ValueError("Local workspace roots must be configured when local source is enabled")
 
     workspace_root = Path(raw_value).expanduser()
     if not workspace_root.exists():
         raise FileNotFoundError("Local workspace does not exist")
     if not workspace_root.is_dir():
         raise NotADirectoryError("Local workspace is not a directory")
-    return workspace_root.resolve()
+    resolved_workspace = workspace_root.resolve()
+    if not any(_is_within(resolved_workspace, root) for root in allowed_roots):
+        raise PermissionError("Local workspace path is outside configured roots")
+    return resolved_workspace
 
 
-def load_local_workspace(local_dir: str, project_type: str = "hcyt") -> WorkspaceInfo:
+def load_local_workspace(
+    local_dir: str,
+    project_type: str = "hcyt",
+    security_settings: RuntimeSecuritySettings | None = None,
+) -> WorkspaceInfo:
     project = (project_type or "hcyt").strip().lower()
-    workspace_root = _validate_local_workspace(local_dir)
+    workspace_root = validate_local_workspace(local_dir, security_settings)
     relative_file_paths: list[str] = []
 
     for current_root, dir_names, file_names in os.walk(workspace_root, topdown=True):
-        dir_names[:] = sorted(name for name in dir_names if name not in IGNORED_WORKSPACE_DIRS)
+        safe_dirs = []
+        for name in sorted(dir_names):
+            candidate = Path(current_root) / name
+            if name in IGNORED_WORKSPACE_DIRS or candidate.is_symlink() or not _is_within(candidate.resolve(), workspace_root):
+                continue
+            safe_dirs.append(name)
+        dir_names[:] = safe_dirs
         for file_name in sorted(file_names):
             file_path = Path(current_root) / file_name
-            relative_file_paths.append(file_path.resolve().relative_to(workspace_root).as_posix())
+            resolved_file = file_path.resolve()
+            if file_path.is_symlink() or not _is_within(resolved_file, workspace_root) or not resolved_file.is_file():
+                continue
+            relative_file_paths.append(resolved_file.relative_to(workspace_root).as_posix())
 
     relative_file_paths.sort()
     if not relative_file_paths:

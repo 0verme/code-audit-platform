@@ -19,6 +19,7 @@ from audit.source_resolver import (  # noqa: E402
     resolve_workflow,
     validate_source_workflow,
 )
+from runtime_security import RuntimeSecuritySettings  # noqa: E402
 
 
 class SourceResolverTests(unittest.TestCase):
@@ -80,6 +81,7 @@ class SourceResolverTests(unittest.TestCase):
             "local",
             svn_loader=svn_loader,
             local_loader=local_loader,
+            security_settings=RuntimeSecuritySettings(local_source_enabled=True),
         )
 
         self.assertEqual(calls, [(r"C:\workspace\demo", "hcyt")])
@@ -96,6 +98,7 @@ class SourceResolverTests(unittest.TestCase):
                 "local",
                 svn_loader=lambda _source_ref: None,
                 local_loader=lambda _source_ref, _workflow: None,
+                security_settings=RuntimeSecuritySettings(local_source_enabled=True),
             )
 
     def test_resolve_workspace_uses_svn_loader_and_normalizes_payload(self):
@@ -129,6 +132,7 @@ class SourceResolverTests(unittest.TestCase):
                 "git",
                 svn_loader=svn_loader,
                 local_loader=local_loader,
+                security_settings=RuntimeSecuritySettings(local_source_enabled=True),
             )
 
         svn_loader.assert_not_called()
@@ -145,6 +149,7 @@ class SourceResolverTests(unittest.TestCase):
                 "local",
                 svn_loader=lambda _source_ref: None,
                 local_loader=local_loader,
+                security_settings=RuntimeSecuritySettings(local_source_enabled=True),
             )
 
     def test_resolve_workspace_propagates_svn_loader_exceptions_verbatim(self):

@@ -1,5 +1,38 @@
 # Development Guide
 
+## Runtime security defaults (A4)
+
+The backend keeps local workspace audits and Flask debug **disabled by default**.
+The UI variable `VITE_ENABLE_LOCAL_SOURCE` only controls whether the local option
+is shown; it never grants backend access. Enable both sides explicitly for local
+development, and do not enable local workspace auditing in production.
+
+```powershell
+# Windows: use a JSON array for roots so drive-letter colons are unambiguous.
+$env:AUDIT_LOCAL_SOURCE_ENABLED = "true"
+$env:AUDIT_LOCAL_SOURCE_ROOTS = '["E:\\workspace\\audit-samples", "E:\\workspace\\other-samples"]'
+$env:AUDIT_CORS_ORIGINS = "http://localhost:5173,http://127.0.0.1:5173"
+$env:AUDIT_HOST = "127.0.0.1"
+$env:AUDIT_PORT = "5088"
+$env:AUDIT_DEBUG = "false"
+```
+
+```bash
+# Linux: roots may use a JSON array (recommended) or colon-separated paths.
+export AUDIT_LOCAL_SOURCE_ENABLED=true
+export AUDIT_LOCAL_SOURCE_ROOTS='["/opt/audit/workspaces", "/srv/audit/samples"]'
+export AUDIT_CORS_ORIGINS='http://localhost:5173,http://127.0.0.1:5173'
+export AUDIT_HOST=127.0.0.1
+export AUDIT_PORT=5088
+export AUDIT_DEBUG=false
+```
+
+`AUDIT_LOCAL_SOURCE_ROOTS` must contain at least one existing directory when
+local source is enabled. The submitted directory and every file read must resolve
+under an allowed root; UNC paths and symlinks/junctions that leave a root are
+rejected or skipped. CORS has no wildcard default, and `*` is invalid. Boolean
+settings accept `1/true/yes/on` and `0/false/no/off`.
+
 ## Lineage mapping resources
 
 Lineage imports use `backend/data/lineage/mapping.xlsx`; the rebuildable SQLite cache is `backend/data/lineage/mapping_lineage.db`. Neither production resource is stored in Git. Deployment must provide the Excel file, then rebuild the cache through the existing importer, or set `LINEAGE_MAPPING_EXCEL_PATH` and `LINEAGE_MAPPING_DB_PATH`. Empty overrides use the defaults; relative overrides are resolved from `backend`, not the process working directory. A missing Excel or cache is reported as `unavailable` with its path and is never treated as a successful empty lineage result. These resources no longer use `backend/svn_check`.

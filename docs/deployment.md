@@ -1,5 +1,15 @@
 # Deployment Guide
 
+## HTTP runtime security
+
+Set `AUDIT_HOST`, `AUDIT_PORT`, and `AUDIT_DEBUG` explicitly for a deployment.
+Their defaults are `127.0.0.1`, `5088`, and `false`. Configure
+`AUDIT_CORS_ORIGINS` as a comma-separated list of exact frontend origins; the
+default is an empty allowlist and wildcard origins are rejected. Keep
+`AUDIT_LOCAL_SOURCE_ENABLED=false` in production. If a private development
+deployment needs local workspaces, it must also set `AUDIT_LOCAL_SOURCE_ROOTS`
+to existing allowed roots (a JSON array is recommended, especially on Windows).
+
 ## 数据库部署原则
 
 - 整个平台只能选择一套数据库：

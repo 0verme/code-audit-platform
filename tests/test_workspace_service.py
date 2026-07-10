@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 from audit.checks.workspace_service import load_local_workspace  # noqa: E402
+from runtime_security import RuntimeSecuritySettings  # noqa: E402
 
 
 class WorkspaceServiceTests(unittest.TestCase):
@@ -17,7 +18,7 @@ class WorkspaceServiceTests(unittest.TestCase):
             (root / "DIDP_PROJECT_WORKSPACE").mkdir()
             (root / "DIDP_PROJECT_WORKSPACE" / "demo.sql").write_text("select 1", encoding="utf-8")
 
-            info = load_local_workspace(str(root), "hcyt")
+            info = load_local_workspace(str(root), "hcyt", RuntimeSecuritySettings(local_source_enabled=True, local_source_roots=(str(root),)))
 
         self.assertEqual(info["source_type"], "local")
         self.assertEqual(info["project_type"], "hcyt")
@@ -30,7 +31,7 @@ class WorkspaceServiceTests(unittest.TestCase):
     def test_missing_local_workspace_error_does_not_echo_path(self):
         missing = str(Path(tempfile.gettempdir()) / "missing-workspace-example")
         with self.assertRaises(FileNotFoundError) as ctx:
-            load_local_workspace(missing)
+            load_local_workspace(missing, security_settings=RuntimeSecuritySettings(local_source_enabled=True, local_source_roots=(tempfile.gettempdir(),)))
 
         message = str(ctx.exception)
         self.assertIn("does not exist", message)
@@ -39,7 +40,7 @@ class WorkspaceServiceTests(unittest.TestCase):
     def test_empty_local_workspace_returns_clear_error(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaises(ValueError) as ctx:
-                load_local_workspace(tmp)
+                load_local_workspace(tmp, security_settings=RuntimeSecuritySettings(local_source_enabled=True, local_source_roots=(tmp,)))
 
         self.assertIn("no auditable files", str(ctx.exception))
 

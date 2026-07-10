@@ -8,7 +8,9 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import audit.engine as audit_engine
+from audit.checks.workspace_service import validate_local_workspace
 from audit.source_resolver import UnsupportedAuditSourceError, validate_supported_source_type
+from runtime_security import get_runtime_security_settings
 from db.runtime_store import (
     fail_orphan_tasks,
     get_audit_task as load_audit_task,
@@ -22,7 +24,15 @@ from db.sql_runner import execute_insert
 
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+
+def configure_runtime_security():
+    settings = get_runtime_security_settings()
+    CORS(app, resources={r"/api/*": {"origins": list(settings.cors_origins)}})
+    return settings
+
+
+configure_runtime_security()
 
 
 fail_orphan_tasks()
@@ -166,6 +176,17 @@ def create_audit_task():
     except UnsupportedAuditSourceError as exc:
         return jsonify({"error": str(exc), "errorCode": "unsupported_audit_source"}), 400
 
+    if source_type == "local":
+        settings = get_runtime_security_settings()
+        if not settings.local_source_enabled:
+            app.logger.warning("Rejected disabled local workspace audit request")
+            return jsonify({"errorCode": "local_source_disabled", "error": "Local workspace audit source is disabled."}), 403
+        try:
+            validate_local_workspace(source_ref, settings)
+        except (OSError, ValueError, PermissionError) as exc:
+            app.logger.warning("Rejected local workspace audit request: %s", exc)
+            return jsonify({"errorCode": "local_source_not_allowed", "error": "Local workspace path is not allowed."}), 400
+
     workflow = audit_engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
     if source_type == "local":
         workflow = (payload.get("workflow") or "hcyt").strip().lower()
@@ -250,4 +271,5 @@ def get_fine_report_items():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5088, debug=True)
+    runtime_settings = get_runtime_security_settings()
+    app.run(host=runtime_settings.host, port=runtime_settings.port, debug=runtime_settings.debug)

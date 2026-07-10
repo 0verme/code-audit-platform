@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from runtime_security import RuntimeSecuritySettings, get_runtime_security_settings
+
 
 SUPPORTED_AUDIT_SOURCE_TYPES = frozenset({"svn", "local"})
 GIT_SOURCE_UNSUPPORTED_MESSAGE = "Git audit source is not supported in the current version."
@@ -7,6 +9,10 @@ GIT_SOURCE_UNSUPPORTED_MESSAGE = "Git audit source is not supported in the curre
 
 class UnsupportedAuditSourceError(ValueError):
     """Raised when a recognized audit source has no loader in this version."""
+
+
+class LocalSourceDisabledError(ValueError):
+    """Raised before a local workspace loader is allowed to run."""
 
 
 def validate_supported_source_type(source_type: str) -> str:
@@ -45,10 +51,14 @@ def resolve_workspace(
     *,
     svn_loader,
     local_loader,
+    security_settings: RuntimeSecuritySettings | None = None,
 ) -> dict:
     source_type = validate_supported_source_type(source_type)
     if source_type == "local":
         validate_source_workflow(source_type, workflow)
+        settings = security_settings or get_runtime_security_settings()
+        if not settings.local_source_enabled:
+            raise LocalSourceDisabledError("Local workspace audit source is disabled.")
         return local_loader(source_ref, workflow)
     payload = svn_loader(source_ref)
     return normalize_source_payload(payload, source_type=source_type)

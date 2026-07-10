@@ -1,5 +1,6 @@
 import importlib
 import json
+import os
 import sys
 import tempfile
 import types
@@ -21,6 +22,13 @@ from db.sql_runner import execute_insert  # noqa: E402
 
 
 class LocalAuditTaskTests(unittest.TestCase):
+    def setUp(self):
+        self._security_env = patch.dict(os.environ, {"AUDIT_LOCAL_SOURCE_ENABLED": "true"}, clear=False)
+        self._security_env.start()
+
+    def tearDown(self):
+        self._security_env.stop()
+
     def _insert_task(self, repo, workflow="hcyt", source_type="svn"):
         return execute_insert(
             """
@@ -79,7 +87,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                     )
                     return None
 
-                with patch.object(app_module.audit_engine, "start_task", fake_start_task):
+                with patch.object(app_module.audit_engine, "start_task", fake_start_task), patch.object(app_module, "validate_local_workspace"):
                     response = app_module.app.test_client().post(
                         "/api/audit-tasks",
                         json={

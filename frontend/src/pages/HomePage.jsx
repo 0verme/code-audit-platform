@@ -86,6 +86,10 @@ export default function HomePage({
       return;
     }
     const created = await onCreateTask(payload);
+    if (created?.errorCode === "local_source_disabled") {
+      setSubmitError("后端未启用本地目录审计，请联系部署管理员配置后端授权。");
+      return;
+    }
     if (created?.error) {
       setSubmitError(`API 模式提交失败：${created.error}`);
       return;
