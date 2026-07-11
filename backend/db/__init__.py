@@ -10,6 +10,7 @@ from .profiles import (
 )
 from .connection import CompatConnection, CompatCursor, CompatRow, DB_PATH, get_connection
 from .runtime_store import (
+    AtomicTaskCompletionResult,
     TASK_COLUMNS,
     fail_orphan_tasks,
     finalize_task,
@@ -22,6 +23,8 @@ from .runtime_store import (
     list_fine_report_items,
     list_projects,
     replace_audit_results,
+    persist_task_completion_atomic,
+    TaskCompletionValidationError,
     update_task_runtime_state,
     upsert_task_report,
 )
@@ -40,6 +43,7 @@ from .tables import physical_table_name, qualified_table_name, render_table_toke
 
 __all__ = [
     "CompatConnection",
+    "AtomicTaskCompletionResult",
     "CompatCursor",
     "CompatRow",
     "CONFIG_PATH_ENV",
@@ -63,6 +67,7 @@ __all__ = [
     "resolve_config_path",
     "resolve_profile",
     "replace_audit_results",
+    "persist_task_completion_atomic",
     "runtime_migration_statements",
     "physical_table_name",
     "qualified_table_name",
@@ -76,6 +81,7 @@ __all__ = [
     "table_schema",
     "TransactionRunner",
     "update_task_runtime_state",
+    "TaskCompletionValidationError",
     "upsert_task_report",
     "RUNTIME_TABLES",
     "initialize_schema",

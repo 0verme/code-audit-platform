@@ -1,4 +1,4 @@
-# 任务完成原子性设计（A5 基线）
+# 任务完成原子性设计（A5 基线与 A6-1 原子 repository）
 
 本文件记录 A5 的真实 SQLite 故障注入证据和后续 A6 的设计目标；它不是对当前实现的正确性背书。本阶段没有修改生产持久化逻辑。
 
@@ -71,3 +71,56 @@ SQLite 的局部事务回滚和三连接提交窗口已由 A5 真实临时数据
 | A6-4 | 迁移 FineReport 专属明细 | 回退独立投影路径 |
 | A6-5 | 改为 commit 后发布内存终态 | 回退 run-state 发布位置 |
 | A6-6 | PG/DWS 集成故障验证 | 不改变 SQLite 已验证基线 |
+
+## A6-1 实现：原子 completion repository（尚未接入生产调用方）
+
+> A6-1 仅提供新的原子持久化能力；生产 `engine`/`runner` 仍使用旧路径。
+
+新 API 位于 `db.runtime_store.persist_task_completion_atomic()`：
+
+```python
+persist_task_completion_atomic(
+    task_id, *, status, duration, finished_at, error, progress, step,
+    logs, report, audit_results,
+) -> AtomicTaskCompletionResult
+```
+
+返回的不可变结果明确给出已提交的 `task_id`、`report_written` 和
+`results_written`；它不暴露 cursor。`task_id` 必须为正整数，且 API 会先在
+同一连接内确认 task 存在。不存在或非法 task id 会抛出
+`TaskCompletionValidationError`，不会创建孤儿 report/results。当前 schema 没有
+completion version、owner 或 lease，故不伪装为 CAS；保持既有兼容语义：相同或
+不同 payload 的重放都以最后一次成功提交为准，report 永远只有一条，results 被完整替换。
+
+### 单连接事务时序
+
+```text
+get_connection() [C1]
+  -> 验证 task
+  -> 删除并插入 canonical task_report
+  -> 删除并插入兼容 audit_results
+  -> 更新 task 终态与最终日志
+  -> commit 一次 / close
+任一步异常 -> rollback 一次 / close -> 原异常向上传播
+```
+
+实现使用 `CompatConnection`，而不是会自行创建连接的 `SQLRunner`：它已为
+SQLite、PostgreSQL、DWS 处理 table token 和参数占位符，并以 context manager
+定义 commit/rollback/close 所有权。新增的 connection-aware helpers 为
+`_upsert_task_report_with_connection`、`_replace_audit_results_with_connection` 和
+`_update_task_with_connection`。旧 public helper 仍自行打开连接并维持原有提交和
+异常行为，因此 A5 的生产路径没有变化。
+
+report 继续采用现有 JSON 序列化和事务内 delete+insert；没有新增 report 字段。
+`audit_results={}` 的语义明确为：删除 task 的旧兼容明细并保持空集合。每行仍沿用
+旧的规范化与逐行插入转换。task update 放在最后，避免在同一事务提交前形成已完成
+的可见事实；即使它失败，前述 report/results 也会回滚。
+
+SQLite 已由 `tests/test_task_completion_atomic_repository.py` 用真实临时 runtime DB
+验证：正常提交、report 失败、results 删除后插入失败、最终 task update 失败、非法/不存在
+task、空结果、重放及单连接单提交/回滚/关闭。A5 characterization 继续记录旧路径的
+不一致窗口，作为 A6-2/A6-3 迁移调用方前的对照。
+
+PostgreSQL 和 DWS 尚无真实环境故障注入验证。A6-6 需要验证单事务回滚、时间和 JSON
+字段，以及驱动行为；本实现仅使用三套 schema 已有的标准 `SELECT`、`DELETE`、`INSERT`
+和 `UPDATE`，没有采用 PostgreSQL 专有 upsert 语法或 DWS 未验证语法。
