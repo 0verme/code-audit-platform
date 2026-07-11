@@ -98,7 +98,7 @@ class NupsRunnerTests(unittest.TestCase):
         self.assertEqual(report["pyScripts"][0]["table"], "DM.TABLE_A")
         self.assertEqual(report["pyScripts"][0]["sqlRefs"], ["DM.TABLE_A"])
         self.assertEqual(report["conflicts"], ["conflict.sql"])
-        self.assertEqual(saved_groups[0]["nups"][0]["file"], "query.sql")
+        self.assertEqual(saved_groups, [])
         self.assertEqual(report["ai"]["targets"], ["/tmp/job.py"])
 
 

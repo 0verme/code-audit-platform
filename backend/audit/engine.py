@@ -79,6 +79,7 @@ from .workflow_dispatcher import WorkflowRunContext, run_workflow
 from .workflow_runtime import WorkflowRuntimeContext
 from db.profiles import get_active_profile
 from db.runtime_store import (
+    persist_task_completion_atomic,
     persist_task_run_completion,
     replace_audit_results,
     update_task_runtime_state,
@@ -331,6 +332,38 @@ class TaskRun:
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
         finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if self.workflow == "nups" and report is not None:
+            # NUPS has a complete report and legacy-result projection only on
+            # this path. Keep both projections in the repository transaction.
+            audit_results = build_legacy_nups_audit_result_rows(
+                report.get("sqlChecks", []), rule_label
+            )
+            try:
+                persist_task_completion_atomic(
+                    self.task_id,
+                    status=status,
+                    duration=duration,
+                    finished_at=finished_at,
+                    error=error,
+                    progress=100,
+                    step="completed",
+                    logs=self.logs,
+                    report=report,
+                    audit_results=audit_results,
+                )
+            except Exception:
+                # TaskRun.run() must not turn a failed atomic completion into a
+                # legacy, non-atomic completion attempt.
+                self._atomic_completion_failed = True
+                raise
+
+            # NUPS is published only after the DB commit. Other workflows keep
+            # their existing run-state ordering.
+            self.set_partial("finalReport", report)
+            self.task_success("summary", summary={"status": status})
+            self._ensure_run_state().mark_finished()
+            return
+
         if report is not None:
             self.set_partial("finalReport", report)
             self.task_success("summary", summary={"status": status})
@@ -454,6 +487,10 @@ class TaskRun:
             self.log("任务完成")
             self.finish(report["task"]["status"], report=report)
         except Exception as exc:
+            if getattr(self, "_atomic_completion_failed", False):
+                # The atomic repository already rolled back. Do not re-enter
+                # finish() through the legacy persistence path.
+                raise
             failure = build_failure_result(exc, source_type=self.source_type)
             message = failure["error"]
             self.log(f"任务异常: {message}", "ERR")

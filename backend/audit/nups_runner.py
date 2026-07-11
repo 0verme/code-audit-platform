@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from .compat import build_legacy_nups_audit_result_rows
 from .nups_report_builder import build_nups_report
-from .result_normalizer import dedupe_tables, rule_label, text_to_messages
+from .result_normalizer import dedupe_tables, text_to_messages
 from .workflow_runtime import WorkflowRuntimeContext
 
 
@@ -53,8 +52,6 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
     ai = context.build_ai(py_lists or sql_lists or [], errors, warnings)
     conflicts = context.build_conflicts(svn_result)
     status = context.status_of(errors + len(conflicts), warnings)
-
-    context.save_category_rows(build_legacy_nups_audit_result_rows(sql_checks, rule_label))
 
     return build_nups_report(
         task=context.build_task_meta(

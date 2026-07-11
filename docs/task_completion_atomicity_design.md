@@ -85,6 +85,36 @@ persist_task_completion_atomic(
 ) -> AtomicTaskCompletionResult
 ```
 
+## A6-2: NUPS complete-workflow migration
+
+NUPS is the first production caller of `persist_task_completion_atomic()`.
+`nups_runner` builds the unchanged NUPS report. `TaskRun.finish()` then derives
+compatibility rows with `build_legacy_nups_audit_result_rows(report["sqlChecks"],
+rule_label)` and passes task, report, and rows to the atomic repository API.
+The repository opens one connection, commits once, and only then does NUPS
+publish `finalReport` and its terminal `AuditRunState` in memory.
+
+The runner no longer calls `save_category_rows()` for NUPS. Both the canonical
+report and compatibility rows reuse their existing builders, so the report/API,
+schema/migration, and frontend contracts are unchanged. Empty NUPS results are
+passed as `{}` and clear old rows inside the same transaction.
+
+`pass`, `warn`, and `fail` retain their existing task-status mapping. Atomic
+failures roll back task, report, and rows together and are re-raised without a
+legacy task/report or standalone `replace_audit_results()` fallback. Source,
+dispatch, and other early NUPS failures without a complete report retain their
+existing legacy failure completion path; no synthetic payload is created.
+
+| Workflow/path | task | report | audit_results | dedicated projection | transaction |
+| --- | --- | --- | --- | --- | --- |
+| NUPS complete workflow | atomic | atomic | atomic | none | one transaction |
+| HCYT | legacy | legacy | legacy | none | multiple transactions |
+| FineReport | legacy | legacy | legacy | legacy FineReport projection | multiple transactions |
+
+Follow-up scope: A6-3 other legacy-result migrations, A6-4 FineReport
+dedicated projections, A6-5 commit-before-memory publication beyond NUPS, and
+A6-6 PostgreSQL/DWS integration fault verification.
+
 返回的不可变结果明确给出已提交的 `task_id`、`report_written` 和
 `results_written`；它不暴露 cursor。`task_id` 必须为正整数，且 API 会先在
 同一连接内确认 task 存在。不存在或非法 task id 会抛出

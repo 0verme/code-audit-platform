@@ -112,7 +112,7 @@ class NupsRunnerContractTests(unittest.TestCase):
         self.assertNotIn("source", report)
         self.assertNotIn("sourceType", report)
         self.assertNotIn("workspaceRoot", report)
-        self.assertEqual(saved_groups[0], {"nups": []})
+        self.assertEqual(saved_groups, [])
 
     def test_ai_passthrough_supports_enabled_disabled_and_degraded_cases(self):
         context, _saved_groups, _logs = self._context(
