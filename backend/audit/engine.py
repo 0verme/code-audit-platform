@@ -21,7 +21,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from .compat import build_legacy_nups_audit_result_rows
+from .compat import build_legacy_hcyt_audit_result_rows, build_legacy_nups_audit_result_rows
 from .fine_runner import run_fine as _run_fine
 from .hcyt_runner import run_hcyt as _run_hcyt
 from .hcyt_ai_review import run_hcyt_ai_review
@@ -332,11 +332,14 @@ class TaskRun:
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
         finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if self.workflow == "nups" and report is not None:
-            # NUPS has a complete report and legacy-result projection only on
-            # this path. Keep both projections in the repository transaction.
-            audit_results = build_legacy_nups_audit_result_rows(
-                report.get("sqlChecks", []), rule_label
+        if self.workflow in {"hcyt", "nups"} and report is not None:
+            # Both workflows have complete reports and final legacy-result
+            # projections on this path. Keep every completion fact in the
+            # repository transaction.
+            audit_results = (
+                build_legacy_hcyt_audit_result_rows(report)
+                if self.workflow == "hcyt"
+                else build_legacy_nups_audit_result_rows(report.get("sqlChecks", []), rule_label)
             )
             try:
                 persist_task_completion_atomic(
@@ -357,8 +360,7 @@ class TaskRun:
                 self._atomic_completion_failed = True
                 raise
 
-            # NUPS is published only after the DB commit. Other workflows keep
-            # their existing run-state ordering.
+            # Completion is published only after the DB commit.
             self.set_partial("finalReport", report)
             self.task_success("summary", summary={"status": status})
             self._ensure_run_state().mark_finished()

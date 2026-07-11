@@ -72,6 +72,20 @@ def build_legacy_nups_audit_result_rows(sql_checks: list[dict], rule_label_fn) -
     }
 
 
+def build_legacy_hcyt_audit_result_rows(report: dict) -> dict[str, list[dict]]:
+    """Build the legacy HCYT result projection from its final report.
+
+    HCYT's existing result conversion is the six category groups assembled by
+    the runner.  The final report preserves those groups verbatim, so deriving
+    the projection here keeps the legacy row contract without adding a second
+    persistence step during the workflow.
+    """
+    return normalize_legacy_audit_result_groups({
+        category: report.get(category, [])
+        for category in ("dws", "hive", "python", "sbin", "config", "recv")
+    })
+
+
 def build_legacy_fine_audit_result_rows(reports: list[dict]) -> dict[str, list[dict]]:
     return {
         "fine": [

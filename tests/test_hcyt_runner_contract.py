@@ -160,7 +160,7 @@ class HcytRunnerContractTests(unittest.TestCase):
         self.assertEqual(task_events[0], ("running", "classify_files"))
         self.assertEqual(task_events[1][0:2], ("success", "classify_files"))
         self.assertEqual(task_events[2][0:2], ("success", "trunk_conflicts"))
-        self.assertEqual(list(saved_groups[0].keys()), ["dws", "hive", "python", "sbin", "config", "recv"])
+        self.assertEqual(saved_groups, [])
 
 
 if __name__ == "__main__":

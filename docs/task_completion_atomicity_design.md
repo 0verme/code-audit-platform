@@ -108,12 +108,36 @@ existing legacy failure completion path; no synthetic payload is created.
 | Workflow/path | task | report | audit_results | dedicated projection | transaction |
 | --- | --- | --- | --- | --- | --- |
 | NUPS complete workflow | atomic | atomic | atomic | none | one transaction |
-| HCYT | legacy | legacy | legacy | none | multiple transactions |
+| HCYT complete workflow | atomic | atomic | atomic | none | one transaction |
 | FineReport | legacy | legacy | legacy | legacy FineReport projection | multiple transactions |
 
 Follow-up scope: A6-3 other legacy-result migrations, A6-4 FineReport
 dedicated projections, A6-5 commit-before-memory publication beyond NUPS, and
 A6-6 PostgreSQL/DWS integration fault verification.
+
+## A6-3: HCYT complete-workflow migration
+
+HCYT now enters `persist_task_completion_atomic()` only after its full final
+report is built. The runner retains its existing incremental construction of
+category groups and its source, schedule, program, lineage, annotation, and
+partial-report progress publications. The former final-only
+`sync_hcyt_legacy_results(... save_category_rows ...)` call is removed: no
+running consumer reads those rows from the database.
+
+`TaskRun.finish()` derives the unchanged legacy projection from the final
+report's six category fields (`dws`, `hive`, `python`, `sbin`, `config`, and
+`recv`) and atomically persists that projection with the canonical report,
+final task status, and final logs. The repository uses one connection and one
+transaction. Only after a successful commit does HCYT publish `finalReport` and
+the terminal in-memory state. Empty groups intentionally clear old rows.
+
+Pass, warn, and fail audit verdicts all use the atomic complete-workflow path.
+If it fails, task/report/results roll back together, no legacy successful
+completion or standalone `replace_audit_results()` fallback occurs, and memory
+does not publish final readiness. Early failures without a complete report keep
+the controlled legacy failure completion path and create no synthetic report.
+FineReport remains legacy for A6-4; PostgreSQL/DWS integration verification
+remains A6-6.
 
 返回的不可变结果明确给出已提交的 `task_id`、`report_written` 和
 `results_written`；它不暴露 cursor。`task_id` 必须为正整数，且 API 会先在

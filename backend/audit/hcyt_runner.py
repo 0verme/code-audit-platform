@@ -145,7 +145,6 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         if flag
     )
 
-    context.sync_hcyt_legacy_results(context.save_category_rows, grouped)
     return context.build_hcyt_report(
         task=context.build_task_meta(
             svn_result,

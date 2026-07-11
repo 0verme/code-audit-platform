@@ -181,10 +181,6 @@ class EngineOrchestrationContractTests(unittest.TestCase):
             self.assertFalse(kwargs["ai_enabled"])
             return None
 
-        def fake_sync_hcyt_legacy_results(save_category_rows, grouped):
-            calls.append("sync_hcyt_legacy_results")
-            self.assertEqual(list(grouped.keys()), ["dws", "hive", "python", "sbin", "config", "recv"])
-
         def fake_build_hcyt_report(**kwargs):
             calls.append("build_hcyt_report")
             self.assertEqual(kwargs["changes"], [{"path": "demo.sql"}])
@@ -208,13 +204,8 @@ class EngineOrchestrationContractTests(unittest.TestCase):
                 with patch.object(audit_engine, "publish_hcyt_progress", side_effect=fake_publish_hcyt_progress):
                     with patch.object(audit_engine, "run_hcyt_inspections", side_effect=fake_run_hcyt_inspections):
                         with patch.object(audit_engine, "run_hcyt_ai_review", side_effect=fake_run_hcyt_ai_review):
-                            with patch.object(
-                                audit_engine,
-                                "sync_hcyt_legacy_results",
-                                side_effect=fake_sync_hcyt_legacy_results,
-                            ):
-                                with patch.object(audit_engine, "build_hcyt_report", side_effect=fake_build_hcyt_report):
-                                    report = run.run_hcyt(svn_result)
+                            with patch.object(audit_engine, "build_hcyt_report", side_effect=fake_build_hcyt_report):
+                                report = run.run_hcyt(svn_result)
 
         self.assertEqual(report, {"task": {"status": "pass"}})
         self.assertEqual(
@@ -225,7 +216,6 @@ class EngineOrchestrationContractTests(unittest.TestCase):
                 "publish_hcyt_progress",
                 "run_hcyt_inspections",
                 "run_hcyt_ai_review",
-                "sync_hcyt_legacy_results",
                 "build_hcyt_report",
             ],
         )

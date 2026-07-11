@@ -103,9 +103,8 @@ class HcytRunnerTests(unittest.TestCase):
         self.assertEqual(report, {"task": {"status": "pass"}})
         self.assertIn(("task_running", "classify_files"), calls)
         self.assertIn(("publish", {"changes": [{"path": "demo.sql"}], "conflicts": []}), calls)
-        self.assertIn(("legacy", ["dws", "hive", "python", "sbin", "config", "recv"]), calls)
         self.assertIn(("report", [{"path": "demo.sql"}]), calls)
-        self.assertEqual(saved_groups[0]["dws"], [])
+        self.assertEqual(saved_groups, [])
 
 
 if __name__ == "__main__":

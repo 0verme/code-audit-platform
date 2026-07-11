@@ -263,11 +263,12 @@ class HcytReportContractTests(unittest.TestCase):
         self.assertEqual(report["lineageSummary"]["sysNames"], [])
         self.assertEqual(report["lineageSummary"]["outfiles"], [])
 
-    def test_legacy_audit_results_write_contract_is_stable(self):
-        _report, saved_groups, _partials, _svn_result = self._run_hcyt()
+    def test_final_report_retains_the_legacy_audit_results_projection_contract(self):
+        report, saved_groups, _partials, _svn_result = self._run_hcyt()
+        from audit.compat import build_legacy_hcyt_audit_result_rows
 
-        self.assertEqual(len(saved_groups), 1)
-        grouped = saved_groups[0]
+        self.assertEqual(saved_groups, [])
+        grouped = build_legacy_hcyt_audit_result_rows(report)
         self.assertEqual(list(grouped.keys()), ["dws", "hive", "python", "sbin", "config", "recv"])
         self.assertEqual([len(grouped[key]) for key in grouped], [1, 1, 1, 1, 1, 1])
         for category, rows in grouped.items():

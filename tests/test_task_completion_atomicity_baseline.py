@@ -202,9 +202,9 @@ class TaskCompletionAtomicityBaselineTests(unittest.TestCase):
         self.assertEqual([row["message"] for row in results], ["two"])
         self.assertEqual(len(results), 1)
 
-    def test_current_task_run_marks_memory_terminal_before_persistence_failure(self):
-        """Characterization baseline: the in-memory status is published before DB completion succeeds; reverse in A6."""
-        run = audit_engine.TaskRun(999, "svn://example/task", "hcyt")
+    def test_legacy_task_run_marks_memory_terminal_before_persistence_failure(self):
+        """Characterization baseline for unmigrated legacy completion paths."""
+        run = audit_engine.TaskRun(999, "svn://example/task", "fine-report")
         with patch.object(audit_engine, "persist_task_run_completion", side_effect=InjectedPersistenceFailure("boom")):
             with self.assertRaises(InjectedPersistenceFailure):
                 run.finish("pass", report={"task": {"status": "pass"}})
