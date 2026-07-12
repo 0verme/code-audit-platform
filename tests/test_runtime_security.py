@@ -23,7 +23,7 @@ class RuntimeSecurityTests(unittest.TestCase):
         self.assertFalse(defaults.debug)
         self.assertEqual(defaults.host, "127.0.0.1")
         self.assertEqual(defaults.port, 5088)
-        self.assertEqual(defaults.cors_origins, ())
+        self.assertEqual(defaults.cors_origins, ("http://localhost:5173", "http://127.0.0.1:5173"))
         self.assertTrue(get_runtime_security_settings({"AUDIT_LOCAL_SOURCE_ENABLED": "yes"}).local_source_enabled)
         self.assertFalse(get_runtime_security_settings({"AUDIT_DEBUG": "off"}).debug)
         with self.assertRaises(ValueError):

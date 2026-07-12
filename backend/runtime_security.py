@@ -10,6 +10,7 @@ from pathlib import Path
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off", ""}
+DEFAULT_CORS_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
 
 
 def parse_bool(value: str | None, *, default: bool, name: str) -> bool:
@@ -55,6 +56,8 @@ def get_runtime_security_settings(environ: dict[str, str] | None = None) -> Runt
     debug = parse_bool(env.get("AUDIT_DEBUG"), default=False, name="AUDIT_DEBUG")
     roots = _parse_list(env.get("AUDIT_LOCAL_SOURCE_ROOTS"), name="AUDIT_LOCAL_SOURCE_ROOTS", separator=os.pathsep)
     origins = _parse_list(env.get("AUDIT_CORS_ORIGINS"), name="AUDIT_CORS_ORIGINS", separator=",")
+    if not origins:
+        origins = DEFAULT_CORS_ORIGINS
     if "*" in origins:
         raise ValueError("AUDIT_CORS_ORIGINS must not contain '*'")
     try:
