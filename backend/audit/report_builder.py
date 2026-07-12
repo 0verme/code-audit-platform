@@ -58,17 +58,28 @@ def build_ai(*, ai_enabled, targets, errors, warnings, safe, call_sql_llm):
     if not ai_enabled:
         return None
     findings = []
+    summaries = []
     for path in (targets or [])[:10]:
         result = safe("AI 大模型", lambda p=path: call_sql_llm(p), None)
         if result:
-            findings.append({"sev": "info", "title": Path(path).name, "body": str(result)})
+            if isinstance(result, dict):
+                summaries.append(str(result.get("summary") or ""))
+                for finding in result.get("findings", []):
+                    if isinstance(finding, dict):
+                        finding_with_source = dict(finding)
+                        finding_with_source["title"] = (
+                            Path(path).name + " · " + str(finding.get("title", "AI finding"))
+                        )
+                        findings.append(finding_with_source)
+            else:
+                findings.append({"sev": "info", "title": Path(path).name, "body": str(result)})
     verdict = "err" if errors else ("warn" if warnings else "ok")
     summary = f"静态规则共发现 {errors} 个错误、{warnings} 个警告。"
     summary += "建议修复后再合并。" if errors else "整体符合规范。"
     return {
-        "model": "行内大模型（svn_check ai_service）",
+        "model": "本地 OpenAI 兼容大模型",
         "verdict": verdict,
-        "summary": summary,
+        "summary": "；".join(s for s in summaries if s) or summary,
         "findings": findings,
     }
 

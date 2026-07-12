@@ -52,7 +52,7 @@
 .mp-error { color: var(--err-fg); font-size: var(--fs-xs); line-height: 1.5; overflow-wrap: anywhere; }
 .slow-hint { color: var(--warn-fg); }
 
-.run-logs { padding: 0; margin-top: var(--gap); overflow: hidden; }
+.run-logs { padding: 0; margin: var(--gap) 0; overflow: hidden; }
 .run-logs summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 12px var(--pad-card); color: var(--text-2); font-size: var(--fs-sm); }
 .run-logs pre { margin: 0; padding: 0 var(--pad-card) var(--pad-card); white-space: pre-wrap; color: var(--text-2); font-size: var(--fs-xs); max-height: 280px; overflow: auto; }
 

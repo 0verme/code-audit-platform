@@ -240,6 +240,7 @@ function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
           const rows = section.get ? section.get(data) : null;
           const tone = rows && !section.neutral ? (rows.some((item) => item.level === "err") ? "err" : rows.some((item) => item.level === "warn") ? "warn" : "ok") : null;
           const count = rows ? rows.length : null;
+          if (section.id !== "overview" && count === 0) return null;
           return (
             <div key={section.id} className={`navitem${active === section.id ? " active" : ""}`} onClick={() => onJump(section.id)}>
               <span className="ni-ico"><Icon name={section.icon} size={15} /></span>

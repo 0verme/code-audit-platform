@@ -94,7 +94,6 @@ const MODULE_TASKS = [
   { key: "recv_config", section: "recv", label: "收卸配置", icon: "download" },
   { key: "schedule", section: "schedule", label: "调度表检查", icon: "grid" },
   { key: "python_scripts", section: "python", label: "Python 脚本", icon: "python" },
-  { key: "lineage", section: "lineage-summary", label: "依赖链分析", icon: "flow" },
 ];
 
 const TASK_STATUS_META = {
@@ -202,6 +201,8 @@ function RunLogs({ d }) {
 }
 
 function ChangesSection({ d, reg }) {
+  if (!d.changes.length) return null;
+
   const counts = d.changes.reduce((accumulator, item) => {
     accumulator[item.type] = (accumulator[item.type] || 0) + 1;
     return accumulator;
@@ -256,6 +257,8 @@ function ChangesSection({ d, reg }) {
 
 function ConflictSection({ d, reg }) {
   const hasConflicts = d.conflicts.length > 0;
+  if (!hasConflicts) return null;
+
   return (
     <Panel
       id="conflict"
@@ -291,6 +294,8 @@ function ConflictSection({ d, reg }) {
 }
 
 function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
+  if (!rows.length) return null;
+
   const severity = levelOf(rows);
   const errs = rows.filter((row) => row.level === "err").length;
   const warns = rows.filter((row) => row.level === "warn").length;
@@ -587,6 +592,8 @@ function ScheduleSection({ d, reg }) {
   const schedule = d.schedule;
   const scheduleIssues = getScheduleIssueRows(d);
   const deps = d.deps || [];
+  if (!scheduleIssues.length && !deps.length) return null;
+
   const severity = levelOf([...scheduleIssues, ...deps]);
   const columns = [
     { key: "table", label: "表" },
@@ -844,6 +851,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>正在加载审查结果...</div> : null}
       {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--err)" }}>审查结果接口不可用，请检查任务接口配置。</div> : null}
       <ProgressiveRunPanel d={mergedData} />
+      <RunLogs d={mergedData} />
       {variant !== "issues" ? <StatusHeader d={mergedData} /> : null}
       <ModuleProgressBoard d={mergedData} onJump={onJump} />
       {variant === "board" ? (
@@ -864,9 +872,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <ScheduleSection d={mergedData} reg={reg} />
       <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
       <AssetIssuesSection d={mergedData} reg={reg} />
-      <LineageSummarySection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
-      <RunLogs d={mergedData} />
       {openScript ? <ScriptDetailDrawer script={openScript} onClose={() => setOpenScript(null)} /> : null}
     </div>
   );
