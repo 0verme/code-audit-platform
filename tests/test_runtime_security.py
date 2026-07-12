@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import sys
 import tempfile
@@ -13,10 +14,35 @@ if str(BACKEND_DIR) not in sys.path:
 
 from audit.checks.workspace_service import load_local_workspace, validate_local_workspace
 from audit.source_resolver import LocalSourceDisabledError, resolve_workspace
-from runtime_security import RuntimeSecuritySettings, get_runtime_security_settings
+from runtime_security import RuntimeSecuritySettings, get_runtime_security_settings, load_backend_dotenv, resolve_local_roots
 
 
 class RuntimeSecurityTests(unittest.TestCase):
+    def test_backend_dotenv_loads_and_process_environment_wins(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            env_file = Path(tmp) / ".env"
+            env_file.write_text(
+                'AUDIT_LOCAL_SOURCE_ENABLED=true\n'
+                'AUDIT_LOCAL_SOURCE_ROOTS=["C:\\\\audit\\\\one", "D:\\\\audit\\\\two"]\n'
+                'AUDIT_PORT=5099\n',
+                encoding="utf-8",
+            )
+            environ = {"AUDIT_PORT": "6000"}
+            self.assertEqual(load_backend_dotenv(env_file, environ=environ), env_file)
+            self.assertEqual(environ["AUDIT_LOCAL_SOURCE_ENABLED"], "true")
+            self.assertEqual(environ["AUDIT_PORT"], "6000")
+            settings = get_runtime_security_settings(environ)
+            self.assertTrue(settings.local_source_enabled)
+            self.assertEqual(settings.port, 6000)
+            self.assertEqual(settings.local_source_roots, (r"C:\audit\one", r"D:\audit\two"))
+
+    def test_windows_json_roots_resolve_as_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "workspace"
+            root.mkdir()
+            settings = get_runtime_security_settings({"AUDIT_LOCAL_SOURCE_ROOTS": json.dumps([str(root)])})
+            self.assertEqual(resolve_local_roots(settings), (root.resolve(),))
+
     def test_defaults_are_safe_and_boolean_values_are_explicit(self):
         defaults = get_runtime_security_settings({})
         self.assertFalse(defaults.local_source_enabled)

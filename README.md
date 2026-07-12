@@ -140,7 +140,7 @@ npm run dev
 
 ## 常见部署方式
 
-- **本地开发部署**：后端 `python app.py`，前端 `npm run dev`，SQLite 自动初始化，元数据服务可不配置。
+- **本地开发部署**：后端 `python app.py`（自动读取 `backend/.env`，系统环境变量优先），前端 `npm run dev`，SQLite 自动初始化，元数据服务可不配置。
 - **单机部署**：前端 `npm run build` 后交给 Nginx 托管；后端用 `gunicorn` 或 `waitress` 常驻运行；Nginx 反向代理 `/api/` 到 Flask。
 - **内网部署**：使用内网 Python/npm 镜像源，真实配置只放在部署机器或环境变量中，不进入 Git。
 - **Docker/容器化**：当前版本暂未内置 Dockerfile 或 docker-compose，可按后续规划补充。

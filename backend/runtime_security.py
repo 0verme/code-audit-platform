@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,39 @@ from pathlib import Path
 TRUE_VALUES = {"1", "true", "yes", "on"}
 FALSE_VALUES = {"0", "false", "no", "off", ""}
 DEFAULT_CORS_ORIGINS = ("http://localhost:5173", "http://127.0.0.1:5173")
+BACKEND_ENV_FILE = Path(__file__).resolve().with_name(".env")
+_ENV_ASSIGNMENT = re.compile(r"^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
+
+
+def _parse_env_value(value: str) -> str:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        quote = value[0]
+        value = value[1:-1]
+        if quote == '"':
+            value = value.replace(r"\n", "\n").replace(r"\r", "\r").replace(r"\t", "\t").replace(r'\"', '"').replace(r"\\", "\\")
+        return value
+    if " #" in value:
+        value = value.split(" #", 1)[0].rstrip()
+    return value
+
+
+def load_backend_dotenv(path: Path | str = BACKEND_ENV_FILE, *, environ: dict[str, str] | None = None) -> Path | None:
+    """Load backend/.env without replacing variables supplied by the process."""
+    env = os.environ if environ is None else environ
+    env_path = Path(path)
+    if not env_path.is_file():
+        return None
+    for line in env_path.read_text(encoding="utf-8-sig").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        match = _ENV_ASSIGNMENT.match(stripped)
+        if not match:
+            continue
+        key, value = match.groups()
+        env.setdefault(key, _parse_env_value(value))
+    return env_path
 
 
 def parse_bool(value: str | None, *, default: bool, name: str) -> bool:

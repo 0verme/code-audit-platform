@@ -7,7 +7,16 @@ The UI variable `VITE_ENABLE_LOCAL_SOURCE` only controls whether the local optio
 is shown; it never grants backend access. Enable both sides explicitly for local
 development, and do not enable local workspace auditing in production.
 
+When started through `backend/app.py` or either `backend/scripts/start_backend.*`,
+the backend automatically loads `backend/.env` if it exists. Copy
+`backend/.env.example` to `backend/.env` as a starting point. Values already
+provided by the operating system take precedence over values in that file.
+The file is local-only and must not be committed.
+
 ```powershell
+# Optional: use the checked-in template for file-based configuration.
+Copy-Item backend\.env.example backend\.env
+
 # Windows: use a JSON array for roots so drive-letter colons are unambiguous.
 $env:AUDIT_LOCAL_SOURCE_ENABLED = "true"
 $env:AUDIT_LOCAL_SOURCE_ROOTS = '["E:\\workspace\\audit-samples", "E:\\workspace\\other-samples"]'

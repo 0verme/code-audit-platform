@@ -3,6 +3,11 @@
 ## HTTP runtime security
 
 Set `AUDIT_HOST`, `AUDIT_PORT`, and `AUDIT_DEBUG` explicitly for a deployment.
+
+For local or single-machine deployments, these values may also be placed in
+`backend/.env`; `backend/app.py` loads that file automatically. Process/system
+environment variables always override `.env` values. Do not deploy or commit
+`backend/.env`; use `backend/.env.example` as the template.
 Their defaults are `127.0.0.1`, `5088`, and `false`. Configure
 `AUDIT_CORS_ORIGINS` as a comma-separated list of exact frontend origins; the
 default is an empty allowlist and wildcard origins are rejected. Keep

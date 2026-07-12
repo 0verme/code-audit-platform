@@ -18,4 +18,5 @@ if (-not (Test-Path -LiteralPath $logDir)) {
 }
 
 Set-Location -LiteralPath $backendDir
-& $pythonPath "app.py" 1>> $stdoutLog 2>> $stderrLog
+Write-Host "Starting backend; backend\.env is loaded automatically when present."
+& $pythonPath "-u" "app.py" 1>> $stdoutLog 2>> $stderrLog

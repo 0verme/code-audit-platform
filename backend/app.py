@@ -4,13 +4,16 @@ import json
 import re
 from datetime import datetime
 
+from runtime_security import get_runtime_security_settings, load_backend_dotenv
+
+load_backend_dotenv()
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 import audit.engine as audit_engine
 from audit.checks.workspace_service import validate_local_workspace
 from audit.source_resolver import UnsupportedAuditSourceError, validate_supported_source_type
-from runtime_security import get_runtime_security_settings
 from db.runtime_store import (
     fail_orphan_tasks,
     get_audit_task as load_audit_task,
