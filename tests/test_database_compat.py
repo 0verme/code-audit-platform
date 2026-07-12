@@ -10,7 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from db.connection import CompatConnection  # noqa: E402
 from db.profiles import DatabaseProfile  # noqa: E402
-from db.runtime_store import build_audit_result_row_payloads, persist_task_run_completion, upsert_task_report  # noqa: E402
+from db.runtime_store import build_audit_result_row_payloads, persist_task_run_completion, update_task_runtime_state, upsert_task_report  # noqa: E402
 from db.schema import init_db  # noqa: E402
 
 
@@ -128,6 +128,18 @@ class DatabaseCompatTests(unittest.TestCase):
         self.assertIn("SET status = %s, duration = %s, finished_at = %s, error = %s, progress = %s, step = %s, logs_json = %s", statements[0])
         self.assertEqual(statements[1], "DELETE FROM dwp.p_audit_run_report WHERE task_id = %s")
         self.assertEqual(statements[2], "INSERT INTO dwp.p_audit_run_report (task_id, report_json, created_at) VALUES (%s, %s, %s)")
+
+    def test_update_task_runtime_state_renders_runtime_table_for_postgres(self):
+        fake = SequenceConnection()
+        with patch("db.connection.resolve_profile", return_value=pg_profile()), patch("db.connection.connect", return_value=fake):
+            update_task_runtime_state(5, "[]", progress=5, step="loading")
+        self.assertEqual(
+            fake.cursor_obj.executed[-1],
+            (
+                "UPDATE dwp.p_audit_run SET logs_json = %s, progress = %s, step = %s WHERE id = %s",
+                ("[]", 5, "loading", 5),
+            ),
+        )
 
     def test_build_audit_result_row_payloads_normalizes_legacy_defaults(self):
         payloads = build_audit_result_row_payloads(8, {"python": [{"file": "demo.py", "line": None, "rule": None, "level": "", "msg": None}]})

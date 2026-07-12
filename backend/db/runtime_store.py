@@ -115,7 +115,7 @@ def update_task_runtime_state(task_id: int, logs_json: str, *, progress: int | N
             sets.append("step = ?")
             args.append(step)
         args.append(task_id)
-        connection.execute(f"UPDATE {{table:audit_tasks}} SET {', '.join(sets)} WHERE id = ?", args)
+        connection.execute(f"UPDATE {{{{table:audit_tasks}}}} SET {', '.join(sets)} WHERE id = ?", args)
 
 
 def _update_task_with_connection(
