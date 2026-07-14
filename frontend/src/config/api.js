@@ -1,7 +1,7 @@
 const viteEnv = import.meta.env || {};
 
 export const API_BASE_URL =
-  viteEnv.VITE_API_BASE_URL?.replace(/\/$/, "") || "http://127.0.0.1:5088/api";
+  viteEnv.VITE_API_BASE_URL?.replace(/\/$/, "") || "/api";
 
 const rawAuditDataMode = viteEnv.VITE_AUDIT_DATA_MODE || "mock";
 export const AUDIT_DATA_MODE = rawAuditDataMode === "api" ? "api" : "mock";

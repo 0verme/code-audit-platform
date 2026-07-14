@@ -474,8 +474,4 @@ def svn_main(project: str, branch_url: str):
 
 
 if __name__ == '__main__':
-    branch_url = 'svn://svnj.app.cz/hcyt/branches/history/branch_14334_20260323155547'
-    print(time.strftime('%Y-%m-%d %H:%M:%S'))
-    result = svn_main('hcyt', branch_url)
-    print({key: sanitize_svn_url_for_log(value) if isinstance(value, str) else value for key, value in result.items()})
-    print(time.strftime('%Y-%m-%d %H:%M:%S'))
+    raise SystemExit("Configure SVN in audit/configs/svn.yaml and invoke svn_main from the application.")

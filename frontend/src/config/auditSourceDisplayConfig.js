@@ -1,12 +1,12 @@
 export const auditSourceDisplayRules = [
   {
     sourceType: "Local",
-    prefix: "E:\\AI生成代码\\code-audit-platform\\",
+    prefix: "C:\\workspace\\code-audit-platform\\",
     replacement: "…\\",
   },
   {
     sourceType: "Local",
-    prefix: "E:\\AI生成代码\\",
+    prefix: "C:\\workspace\\",
     replacement: "本地目录\\",
   },
   {

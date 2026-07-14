@@ -51,27 +51,22 @@ def connect_sqlite(profile: DatabaseProfile) -> sqlite3.Connection:
 def connect_postgresql(profile: DatabaseProfile) -> Any:
     config = profile.config
     options = _build_pg_options(config)
+    connection_options = {
+        "host": config["host"],
+        "port": int(config["port"]),
+        "dbname": config["database"],
+        "user": config["username"],
+        "password": config["password"],
+        "connect_timeout": int(config.get("connect_timeout", 30)),
+        "options": options,
+    }
+    for key in ("sslmode", "application_name"):
+        if config.get(key):
+            connection_options[key] = str(config[key])
     if psycopg is not None:
-        return psycopg.connect(
-            host=config["host"],
-            port=int(config["port"]),
-            dbname=config["database"],
-            user=config["username"],
-            password=config["password"],
-            connect_timeout=int(config.get("connect_timeout", 30)),
-            autocommit=False,
-            options=options,
-        )
+        return psycopg.connect(**connection_options, autocommit=False)
     if psycopg2 is not None:
-        connection = psycopg2.connect(
-            host=config["host"],
-            port=int(config["port"]),
-            dbname=config["database"],
-            user=config["username"],
-            password=config["password"],
-            connect_timeout=int(config.get("connect_timeout", 30)),
-            options=options,
-        )
+        connection = psycopg2.connect(**connection_options)
         connection.autocommit = False
         return connection
     raise DatabaseDriverError("PostgreSQL/DWS driver not installed. Install psycopg[binary] or psycopg2-binary.")

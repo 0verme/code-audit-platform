@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from datetime import datetime
 
 from runtime_security import get_runtime_security_settings, load_backend_dotenv
@@ -23,6 +24,8 @@ from db.runtime_store import (
     list_fine_report_items,
     list_projects,
 )
+from db.connection import connect
+from db.profiles import get_active_profile
 from db.sql_runner import execute_insert
 
 
@@ -103,7 +106,18 @@ def task_row_to_dict(row):
 
 @app.get("/api/health")
 def health():
-    return jsonify({"status": "ok", "service": "code-review-platform-backend"})
+    profile = get_active_profile()
+    database = {"profile": profile.name, "type": profile.type, "connected": False}
+    try:
+        with connect(profile) as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+            cursor.close()
+        database["connected"] = True
+    except Exception:
+        return jsonify({"status": "degraded", "database": database, "svn": {"cliAvailable": bool(shutil.which("svn"))}}), 503
+    return jsonify({"status": "ok", "database": database, "svn": {"cliAvailable": bool(shutil.which("svn"))}})
 
 
 @app.get("/api/projects")

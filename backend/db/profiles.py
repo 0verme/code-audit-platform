@@ -13,6 +13,7 @@ DEFAULT_CONFIG_PATH = BACKEND_DIR / "audit" / "configs" / "database.yaml"
 
 CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
+DEPLOYMENT_MODE_ENV = "CODE_AUDIT_DEPLOYMENT_MODE"
 SUPPORTED_TYPES = {"postgresql", "dws"}
 REQUIRED_PROFILE_FIELDS = ("type", "host", "port", "database", "username", "password", "schema")
 SUPPORTED_TYPES_TEXT = "postgresql, dws"
@@ -67,6 +68,28 @@ def _normalize_database_config(data: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _expand_environment_values(value: Any) -> Any:
+    """Expand the ${NAME} form used by deploy-time database configuration."""
+    if isinstance(value, dict):
+        return {key: _expand_environment_values(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_expand_environment_values(item) for item in value]
+    if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+        return os.getenv(value[2:-1], "")
+    return value
+
+
+def _validate_deployment_profile(profile: DatabaseProfile) -> None:
+    deployment_mode = os.getenv(DEPLOYMENT_MODE_ENV, "").strip().lower()
+    if deployment_mode not in {"inner", "production"}:
+        return
+    if profile.name != "inner_dws" or profile.type != "dws":
+        raise ProfileConfigError(
+            f"{DEPLOYMENT_MODE_ENV}={deployment_mode} requires database profile 'inner_dws' with type 'dws'; "
+            "refusing to start with another profile."
+        )
+
+
 def load_database_config(config_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     path = resolve_config_path(config_path)
     explicit_path = bool(config_path or os.getenv(CONFIG_PATH_ENV))
@@ -86,7 +109,7 @@ def load_database_config(config_path: str | os.PathLike[str] | None = None) -> d
     if not isinstance(data, dict):
         raise ProfileConfigError(f"Database config must be a mapping: {path}")
 
-    return _normalize_database_config(data)
+    return _expand_environment_values(_normalize_database_config(data))
 
 
 def resolve_profile(
@@ -145,7 +168,9 @@ def resolve_profile(
             f"Invalid database profile '{selected_name}': field 'port' must be an integer; "
             f"supported types are [{SUPPORTED_TYPES_TEXT}]"
         ) from exc
-    return DatabaseProfile(name=selected_name, type=db_type, config=config)
+    profile = DatabaseProfile(name=selected_name, type=db_type, config=config)
+    _validate_deployment_profile(profile)
+    return profile
 
 
 def get_active_profile() -> DatabaseProfile:

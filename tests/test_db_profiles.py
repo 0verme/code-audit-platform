@@ -10,7 +10,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import CONFIG_PATH_ENV, PROFILE_ENV, ProfileConfigError, resolve_profile  # noqa: E402
+from db.profiles import CONFIG_PATH_ENV, DEPLOYMENT_MODE_ENV, PROFILE_ENV, ProfileConfigError, resolve_profile  # noqa: E402
 from db.tables import qualified_table_name  # noqa: E402
 
 
@@ -133,6 +133,38 @@ profiles:
                 with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
                     with self.assertRaisesRegex(ProfileConfigError, "does not exist"):
                         resolve_profile()
+
+    def test_environment_values_expand_for_inner_dws(self):
+        content = """
+default_profile: inner_dws
+profiles:
+  inner_dws:
+    type: dws
+    host: ${AUDIT_DWS_HOST}
+    port: ${AUDIT_DWS_PORT}
+    database: ${AUDIT_DWS_DATABASE}
+    username: ${AUDIT_DWS_USER}
+    password: ${AUDIT_DWS_PASSWORD}
+    schema: ${AUDIT_DWS_SCHEMA}
+"""
+        env = {
+            "AUDIT_DWS_HOST": "dws.example.internal", "AUDIT_DWS_PORT": "8000",
+            "AUDIT_DWS_DATABASE": "audit", "AUDIT_DWS_USER": "audit_app",
+            "AUDIT_DWS_PASSWORD": "not-a-real-secret", "AUDIT_DWS_SCHEMA": "dwp",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with patch.dict(os.environ, env, clear=False):
+                profile = resolve_profile(config_path=config_path)
+        self.assertEqual(profile.name, "inner_dws")
+        self.assertEqual(profile.config["host"], "dws.example.internal")
+
+    def test_inner_mode_rejects_non_dws_or_non_inner_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            with patch.dict(os.environ, {DEPLOYMENT_MODE_ENV: "inner"}, clear=False):
+                with self.assertRaisesRegex(ProfileConfigError, "requires database profile 'inner_dws'"):
+                    resolve_profile(config_path=config_path)
 
 
 if __name__ == "__main__":

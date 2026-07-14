@@ -1,24 +1,17 @@
-# Unified database profile template.
-# Copy this file to database.yaml and keep only PostgreSQL or only DWS as the active profile.
-# Runtime tables and metadata queries always use the same profile.
-
-default_profile: local_pg
+# Inner-network DWS template. Copy to database.yaml on the deployment host.
+# ${NAME} values are expanded from the process environment; missing values fail startup.
+default_profile: inner_dws
 
 profiles:
-  local_pg:
-    type: postgresql
-    host: 127.0.0.1
-    port: 5432
-    database: code_audit
-    username: demo_user
-    password: demo_password
-    schema: dwp
-
-  local_dws:
+  inner_dws:
     type: dws
-    host: 127.0.0.1
-    port: 8000
-    database: code_audit
-    username: demo_user
-    password: demo_password
-    schema: dwp
+    host: ${AUDIT_DWS_HOST}
+    port: ${AUDIT_DWS_PORT}
+    database: ${AUDIT_DWS_DATABASE}
+    username: ${AUDIT_DWS_USER}
+    password: ${AUDIT_DWS_PASSWORD}
+    schema: ${AUDIT_DWS_SCHEMA}
+    connect_timeout: 10
+    statement_timeout_ms: 30000
+    application_name: code-audit-platform
+    sslmode: require
