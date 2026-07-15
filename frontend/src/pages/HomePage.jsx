@@ -3,7 +3,6 @@ import { AdvancedSettingsPanel } from "../components/advancedSettingsPanel";
 import { RecentAuditHistoryPanel } from "../components/RecentAuditHistoryPanel";
 import { Dot, Icon } from "../components/ui";
 import {
-  AUDIT_WORKFLOWS,
   UNKNOWN_WORKFLOW_MESSAGE,
   buildAuditSubmitPayload,
   detectAuditWorkflow,
@@ -16,6 +15,7 @@ import {
 } from "../config/auditSources";
 import { APP_EDITION, APP_VERSION } from "../config/appMeta";
 import { DEFAULT_RECENT } from "../mock/data";
+import { getHomePathFeedbackState } from "../utils/homePathFeedback";
 
 function mapTaskToRecent(task) {
   const source = resolveAuditSourceMeta(task, { enableLocalSource: true });
@@ -47,6 +47,7 @@ export default function HomePage({
   const [ai, setAi] = useState(false);
   const [dbg, setDbg] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [hasValidatedPath, setHasValidatedPath] = useState(false);
   const isApiMode = dataMode === "api";
   const localSourceEnabled = isLocalSourceEnabled();
   const detectedSource = detectAuditSource(path, {
@@ -54,6 +55,13 @@ export default function HomePage({
   });
   const detectedWorkflow = detectAuditWorkflow(path);
   const detected = detectedWorkflow?.id || null;
+  const pathFeedback = getHomePathFeedbackState({
+    path,
+    detectedSource,
+    detectedWorkflow,
+    hasValidated: hasValidatedPath,
+    submitError,
+  });
   const canSubmit = Boolean(
     path.trim() && detectedSource.valid && detectedWorkflow,
   );
@@ -67,6 +75,7 @@ export default function HomePage({
 
   async function submit() {
     setSubmitError("");
+    setHasValidatedPath(true);
     if (!detectedSource.valid) {
       setSubmitError(detectedSource.reason || UNKNOWN_SOURCE_MESSAGE);
       return;
@@ -130,40 +139,35 @@ export default function HomePage({
           <Icon name="git" size={14} /> 审查路径
         </label>
         <div className="path-input">
-          <span className="pi-proto mono">{detectedSource.label}</span>
+          {pathFeedback.showInputDetection ? (
+            <span className="pi-proto mono">{detectedSource.label}</span>
+          ) : null}
           <input
             className="pi-field mono"
             value={path}
             spellCheck={false}
             onChange={(event) => setPath(event.target.value)}
+            onBlur={() => setHasValidatedPath(true)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
             placeholder="svn://svnj.app.cz/hcyt 或 fine-report"
           />
-          {detectedSource.sourceType !== "unknown" ? (
+          {pathFeedback.showInputDetection && detectedSource.sourceType !== "unknown" ? (
             <span
               className={`pi-detect${detectedSource.valid ? "" : " muted"}`}
             >
               <Dot tone={detectedSource.valid ? "ok" : undefined} />{" "}
               {detectedSource.label}
             </span>
-          ) : (
+          ) : pathFeedback.showInputDetection ? (
             <span className="pi-detect muted">
               <Dot /> 未识别
             </span>
-          )}
+          ) : null}
         </div>
 
-        <div className="source-summary">
-          <span>
-            来源类型：<strong>{detectedSource.label}</strong>
-          </span>
-          <span>
-            审查工作流：<strong>{detectedWorkflow?.name || "未识别"}</strong>
-          </span>
-        </div>
-
-        <div className="route-grid" aria-label="自动识别的审查工作流">
-          {AUDIT_WORKFLOWS.map((workflow) => (
+        {pathFeedback.showRouteCard ? (
+          <div className="route-grid" aria-label="自动识别的审查工作流">
+            {[detectedWorkflow].map((workflow) => (
             <div
               key={workflow.id}
               className={`route-card readonly${detected === workflow.id ? " active" : " muted"}`}
@@ -186,28 +190,23 @@ export default function HomePage({
                 </span>
               ) : null}
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : null}
 
-        {!detectedSource.valid ? (
+        {pathFeedback.showSourceError ? (
           <p className="route-hint" style={{ color: "var(--err)" }}>
             <Icon name="info" size={12} /> {detectedSource.reason}
           </p>
         ) : null}
-        {!detectedWorkflow ? (
+        {pathFeedback.showWorkflowError ? (
           <p className="route-hint" style={{ color: "var(--err)" }}>
             <Icon name="info" size={12} /> {UNKNOWN_WORKFLOW_MESSAGE}
           </p>
         ) : null}
-        {submitError ? (
+        {pathFeedback.showSubmitError ? (
           <p className="route-hint" style={{ color: "var(--err)" }}>
             {submitError}
-          </p>
-        ) : null}
-        {detectedWorkflow ? (
-          <p className="route-hint">
-            <Icon name="info" size={12} /> 已自动识别工作流：
-            {detectedWorkflow.name}
           </p>
         ) : null}
 
@@ -239,9 +238,6 @@ export default function HomePage({
         />
 
         <div className="home-actions">
-          <span className="ha-meta mono">
-            {detectedWorkflow ? detectedWorkflow.name : "未识别工作流"}
-          </span>
           <button
             className="btn primary lg"
             onClick={submit}
