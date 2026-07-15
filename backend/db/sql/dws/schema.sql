@@ -34,8 +34,7 @@ CREATE TABLE IF NOT EXISTS dwp.p_audit_run (
 CREATE TABLE IF NOT EXISTS dwp.p_audit_run_report (
     task_id BIGINT PRIMARY KEY,
     report_json TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (task_id) REFERENCES dwp.p_audit_run(id)
+    created_at TIMESTAMP NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS dwp.p_audit_run_issue (
@@ -46,8 +45,7 @@ CREATE TABLE IF NOT EXISTS dwp.p_audit_run_issue (
     line_no INTEGER NOT NULL,
     rule_name TEXT NOT NULL,
     level TEXT NOT NULL,
-    message TEXT NOT NULL,
-    FOREIGN KEY (task_id) REFERENCES dwp.p_audit_run(id)
+    message TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS dwp.fine_report_items (
