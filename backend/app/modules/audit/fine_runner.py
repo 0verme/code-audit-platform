@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import os
 from urllib.parse import quote
 
 from .compat import build_legacy_fine_audit_result_rows
 from .fine_report_builder import build_fine_report
 from .result_normalizer import dedupe_tables, normalize_table, rule_label, text_to_messages
 from .workflow_runtime import WorkflowRuntimeContext
+
+
+DEFAULT_FINE_REPORT_PREVIEW_URL = "https://fine.example.com/svn_check.html"
+
+
+def get_fine_report_preview_url() -> str:
+    """Return the deployment-configured FineReport preview endpoint."""
+    return os.getenv("FINE_REPORT_PREVIEW_URL", DEFAULT_FINE_REPORT_PREVIEW_URL).strip().rstrip("/")
 
 
 def run_fine(context: WorkflowRuntimeContext) -> dict:
@@ -125,11 +134,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         elif result is not None:
             issues = [{"cat": "tpl", "loc": file_name, "rule": "规则执行异常", "level": "warn", "msg": str(result)}]
 
-        preview_url = (
-            f"https://fine.example.com/svn_check.html?viewlet={quote(viewlet, safe='')}"
-            if viewlet
-            else ""
-        )
+        preview_url = f"{get_fine_report_preview_url()}?viewlet={quote(viewlet, safe='')}" if viewlet else ""
         reports.append(
             {
                 "title": title,

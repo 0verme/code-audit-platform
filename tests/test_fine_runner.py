@@ -1,6 +1,7 @@
 import sys
 import types
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 
@@ -169,6 +170,17 @@ class FineRunnerTests(unittest.TestCase):
         )
         self.assertEqual(report["refTables"], report["reports"][0]["refTables"])
         self.assertEqual(saved_groups[0]["fine"][0]["file"], "rel/report.cpt")
+
+    def test_run_fine_uses_configured_preview_endpoint(self):
+        context, *_ = self._build_context()
+
+        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "http://10.133.6.11:4388/svn_check.html/"}):
+            report = run_fine(context)
+
+        self.assertEqual(
+            report["reports"][0]["previewUrl"],
+            "http://10.133.6.11:4388/svn_check.html?viewlet=ReportA",
+        )
 
 
 if __name__ == "__main__":
