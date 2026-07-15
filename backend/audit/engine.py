@@ -75,6 +75,7 @@ from .source_resolver import (
     resolve_workspace,
     resolve_workflow,
 )
+from .source_download import build_source_download_url, source_relative_paths, source_relative_paths_from_changes
 from .workflow_dispatcher import WorkflowRunContext, run_workflow
 from .workflow_runtime import WorkflowRuntimeContext
 from db.profiles import get_active_profile
@@ -278,6 +279,8 @@ class TaskRun:
         self.start_ts = time.time()
         self.run_state = create_audit_run_state(task_id, workflow)
         self.run_state.mark_running()
+        self._source_download_paths = {}
+        self._source_download_by_relative = {}
 
     # ---- 日志 / 进度 ----
 
@@ -468,6 +471,7 @@ class TaskRun:
                 )
                 self.log(f"SVN 拉取完成，导出 {len(svn_result['exported_paths'])} 个变更文件")
             self.task_success("source_load", summary={"files": len(svn_result.get("exported_paths", []))})
+            self._configure_source_downloads(svn_result)
             self.update(progress=25, step="分析文件")
 
             report = run_workflow(
@@ -502,7 +506,10 @@ class TaskRun:
     # ---- 公共构建 ----
 
     def download_url(self, path):
-        return self.safe("下载链接", lambda: _mods.re_service.build_export_download_url(path), "") or ""
+        relative_path = getattr(self, "_source_download_paths", {}).get(str(Path(path).resolve()))
+        if not relative_path:
+            return ""
+        return build_source_download_url(self.task_id, relative_path)
 
     def build_task_meta(self, svn_result, status, extra):
         return _build_task_meta(
@@ -525,7 +532,21 @@ class TaskRun:
         }
 
     def build_changes(self, svn_result, path_map=None):
-        return _build_changes(svn_result, self.download_url, path_map)
+        paths = dict(path_map or {})
+        paths.update(getattr(self, "_source_download_by_relative", {}))
+        return _build_changes(svn_result, self.download_url, paths)
+
+    def _configure_source_downloads(self, svn_result):
+        if self.source_type == "local":
+            root = svn_result.get("workspace_root") or self.repo
+            self._source_download_paths = source_relative_paths(svn_result.get("exported_paths", []), root)
+        else:
+            self._source_download_paths = source_relative_paths_from_changes(
+                svn_result.get("exported_paths", []), svn_result.get("branch_changed_files", [])
+            )
+        self._source_download_by_relative = {
+            relative: path for path, relative in self._source_download_paths.items()
+        }
 
     def build_conflicts(self, svn_result):
         return _build_conflicts(svn_result)

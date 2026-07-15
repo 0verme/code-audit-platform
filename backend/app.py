@@ -9,12 +9,13 @@ from runtime_security import get_runtime_security_settings, load_backend_dotenv
 
 load_backend_dotenv()
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 
 import audit.engine as audit_engine
 from audit.checks.workspace_service import validate_local_workspace
 from audit.source_resolver import UnsupportedAuditSourceError, validate_supported_source_type
+from audit.source_download import resolve_source_download_path
 from db.runtime_store import (
     fail_orphan_tasks,
     get_audit_task as load_audit_task,
@@ -146,6 +147,31 @@ def get_audit_task_report(task_id: int):
     if row is None:
         return jsonify({"error": "report not ready"}), 404
     return app.response_class(row["report_json"], mimetype="application/json")
+
+
+@app.get("/api/audit-tasks/<int:task_id>/source-file")
+def download_audit_source_file(task_id: int):
+    relative_path = request.args.get("path", "")
+    task = load_audit_task(task_id)
+    report_row = get_task_report_row(task_id)
+    if task is None or report_row is None:
+        return jsonify({"error": "audit task or report not found"}), 404
+    try:
+        report = json.loads(report_row["report_json"])
+        re_service = getattr(audit_engine._mods, "re_service", None) or __import__(
+            "audit.checks.re_service", fromlist=["get_export_base"]
+        )
+        source_file = resolve_source_download_path(
+            task=dict(task),
+            report=report,
+            relative_path=relative_path,
+            export_base=re_service.get_export_base(),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        return jsonify({"error": str(exc) or "source file not found"}), 404
+    return send_file(source_file, as_attachment=True, download_name=source_file.name)
 
 
 @app.get("/api/audit-runs/<int:run_id>/status")

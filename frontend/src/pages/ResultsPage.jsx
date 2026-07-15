@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { PyScriptAuditSection, ScriptDetailDrawer } from "./ScriptAudit";
 import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows } from "../utils/hcytResultPresentation";
+import { downloadSourceFile, resolveSourceDownloadUrl } from "../utils/sourceDownload.js";
 
 export const STATUS_META = {
   pass: { tone: "ok", icon: "check", label: "审查通过", desc: "未发现阻断性问题，可合并" },
@@ -317,7 +318,14 @@ function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
         <div className="script-bar">
           <Icon name="file" size={12} /> 检查脚本：<span className="mono">{scriptMeta.script}</span>
           {scriptMeta.downloadUrl ? (
-            <a className="dl-link" href={scriptMeta.downloadUrl} target="_blank" rel="noreferrer">
+            <a
+              className="dl-link"
+              href={resolveSourceDownloadUrl(scriptMeta.downloadUrl)}
+              onClick={(event) => {
+                event.preventDefault();
+                downloadSourceFile(scriptMeta.downloadUrl).catch((error) => window.alert(`下载失败：${error.message || error}`));
+              }}
+            >
               <Icon name="download" size={12} /> 下载代码
             </a>
           ) : null}
