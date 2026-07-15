@@ -134,6 +134,7 @@ def run_hcyt_inspections(
             program_xls=program_xls,
             py_lists=py_lists,
             db_job_rows=db_job_rows,
+            log_timing=log_timing,
         )
     finally:
         if log_timing is not None:

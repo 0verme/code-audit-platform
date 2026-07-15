@@ -16,6 +16,7 @@ def run_hcyt_schedule(
     modules,
     build_job_table,
     rule_label,
+    log_timing=None,
 ):
     return _run_hcyt_schedule(
         plan_xls,
@@ -30,6 +31,7 @@ def run_hcyt_schedule(
             warn_text,
             rule_label=rule_label,
         ),
+        log_timing=log_timing,
     )
 
 
@@ -49,6 +51,7 @@ def run_hcyt_programs(
     dedupe_tables,
     cale_map,
     text_to_rows,
+    log_timing=None,
 ):
     return _run_hcyt_programs(
         py_lists,
@@ -64,6 +67,7 @@ def run_hcyt_programs(
         normalize_table=normalize_table,
         dedupe_tables=dedupe_tables,
         cale_map=cale_map,
+        log_timing=log_timing,
     )
 
 

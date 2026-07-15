@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+import time
+
+
+def _timed(label, fn, log_timing=None, **fields):
+    started = time.perf_counter()
+    if log_timing is not None:
+        log_timing(label, "start", **fields)
+    try:
+        return fn()
+    finally:
+        if log_timing is not None:
+            log_timing(label, "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1), **fields)
+
 
 def run_hcyt_programs(
     py_lists,
@@ -16,6 +29,7 @@ def run_hcyt_programs(
     normalize_table,
     dedupe_tables,
     cale_map,
+    log_timing=None,
 ):
     py_scripts, py_rows, ref_tables, deps, asset_issues = [], [], [], [], []
     if not py_lists:
@@ -24,38 +38,47 @@ def run_hcyt_programs(
     program_lookup = dependency_lookup = None
     if job_df is not None and program_xls:
         def build_lookups():
-            program_df = modules.re_service.load_xls_to_df(program_xls)
+            program_df = _timed("programs.load_excel", lambda: modules.re_service.load_xls_to_df(program_xls), log_timing)
             merge_job = modules.hcyt.all_job_df(job_df, db_job_rows) if db_job_rows is not None else job_df
             try:
-                merge_program = modules.hcyt.all_program_df(program_df)
+                merge_program = _timed("programs.normalize_excel", lambda: modules.hcyt.all_program_df(program_df), log_timing)
             except Exception:
                 merge_program = program_df
             prog_path_col = merge_program.columns[4]
-            merged = modules.re_service.merge_job_program(merge_job, merge_program)
+            merged = _timed("programs.merge_job_program", lambda: modules.re_service.merge_job_program(merge_job, merge_program), log_timing)
             return (
-                modules.re_service.build_program_lookup(merged, prog_path_col, tail_levels=4),
-                modules.re_service.build_dependency_table_lookup(merged),
+                _timed("programs.build_program_lookup", lambda: modules.re_service.build_program_lookup(merged, prog_path_col, tail_levels=4), log_timing),
+                _timed("programs.build_dependency_lookup", lambda: modules.re_service.build_dependency_table_lookup(merged), log_timing),
             )
 
-        program_lookup, dependency_lookup = safe("JOB/PROGRAM 调度关联", build_lookups, (None, None))
+        program_lookup, dependency_lookup = _timed(
+            "programs.build_lookups",
+            lambda: safe("JOB/PROGRAM 调度关联", build_lookups, (None, None)),
+            log_timing,
+        )
 
-    registered = set(
-        safe(
+    registered = set(_timed(
+        "programs.load_registered_tables",
+        lambda: safe(
             "结果表登记库(lineage)",
             lambda: modules.load_registered_result_tables(profile=profile_name),
             set(),
-        )
-    )
-    para_tables = set(
-        safe(
+        ),
+        log_timing,
+    ))
+    para_tables = set(_timed(
+        "programs.load_parameter_tables",
+        lambda: safe(
             "码值参数表(all_para_table_lists)",
             lambda: {normalize_table(row[0]) for row in modules.public_data.all_para_table_lists() if row and row[0]},
             set(),
-        )
-    )
-    disabled, sys_name_map = load_result_table_annotations()
-    disabled_job_names = set(
-        safe(
+        ),
+        log_timing,
+    ))
+    disabled, sys_name_map = _timed("programs.load_annotations", load_result_table_annotations, log_timing)
+    disabled_job_names = set(_timed(
+        "programs.load_disabled_jobs",
+        lambda: safe(
             "禁用作业(all_job)",
             lambda: {
                 str(row[2]).strip().upper()
@@ -63,17 +86,19 @@ def run_hcyt_programs(
                 if len(row) > 23 and row[2] and str(row[23]).strip() in ("9", "9.0")
             },
             set(),
-        )
-    )
+        ),
+        log_timing,
+    ))
 
     upstream_tables, job_names = [], []
     for path in py_lists:
         file_name = modules.re_service.get_filename(path)
-        result = safe(f"加工程序规则({file_name})", lambda p=path: modules.hcyt.rule_dws_py(p), ("", "", 0, []))
+        file_fields = {"file": file_name}
+        result = _timed("programs.file.rules", lambda: safe(f"加工程序规则({file_name})", lambda p=path: modules.hcyt.rule_dws_py(p), ("", "", 0, [])), log_timing, **file_fields)
         lint = modules.text_to_rows(result[0], result[1], file_name)
         sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
-        table_name = safe("表名解析", lambda p=path: modules.hcyt.get_program_table_name(p), "")
-        source_text = safe(f"加工程序内容读取({file_name})", lambda p=path: modules.re_service.read_data_from_file(p), "")
+        table_name = _timed("programs.file.table_name", lambda: safe("表名解析", lambda p=path: modules.hcyt.get_program_table_name(p), ""), log_timing, **file_fields)
+        source_text = _timed("programs.file.read_source", lambda: safe(f"加工程序内容读取({file_name})", lambda p=path: modules.re_service.read_data_from_file(p), ""), log_timing, **file_fields)
         asset_issues += safe(
             f"加工程序资产表待核对 issue({file_name})",
             lambda names=sql_tables, source=file_name: modules.hcyt_python_rule.build_asset_table_review_issues(
@@ -98,7 +123,7 @@ def run_hcyt_programs(
                 yilai = modules.re_service.get_yilai_table_from_lookup(info[2], dependency_lookup)
                 return info[0], info[1], yilai
 
-            looked = safe(f"调度信息关联({file_name})", lookup, ("", "", None))
+            looked = _timed("programs.file.schedule_lookup", lambda: safe(f"调度信息关联({file_name})", lookup, ("", "", None)), log_timing, **file_fields)
             job_name = str(looked[0] or "")
             freq = cale_map.get(looked[1], str(looked[1] or ""))
             yilai_tables = dedupe_tables(looked[2]) if looked[2] is not None else None

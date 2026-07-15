@@ -203,7 +203,19 @@ def get_audit_run_partial_result(task_id: int) -> dict | None:
     return _get_audit_run_partial_result(task_id)
 
 
-def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None):
+def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None, log_timing=None):
+    import time
+
+    def timed(label, fn, **fields):
+        started = time.perf_counter()
+        if log_timing is not None:
+            log_timing(label, "start", **fields)
+        try:
+            return fn()
+        finally:
+            if log_timing is not None:
+                log_timing(label, "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1), **fields)
+
     warnings = []
     merge_df = None
     job_outfile_lookup = {}
@@ -213,7 +225,7 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
         warnings.append("job metadata unavailable")
     else:
         try:
-            job_outfile_rows = metadata_service.list_job_outfiles() or []
+            job_outfile_rows = timed("lineage.load_job_outfiles", lambda: metadata_service.list_job_outfiles() or [])
             job_outfile_lookup = m.re_service.build_job_outfile_lookup(job_outfile_rows)
         except Exception as exc:
             warnings.append(lineage_warning("job outfile metadata", exc))
@@ -221,24 +233,27 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
 
     if job_df is not None and program_xls:
         try:
-            program_df = m.re_service.load_xls_to_df(program_xls)
-            merge_job = m.hcyt.all_job_df(job_df, db_job_rows) if db_job_rows is not None else job_df
+            program_df = timed("lineage.load_program_excel", lambda: m.re_service.load_xls_to_df(program_xls))
+            merge_job = timed("lineage.normalize_job", lambda: m.hcyt.all_job_df(job_df, db_job_rows)) if db_job_rows is not None else job_df
             try:
-                merge_program = m.hcyt.all_program_df(program_df)
+                merge_program = timed("lineage.normalize_program", lambda: m.hcyt.all_program_df(program_df))
             except Exception:
                 merge_program = program_df
-            merge_df = m.re_service.merge_job_program(merge_job, merge_program)
+            merge_df = timed("lineage.merge_job_program", lambda: m.re_service.merge_job_program(merge_job, merge_program))
         except Exception as exc:
             warnings.append(lineage_warning("merge metadata", exc))
     elif job_df is None:
         warnings.append("job metadata unavailable")
 
     try:
-        summary = m.re_service.build_wide_table_lineage_summary(
-            merge_df=merge_df,
-            input_path=None,
-            job_outfile_lookup=job_outfile_lookup,
-            metadata_service=metadata_service,
+        summary = timed(
+            "lineage.build_wide_summary",
+            lambda: m.re_service.build_wide_table_lineage_summary(
+                merge_df=merge_df,
+                input_path=None,
+                job_outfile_lookup=job_outfile_lookup,
+                metadata_service=metadata_service,
+            ),
         )
     except Exception as exc:
         summary = empty_lineage_summary([lineage_warning("lineage summary", exc)])
@@ -604,7 +619,7 @@ class TaskRun:
         """schema_config ??JSON ?????????dict -> ???/???list[dict] -> ???????"""
         return _build_config_files(config_paths)
 
-    def run_hcyt_schedule(self, plan_xls, seq_xls, cale_xls, job_xls):
+    def run_hcyt_schedule(self, plan_xls, seq_xls, cale_xls, job_xls, log_timing=None):
         """调度清单表格（PLAN/SEQ/CALE/JOB）+ 规则告警，复刻 hcyt_stream._render_schedule_section。"""
         return _run_hcyt_schedule(
             plan_xls,
@@ -615,6 +630,7 @@ class TaskRun:
             modules=_mods,
             build_job_table=self.build_job_table,
             rule_label=rule_label,
+            log_timing=log_timing,
         )
 
     def build_job_table(self, job_source, db_job_rows):
@@ -622,7 +638,7 @@ class TaskRun:
         ??? hcyt_stream.build_job_display_df ??????????"""
         return _build_job_table(job_source, db_job_rows)
 
-    def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows):
+    def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows, log_timing=None):
         return _run_hcyt_programs(
             py_lists,
             job_df,
@@ -638,6 +654,7 @@ class TaskRun:
             dedupe_tables=dedupe_tables,
             cale_map=CALE_MAP,
             text_to_rows=text_to_rows,
+            log_timing=log_timing,
         )
 
     # ===================================================================
