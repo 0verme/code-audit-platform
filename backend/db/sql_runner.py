@@ -81,7 +81,7 @@ class SQLRunner:
 
     def normalize_sql(self, sql: str) -> str:
         sql = render_table_tokens(sql, self.profile)
-        if self.profile.type == "sqlite":
+        if self.profile.type in {"sqlite", "dws"}:
             return sql
         return sql.replace("?", "%s")
 
@@ -145,7 +145,7 @@ class TransactionRunner:
 
     def normalize_sql(self, sql: str) -> str:
         sql = render_table_tokens(sql, self.profile)
-        if self.profile.type == "sqlite":
+        if self.profile.type in {"sqlite", "dws"}:
             return sql
         return sql.replace("?", "%s")
 

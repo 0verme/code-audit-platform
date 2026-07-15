@@ -30,6 +30,22 @@ cp backend/configs/database.example.yaml backend/configs/database.yaml
 cp backend/configs/svn.example.yaml backend/configs/svn.yaml
 ```
 
+## DWS / GaussDB JDBC
+
+DWS 使用 Huawei JDBC 驱动，而不是 PostgreSQL 的 psycopg 驱动。将部署方提供的
+`gaussdb200.jar` 放在 `backend/resources/jars/gaussdb200.jar`，或在 profile 中通过
+`jar_path` 指向该文件（也可用 `AUDIT_DWS_JAR_PATH` 覆盖）。示例配置保留对原有
+`AUDIT_DWS_HOST`、`AUDIT_DWS_PORT`、`AUDIT_DWS_DATABASE`、`AUDIT_DWS_USER`、
+`AUDIT_DWS_PASSWORD`、`AUDIT_DWS_SCHEMA` 环境变量的兼容，并自动生成：
+
+```text
+jdbc:gaussdb://<host>:<port>/<database>?currentSchema=<schema>
+```
+
+也可以在 profile 中直接设置 `jdbc_url`、`user`、`password`、`driver`、`jar_path`、
+`connect_timeout`、`socket_timeout` 和 `statement_timeout_ms`。运行时会在 JDBC URL 中
+补充未显式设置的 `loginTimeout`、`connectTimeout` 和 `socketTimeout` 参数。
+
 编辑 `backend/configs/database.yaml`，只保留一个实际使用的 profile，并让 `default_profile` 指向它。
 
 示例：

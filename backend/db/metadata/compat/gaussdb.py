@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """DWS adapter backed by the unified profile format.
 
-Current implementation intentionally reuses the PostgreSQL driver stack.
+Uses the Huawei GaussDB JDBC driver through JayDeBeApi.
 """
 from __future__ import annotations
 
 import traceback
 
-from db.connection import connect_postgresql
+from db.connection import connect_dws
 from db.profiles import ProfileConfigError, resolve_profile
 
 
@@ -22,7 +22,7 @@ def get_db_profile(profile: str | None = None):
 
 
 def connect_with_profile(profile: str | None = None):
-    return connect_postgresql(get_db_profile(profile))
+    return connect_dws(get_db_profile(profile))
 
 
 def fetch_all(profile: str | None, sql: str):
@@ -30,7 +30,7 @@ def fetch_all(profile: str | None, sql: str):
     curs = None
     resolved = get_db_profile(profile)
     try:
-        conn = connect_postgresql(resolved)
+        conn = connect_dws(resolved)
         curs = conn.cursor()
         curs.execute(sql)
         return curs.fetchall()
@@ -56,7 +56,7 @@ def execute_sql(profile: str | None, sql: str, autocommit: bool = True):
     curs = None
     resolved = get_db_profile(profile)
     try:
-        conn = connect_postgresql(resolved)
+        conn = connect_dws(resolved)
         curs = conn.cursor()
         curs.execute(sql)
         if autocommit:

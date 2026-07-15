@@ -1,5 +1,5 @@
-# Inner-network DWS template. Copy to backend/configs/database.yaml on the deployment host.
-# ${NAME} values are expanded from the process environment; missing values fail startup.
+# Inner-network DWS JDBC template. Copy to backend/configs/database.yaml on the deployment host.
+# ${NAME} values are expanded from the process environment; do not commit actual credentials.
 default_profile: inner_dws
 
 profiles:
@@ -11,7 +11,10 @@ profiles:
     username: ${AUDIT_DWS_USER}
     password: ${AUDIT_DWS_PASSWORD}
     schema: ${AUDIT_DWS_SCHEMA}
+    # jdbc_url is optional when the legacy host/port/database/schema values above are set.
+    # jdbc_url: jdbc:gaussdb://dws.example.internal:8000/code_audit?currentSchema=dwp
+    driver: com.huawei.gauss200.jdbc.Driver
+    jar_path: backend/resources/jars/gaussdb200.jar
     connect_timeout: 10
+    socket_timeout: 30
     statement_timeout_ms: 30000
-    application_name: code-audit-platform
-    sslmode: require

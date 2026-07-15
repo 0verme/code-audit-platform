@@ -14,18 +14,26 @@ from db.sql_runner import SQLRunner  # noqa: E402
 
 
 def profile(db_type: str = "postgresql") -> DatabaseProfile:
+    config = {
+        "type": db_type,
+        "host": "127.0.0.1",
+        "port": 5432,
+        "database": "code_audit_test",
+        "username": "change_me",
+        "password": "change_me",
+        "schema": "public",
+    }
+    if db_type == "dws":
+        config.update({
+            "user": "change_me",
+            "jdbc_url": "jdbc:gaussdb://127.0.0.1:8000/code_audit_test?currentSchema=public",
+            "driver": "com.huawei.gauss200.jdbc.Driver",
+            "jar_path": "C:/drivers/gaussdb200.jar",
+        })
     return DatabaseProfile(
         f"test_{db_type}",
         db_type,
-        {
-            "type": db_type,
-            "host": "127.0.0.1",
-            "port": 5432,
-            "database": "code_audit_test",
-            "username": "change_me",
-            "password": "change_me",
-            "schema": "public",
-        },
+        config,
     )
 
 
@@ -85,7 +93,7 @@ class SQLRunnerTests(unittest.TestCase):
         fake = FakeConnection()
         runner = SQLRunner(profile("dws"), connection_factory=lambda _: fake)
         runner.execute("UPDATE sample SET name = ? WHERE id = ?", ("x", 7))
-        self.assertEqual(fake.cursor_obj.executed[-1], ("UPDATE sample SET name = %s WHERE id = %s", ("x", 7)))
+        self.assertEqual(fake.cursor_obj.executed[-1], ("UPDATE sample SET name = ? WHERE id = ?", ("x", 7)))
         self.assertEqual(fake.commits, 1)
 
     def test_insert_returning_id(self):
@@ -110,7 +118,7 @@ class SQLRunnerTests(unittest.TestCase):
         self.assertEqual(fake.commits, 1)
         self.assertTrue(fake.closed)
 
-    def test_connect_uses_available_driver_for_both_types(self):
+    def test_connect_uses_postgres_and_jdbc_drivers_for_their_respective_types(self):
         fake_driver_connection = object()
 
         class FakePsycopg:
@@ -118,9 +126,10 @@ class SQLRunnerTests(unittest.TestCase):
             def connect(**kwargs):
                 return fake_driver_connection
 
-        with patch("db.connection.psycopg", FakePsycopg), patch("db.connection.psycopg2", None):
+        with patch("db.connection.psycopg", FakePsycopg), patch("db.connection.psycopg2", None), patch("db.connection.jaydebeapi") as jaydebeapi:
             self.assertIs(connect(profile("postgresql")), fake_driver_connection)
-            self.assertIs(connect(profile("dws")), fake_driver_connection)
+            self.assertIs(connect(profile("dws")), jaydebeapi.connect.return_value)
+        jaydebeapi.connect.assert_called_once()
 
 
 if __name__ == "__main__":

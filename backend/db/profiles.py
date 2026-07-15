@@ -4,6 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import yaml
 
@@ -16,10 +17,13 @@ LEGACY_CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
 DEPLOYMENT_MODE_ENV = "CODE_AUDIT_DEPLOYMENT_MODE"
 SUPPORTED_TYPES = {"postgresql", "dws"}
-REQUIRED_PROFILE_FIELDS = ("type", "host", "port", "database", "username", "password", "schema")
+POSTGRES_REQUIRED_PROFILE_FIELDS = ("type", "host", "port", "database", "username", "password", "schema")
+DWS_CONNECTION_FIELDS = ("host", "port", "database", "schema")
 SUPPORTED_TYPES_TEXT = "postgresql, dws"
 DEFAULT_RUNTIME_SCHEMA = "dwp"
 DEFAULT_TABLE_PREFIX = "p_audit_"
+DEFAULT_DWS_DRIVER = "com.huawei.gauss200.jdbc.Driver"
+DEFAULT_DWS_JAR_PATH = BACKEND_DIR / "resources" / "jars" / "gaussdb200.jar"
 
 
 class ProfileConfigError(RuntimeError):
@@ -78,6 +82,51 @@ def _expand_environment_values(value: Any) -> Any:
     if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
         return os.getenv(value[2:-1], "")
     return value
+
+
+def with_jdbc_timeouts(jdbc_url: str, *, connect_timeout_seconds: int, socket_timeout_seconds: int) -> str:
+    """Add Huawei JDBC timeout parameters without replacing explicit URL values."""
+    raw_url = (jdbc_url or "").strip()
+    if not raw_url:
+        return raw_url
+    split = urlsplit(raw_url.removeprefix("jdbc:"))
+    parameters = dict(parse_qsl(split.query, keep_blank_values=True))
+    parameters.setdefault("loginTimeout", str(connect_timeout_seconds))
+    parameters.setdefault("connectTimeout", str(connect_timeout_seconds * 1000))
+    parameters.setdefault("socketTimeout", str(socket_timeout_seconds * 1000))
+    rebuilt = urlunsplit((split.scheme, split.netloc, split.path, urlencode(parameters), split.fragment))
+    return f"jdbc:{rebuilt}"
+
+
+def _normalize_dws_config(config: dict[str, Any]) -> None:
+    """Normalize JDBC settings while retaining legacy DWS host credentials."""
+    if not config.get("user") and config.get("username"):
+        config["user"] = config["username"]
+    if not config.get("username") and config.get("user"):
+        config["username"] = config["user"]
+    config.setdefault("driver", DEFAULT_DWS_DRIVER)
+    config.setdefault("connect_timeout", 30)
+    config.setdefault("statement_timeout_ms", 120000)
+    config.setdefault("socket_timeout", max(1, int(config["statement_timeout_ms"]) // 1000))
+    jar_path = Path(config.get("jar_path") or os.getenv("AUDIT_DWS_JAR_PATH") or DEFAULT_DWS_JAR_PATH)
+    if not jar_path.is_absolute():
+        jar_path = PROJECT_ROOT / jar_path
+    config["jar_path"] = str(jar_path)
+    if not config.get("jdbc_url"):
+        missing = [key for key in DWS_CONNECTION_FIELDS if not config.get(key)]
+        if missing:
+            raise ProfileConfigError(
+                "Invalid DWS profile: jdbc_url is required when legacy host settings are incomplete: " + ", ".join(missing)
+            )
+        config["jdbc_url"] = (
+            f"jdbc:gaussdb://{config['host']}:{int(config['port'])}/{config['database']}"
+            f"?currentSchema={config['schema']}"
+        )
+    config["jdbc_url"] = with_jdbc_timeouts(
+        str(config["jdbc_url"]),
+        connect_timeout_seconds=int(config["connect_timeout"]),
+        socket_timeout_seconds=int(config["socket_timeout"]),
+    )
 
 
 def _validate_deployment_profile(profile: DatabaseProfile) -> None:
@@ -160,7 +209,10 @@ def resolve_profile(
         )
     config["type"] = db_type
 
-    missing = [key for key in REQUIRED_PROFILE_FIELDS if not config.get(key)]
+    if db_type == "dws":
+        _normalize_dws_config(config)
+    required_fields = POSTGRES_REQUIRED_PROFILE_FIELDS if db_type == "postgresql" else ("type", "user", "password")
+    missing = [key for key in required_fields if not config.get(key)]
     if missing:
         missing_fields = ", ".join(f"profiles.{selected_name}.{key}" for key in missing)
         raise ProfileConfigError(
@@ -168,13 +220,14 @@ def resolve_profile(
             f"supported types are [{SUPPORTED_TYPES_TEXT}]"
         )
     config.setdefault("table_prefix", DEFAULT_TABLE_PREFIX)
-    try:
-        config["port"] = int(config["port"])
-    except (TypeError, ValueError) as exc:
-        raise ProfileConfigError(
-            f"Invalid database profile '{selected_name}': field 'port' must be an integer; "
-            f"supported types are [{SUPPORTED_TYPES_TEXT}]"
-        ) from exc
+    if config.get("port") is not None:
+        try:
+            config["port"] = int(config["port"])
+        except (TypeError, ValueError) as exc:
+            raise ProfileConfigError(
+                f"Invalid database profile '{selected_name}': field 'port' must be an integer; "
+                f"supported types are [{SUPPORTED_TYPES_TEXT}]"
+            ) from exc
     profile = DatabaseProfile(name=selected_name, type=db_type, config=config)
     _validate_deployment_profile(profile)
     return profile

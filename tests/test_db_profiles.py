@@ -69,6 +69,35 @@ class DatabaseProfileTests(unittest.TestCase):
         self.assertTrue(profile.is_dws)
         self.assertEqual(profile.config["schema"], "dwp")
 
+    def test_dws_legacy_settings_build_jdbc_url_and_timeouts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            profile = resolve_profile("local_dws", config_path=config_path)
+        self.assertEqual(profile.config["user"], "change_me")
+        self.assertEqual(
+            profile.config["jdbc_url"],
+            "jdbc:gaussdb://127.0.0.1:8000/code_audit?currentSchema=dwp&loginTimeout=30&connectTimeout=30000&socketTimeout=120000",
+        )
+        self.assertEqual(profile.config["jar_path"], str(BACKEND_DIR / "resources" / "jars" / "gaussdb200.jar"))
+
+    def test_dws_jdbc_url_preserves_explicit_timeout_parameters(self):
+        content = """
+default_profile: dws
+profiles:
+  dws:
+    type: dws
+    jdbc_url: jdbc:gaussdb://db.example:8000/audit?currentSchema=custom&socketTimeout=99
+    user: demo
+    password: demo
+    connect_timeout: 4
+    socket_timeout: 8
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            profile = resolve_profile(config_path=self.write_config(tmp, content))
+        self.assertIn("loginTimeout=4", profile.config["jdbc_url"])
+        self.assertIn("connectTimeout=4000", profile.config["jdbc_url"])
+        self.assertIn("socketTimeout=99", profile.config["jdbc_url"])
+
     def test_environment_profile_override(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)

@@ -17,6 +17,11 @@ try:
 except ImportError:  # pragma: no cover
     psycopg2 = None
 
+try:
+    import jaydebeapi
+except ImportError:  # pragma: no cover
+    jaydebeapi = None
+
 
 DB_PATH = None
 
@@ -34,8 +39,10 @@ def connect(profile: str | DatabaseProfile | None = None) -> Any:
     resolved = _resolve_profile(profile)
     if resolved.type == "sqlite":
         return connect_sqlite(resolved)
-    if resolved.type in {"postgresql", "dws"}:
+    if resolved.type == "postgresql":
         return connect_postgresql(resolved)
+    if resolved.type == "dws":
+        return connect_dws(resolved)
     raise DatabaseDriverError(f"Unsupported database type: {resolved.type}")
 
 
@@ -69,7 +76,19 @@ def connect_postgresql(profile: DatabaseProfile) -> Any:
         connection = psycopg2.connect(**connection_options)
         connection.autocommit = False
         return connection
-    raise DatabaseDriverError("PostgreSQL/DWS driver not installed. Install psycopg[binary] or psycopg2-binary.")
+    raise DatabaseDriverError("PostgreSQL driver not installed. Install psycopg[binary] or psycopg2-binary.")
+
+
+def connect_dws(profile: DatabaseProfile) -> Any:
+    if jaydebeapi is None:
+        raise DatabaseDriverError("DWS JDBC driver not installed. Install JayDeBeApi==1.2.3 and JPype1==1.5.0.")
+    config = profile.config
+    try:
+        return jaydebeapi.connect(
+            config["driver"], config["jdbc_url"], [config["user"], config["password"]], config["jar_path"]
+        )
+    except Exception as exc:
+        raise DatabaseDriverError(f"Failed to connect to DWS through JDBC: {exc}") from exc
 
 
 def _build_pg_options(config: dict[str, Any]) -> str | None:
@@ -173,7 +192,7 @@ class CompatConnection:
         self._connection.close()
 
     def _normalize_sql(self, sql):
-        if self.profile.type == "sqlite":
+        if self.profile.type in {"sqlite", "dws"}:
             return render_table_tokens(sql, self.profile)
         return render_table_tokens(sql, self.profile).replace("?", "%s")
 

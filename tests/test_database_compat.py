@@ -8,7 +8,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.connection import CompatConnection  # noqa: E402
+from db.connection import CompatConnection, connect_dws  # noqa: E402
 from db.profiles import DatabaseProfile  # noqa: E402
 from db.runtime_store import build_audit_result_row_payloads, persist_task_run_completion, update_task_runtime_state, upsert_task_report  # noqa: E402
 from db.schema import init_db  # noqa: E402
@@ -26,6 +26,18 @@ def pg_profile() -> DatabaseProfile:
             "username": "demo",
             "password": "demo",
             "schema": "dwp",
+        },
+    )
+
+
+def dws_profile() -> DatabaseProfile:
+    return DatabaseProfile(
+        "local_dws",
+        "dws",
+        {
+            "type": "dws", "jdbc_url": "jdbc:gaussdb://db:8000/audit?currentSchema=dwp",
+            "user": "demo", "password": "demo", "driver": "com.huawei.gauss200.jdbc.Driver",
+            "jar_path": "C:/drivers/gaussdb200.jar", "schema": "dwp",
         },
     )
 
@@ -94,6 +106,25 @@ class DatabaseCompatTests(unittest.TestCase):
             ).lastrowid
         self.assertEqual(inserted_id, 42)
         self.assertEqual(fake.cursor_obj.executed[-1], ("INSERT INTO dwp.p_audit_project_config (name) VALUES (%s) RETURNING id", ("demo",)))
+
+    def test_dws_connects_with_huawei_jdbc_driver(self):
+        with patch("db.connection.jaydebeapi") as jaydebeapi:
+            connect_dws(dws_profile())
+        jaydebeapi.connect.assert_called_once_with(
+            "com.huawei.gauss200.jdbc.Driver", "jdbc:gaussdb://db:8000/audit?currentSchema=dwp",
+            ["demo", "demo"], "C:/drivers/gaussdb200.jar",
+        )
+
+    def test_dws_keeps_question_mark_parameter_placeholders(self):
+        fake = SequenceConnection()
+        with patch("db.connection.connect", return_value=fake):
+            CompatConnection(dws_profile()).executemany(
+                "INSERT INTO {{table:projects}} (name) VALUES (?)", [("first",), ("second",)]
+            )
+        self.assertEqual(
+            fake.cursor_obj.executed[-1],
+            ("INSERT INTO dwp.p_audit_project_config (name) VALUES (?)", [("first",), ("second",)]),
+        )
 
     def test_upsert_task_report_uses_active_profile_connection(self):
         fake = SequenceConnection()
