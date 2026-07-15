@@ -221,6 +221,30 @@ function TxtTableSection({ id, icon, title, section, reg }) {
   );
 }
 
+function DatasetSqlCard({ dataset, index }) {
+  const [open, setOpen] = useState(false);
+  const sqlId = `fr-ds-sql-${index}`;
+
+  return (
+    <div className={`fr-ds${open ? " open" : ""}`}>
+      <button
+        type="button"
+        className="fr-ds-top fr-ds-trigger"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-controls={sqlId}
+      >
+        <span className="fr-ds-heading">
+          <Icon name="chevron" size={14} className="fr-ds-chevron" />
+          <span className="fr-ds-name mono">{dataset.name}</span>
+        </span>
+        <span className="fr-ds-rows mono">{dataset.rows} rows</span>
+      </button>
+      {open ? <pre id={sqlId} className="fr-ds-sql mono">{dataset.sql}</pre> : null}
+    </div>
+  );
+}
+
 function ReportDetailDrawer({ report, onClose }) {
   const [shown, setShown] = useState(false);
 
@@ -323,14 +347,8 @@ function ReportDetailDrawer({ report, onClose }) {
           <div className="sd-block">
             <div className="subhead"><Icon name="db" size={12} /> Datasets <span className="sd-num mono">{report.datasets.length}</span></div>
             <div className="fr-ds-list">
-              {report.datasets.map((dataset) => (
-                <div key={dataset.name} className="fr-ds">
-                  <div className="fr-ds-top">
-                    <span className="fr-ds-name mono">{dataset.name}</span>
-                    <span className="fr-ds-rows mono">{dataset.rows} rows</span>
-                  </div>
-                  <pre className="fr-ds-sql mono">{dataset.sql}</pre>
-                </div>
+              {report.datasets.map((dataset, index) => (
+                <DatasetSqlCard key={`${dataset.name}-${index}`} dataset={dataset} index={index} />
               ))}
             </div>
           </div>
