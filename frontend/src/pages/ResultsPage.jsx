@@ -612,7 +612,7 @@ function ScheduleSection({ d, reg }) {
       registerRef={reg}
       count={scheduleIssues.length || "通过"}
       countTone={severity || "ok"}
-      defaultOpen={scheduleIssues.length > 0}
+      defaultOpen
     >
       <div className="panel-body">
         <div className="metrics" style={{ marginBottom: "var(--gap)" }}>
