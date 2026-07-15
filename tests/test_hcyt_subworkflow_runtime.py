@@ -42,6 +42,7 @@ class MinimalProgramModules:
             get_filename=lambda path: Path(path).name,
             read_data_from_file=lambda _path: "",
             safe_remove_prefix=lambda path: path,
+            build_job_outfile_lookup=lambda _rows: {},
         )
         self.hcyt = types.SimpleNamespace(
             rule_dws_py=lambda _path: ("", "", 0, ["DM.TABLE_A"]),
@@ -82,6 +83,7 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
 
     def test_program_wrapper_keeps_noop_fallbacks_and_profile_routing(self):
         modules = MinimalProgramModules()
+        lineage_context = {}
 
         py_scripts, py_rows, ref_tables, deps, asset_issues = run_hcyt_programs(
             ["C:/repo/program.py"],
@@ -91,7 +93,7 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
             safe=lambda _label, fn, _default: fn(),
             modules=modules,
             download_url=lambda path: f"download://{Path(path).name}",
-            load_result_table_annotations=lambda: (set(), {}),
+            load_result_table_annotations=lambda **_kwargs: (set(), {}),
             annotate_table=lambda name, disabled, sys_name_map: {
                 "name": normalize_table(name),
                 "disabled": False,
@@ -103,9 +105,11 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
             dedupe_tables=dedupe_tables,
             cale_map={},
             text_to_rows=text_to_rows,
+            lineage_context=lineage_context,
         )
 
         self.assertEqual(modules.profile_calls, ["local_pg"])
+        self.assertEqual(lineage_context["warnings"], ["lineage metadata unavailable"])
         self.assertEqual(py_rows, [])
         self.assertEqual(py_scripts[0]["script"], "program.py")
         self.assertEqual(py_scripts[0]["job"], "")

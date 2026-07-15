@@ -52,6 +52,7 @@ def run_hcyt_programs(
     cale_map,
     text_to_rows,
     log_timing=None,
+    lineage_context=None,
 ):
     return _run_hcyt_programs(
         py_lists,
@@ -68,6 +69,7 @@ def run_hcyt_programs(
         dedupe_tables=dedupe_tables,
         cale_map=cale_map,
         log_timing=log_timing,
+        lineage_context=lineage_context,
     )
 
 
