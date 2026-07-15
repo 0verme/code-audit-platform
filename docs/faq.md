@@ -25,8 +25,8 @@
 
 排查步骤：
 
-1. 检查 `backend/svn_check/configs/database.yaml` 是否存在。
-2. 检查 `SVN_CHECK_*` 环境变量是否覆盖了 YAML。
+1. 检查 `backend/database.yaml` 是否存在。
+2. 检查 `AUDIT_DATABASE_CONFIG` 和 `CODE_AUDIT_DB_PROFILE` 环境变量是否覆盖了 YAML。
 3. 用数据库客户端验证 host、port、库名、用户、schema。
 4. 确认 Postgres 已执行 `python backend/init_pg.py`。
 5. 如果只是元数据库不可用，平台仍可运行，但部分规则会降级。

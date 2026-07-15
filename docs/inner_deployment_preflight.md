@@ -7,7 +7,7 @@
 - 推荐数据库 Profile：`inner_dws`（`type: dws`）。当 `CODE_AUDIT_DEPLOYMENT_MODE=inner` 或 `production` 时，应用拒绝以任何其他 Profile 启动。
 - 正式后端入口：Linux/Kylin 使用 `waitress-serve --host=0.0.0.0 --port=5088 app:app`，由 Nginx 代理 `/api/`；不要使用 Flask debug server。
 - 前端生产地址使用相对路径 `/api`。不要把 `localhost`、开发端口或内网 IP 编译进生产包。
-- 必须在部署机创建未跟踪的 `backend/audit/configs/database.yaml` 和 `backend/audit/configs/svn.yaml`。仓库只保留脱敏模板。
+- 必须在部署机创建未跟踪的 `backend/database.yaml` 和 `backend/audit/configs/svn.yaml`。仓库只保留脱敏模板。
 - 内网 DWS 与 SVN 未在当前环境连接；以下检查 SQL/命令必须在内网执行，不能视为已验证通过。
 
 ## 配置加载链路
@@ -15,7 +15,7 @@
 ```text
 进程环境变量
   -> backend/.env（仅补齐未设置的变量）
-  -> CODE_AUDIT_DB_CONFIG_PATH 或 backend/audit/configs/database.yaml
+  -> AUDIT_DATABASE_CONFIG 或 backend/database.yaml
   -> default_profile / CODE_AUDIT_DB_PROFILE
   -> Profile 字段默认值（table_prefix=dwp 的运行表前缀约定）
 ```
@@ -29,7 +29,7 @@
 
 ## 必填配置
 
-从 `backend/audit/configs/database.example.yaml` 复制到部署机的 `database.yaml`，从 `backend/.env.example` 复制为部署机私有 `.env`。必填变量：
+从 `backend/database.example.yaml` 复制到部署机的 `database.yaml`，从 `backend/.env.example` 复制为部署机私有 `.env`。必填变量：
 
 ```text
 CODE_AUDIT_DEPLOYMENT_MODE=inner
@@ -43,7 +43,7 @@ AUDIT_DWS_SCHEMA
 AUDIT_CORS_ORIGINS
 ```
 
-可选项：`CODE_AUDIT_DB_CONFIG_PATH`、`connect_timeout`、`statement_timeout_ms`、`application_name`、`sslmode`、`AUDIT_HOST`、`AUDIT_PORT`。模板默认 `connect_timeout: 10`、`statement_timeout_ms: 30000`、`sslmode: require`；按内网 DWS 的 TLS 策略调整。不要把真实 `.env`、`database.yaml`、`svn.yaml`、日志、SQLite 文件、workspace、缓存或报告输出加入 Git。
+可选项：`AUDIT_DATABASE_CONFIG`、`connect_timeout`、`statement_timeout_ms`、`application_name`、`sslmode`、`AUDIT_HOST`、`AUDIT_PORT`。模板默认 `connect_timeout: 10`、`statement_timeout_ms: 30000`、`sslmode: require`；按内网 DWS 的 TLS 策略调整。不要把真实 `.env`、`database.yaml`、`svn.yaml`、日志、SQLite 文件、workspace、缓存或报告输出加入 Git。
 
 SVN 私有配置以 `svn.example.yaml` 为模板，支持 `svn_bin`（不依赖 PATH）、`username`、`password`、`non_interactive`、`trust_server_cert`、`timeout`、每个项目的 `trunk_url` 和 `marker`。建议凭据通过 `${SVN_USER}` / `${SVN_PASSWORD}` 注入。连通性检查（不会在输出中回显密码）：
 

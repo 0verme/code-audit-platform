@@ -90,8 +90,8 @@ pip install -r requirements.txt
 ### 准备配置文件
 
 ```powershell
-copy backend\svn_check\configs\database.example.yaml backend\svn_check\configs\database.yaml
-copy backend\svn_check\configs\svn.example.yaml backend\svn_check\configs\svn.yaml
+copy backend\database.example.yaml backend\database.yaml
+copy backend\audit\configs\svn.example.yaml backend\audit\configs\svn.yaml
 copy frontend\.env.example frontend\.env
 ```
 
@@ -108,7 +108,7 @@ cd backend
 python init_pg.py
 ```
 
-该命令读取 `backend/svn_check/configs/database.yaml` 或 `SVN_CHECK_*` 环境变量，并执行 `backend/svn_check/migrate/postgres_schema.sql`。
+该命令读取 `backend/database.yaml` 或 `AUDIT_DATABASE_CONFIG` 环境变量，并执行当前元数据初始化 SQL。
 
 ### 启动后端
 
@@ -153,8 +153,8 @@ npm run dev
 
 - [配置说明](docs/configuration.md)
 - `frontend/.env.example`
-- `backend/svn_check/configs/database.example.yaml`
-- `backend/svn_check/configs/svn.example.yaml`
+- `backend/database.example.yaml`
+- `backend/audit/configs/svn.example.yaml`
 
 真实配置文件应保留在部署环境，不应提交到仓库。
 

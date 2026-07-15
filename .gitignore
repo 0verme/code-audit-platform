@@ -1,6 +1,7 @@
 backend/__pycache__/
 backend/data/
 .venv/
+/backend/.venv/
 __pycache__/
 *.pyc
 *.py[cod]
@@ -31,7 +32,7 @@ Thumbs.db
 __pycache__/
 
 # 真实数据库连接信息（含口令），不入库；用 database.example.yaml 作模板
-backend/audit/configs/database.yaml
+/backend/database.yaml
 backend/audit/configs/svn.yaml
 
 # Codex local state

@@ -6,7 +6,7 @@ The platform runtime database and rule metadata database use the same config
 file:
 
 ```text
-backend/svn_check/configs/database.yaml
+backend/database.yaml
 ```
 
 That config must use `backend: postgres`. The platform maps its `postgres` block
@@ -18,16 +18,16 @@ tables live in the same PostgreSQL database.
 Copy the committed template before editing local credentials:
 
 ```bash
-copy backend\svn_check\configs\database.example.yaml backend\svn_check\configs\database.yaml
+copy backend\database.example.yaml backend\database.yaml
 ```
 
-`backend/svn_check/configs/database.yaml` is ignored by git. Do not commit real
+`backend/database.yaml` is ignored by git. Do not commit real
 hostnames, usernames, passwords, tokens, or connection strings.
 
 Override the config file path with:
 
 ```bash
-set CODE_AUDIT_DB_CONFIG_PATH=backend\svn_check\configs\database.yaml
+set AUDIT_DATABASE_CONFIG=C:\absolute\path\to\database.yaml
 ```
 
 Override the active profile with:
@@ -98,7 +98,7 @@ test databases:
 
 ```bash
 set CODE_AUDIT_RUN_DB_INTEGRATION=1
-set CODE_AUDIT_DB_CONFIG_PATH=backend\svn_check\configs\database.yaml
+set AUDIT_DATABASE_CONFIG=C:\absolute\path\to\database.yaml
 set CODE_AUDIT_INTEGRATION_PROFILE=local_pg
 D:\miniconda3\python.exe -m unittest tests.integration.test_db_profiles_integration
 ```

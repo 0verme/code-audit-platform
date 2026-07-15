@@ -9,9 +9,10 @@ import yaml
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_DIR.parent
-DEFAULT_CONFIG_PATH = BACKEND_DIR / "audit" / "configs" / "database.yaml"
+DEFAULT_CONFIG_PATH = BACKEND_DIR / "database.yaml"
 
-CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
+CONFIG_PATH_ENV = "AUDIT_DATABASE_CONFIG"
+LEGACY_CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
 DEPLOYMENT_MODE_ENV = "CODE_AUDIT_DEPLOYMENT_MODE"
 SUPPORTED_TYPES = {"postgresql", "dws"}
@@ -41,7 +42,7 @@ class DatabaseProfile:
 
 
 def resolve_config_path(config_path: str | os.PathLike[str] | None = None) -> Path:
-    configured = config_path or os.getenv(CONFIG_PATH_ENV)
+    configured = config_path or os.getenv(CONFIG_PATH_ENV) or os.getenv(LEGACY_CONFIG_PATH_ENV)
     if configured:
         path = Path(configured)
         return path if path.is_absolute() else PROJECT_ROOT / path
@@ -92,17 +93,22 @@ def _validate_deployment_profile(profile: DatabaseProfile) -> None:
 
 def load_database_config(config_path: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     path = resolve_config_path(config_path)
-    explicit_path = bool(config_path or os.getenv(CONFIG_PATH_ENV))
     if not path.exists():
-        if explicit_path:
-            raise ProfileConfigError(f"Database config file does not exist: {path}")
-        raise ProfileConfigError(f"Database config file does not exist: {path}")
+        override_used = bool(config_path or os.getenv(CONFIG_PATH_ENV) or os.getenv(LEGACY_CONFIG_PATH_ENV))
+        source = "an explicit path or environment override" if override_used else "the default location"
+        raise ProfileConfigError(
+            f"Database config file does not exist: {path} ({source}). "
+            f"Copy {BACKEND_DIR / 'database.example.yaml'} to {DEFAULT_CONFIG_PATH}, or set {CONFIG_PATH_ENV} "
+            "to an absolute configuration path."
+        )
 
     try:
         with path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
     except yaml.YAMLError as exc:
-        raise ProfileConfigError(f"Invalid database config YAML: {path}") from exc
+        mark = getattr(exc, "problem_mark", None)
+        location = f" at line {mark.line + 1}, column {mark.column + 1}" if mark else ""
+        raise ProfileConfigError(f"Invalid database config YAML: {path}{location}") from exc
     except OSError as exc:
         raise ProfileConfigError(f"Unable to read database config file: {path}") from exc
 
@@ -156,8 +162,9 @@ def resolve_profile(
 
     missing = [key for key in REQUIRED_PROFILE_FIELDS if not config.get(key)]
     if missing:
+        missing_fields = ", ".join(f"profiles.{selected_name}.{key}" for key in missing)
         raise ProfileConfigError(
-            f"Invalid database profile '{selected_name}': missing required fields: {', '.join(missing)}; "
+            f"Invalid database profile '{selected_name}': missing required fields: {missing_fields}; "
             f"supported types are [{SUPPORTED_TYPES_TEXT}]"
         )
     config.setdefault("table_prefix", DEFAULT_TABLE_PREFIX)

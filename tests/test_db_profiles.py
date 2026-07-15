@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -10,7 +11,16 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import CONFIG_PATH_ENV, DEPLOYMENT_MODE_ENV, PROFILE_ENV, ProfileConfigError, resolve_profile  # noqa: E402
+from db.profiles import (  # noqa: E402
+    CONFIG_PATH_ENV,
+    DEFAULT_CONFIG_PATH,
+    DEPLOYMENT_MODE_ENV,
+    PROFILE_ENV,
+    ProfileConfigError,
+    load_database_config,
+    resolve_config_path,
+    resolve_profile,
+)
 from db.tables import qualified_table_name  # noqa: E402
 
 
@@ -65,6 +75,23 @@ class DatabaseProfileTests(unittest.TestCase):
                 profile = resolve_profile(config_path=config_path)
         self.assertEqual(profile.name, "local_dws")
 
+    def test_default_path_is_backend_database_yaml_independent_of_cwd(self):
+        expected = DEFAULT_CONFIG_PATH
+        original_cwd = Path.cwd()
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            try:
+                with patch.dict(os.environ, {CONFIG_PATH_ENV: ""}, clear=False):
+                    self.assertEqual(resolve_config_path(), expected)
+            finally:
+                os.chdir(original_cwd)
+
+    def test_environment_config_override_has_priority(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            with patch.dict(os.environ, {CONFIG_PATH_ENV: str(config_path)}, clear=False):
+                self.assertEqual(resolve_config_path(), config_path)
+
     def test_legacy_mixed_mode_is_rejected(self):
         content = """
 default_profile: postgres
@@ -112,7 +139,7 @@ profiles:
             config_path = self.write_config(tmp, content)
             with self.assertRaisesRegex(
                 ProfileConfigError,
-                r"Invalid database profile 'broken': missing required fields: password, schema; supported types are \[postgresql, dws\]",
+                r"Invalid database profile 'broken': missing required fields: profiles\.broken\.password, profiles\.broken\.schema; supported types are \[postgresql, dws\]",
             ):
                 resolve_profile(config_path=config_path)
 
@@ -131,8 +158,16 @@ profiles:
             missing_path = Path(tmp) / "missing.yaml"
             with patch("db.profiles.DEFAULT_CONFIG_PATH", missing_path):
                 with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
-                    with self.assertRaisesRegex(ProfileConfigError, "does not exist"):
+                    with self.assertRaisesRegex(ProfileConfigError, rf"does not exist: {re.escape(str(missing_path))}"):
                         resolve_profile()
+
+    def test_invalid_yaml_reports_path_and_parse_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, "profiles: [not: valid")
+            with self.assertRaisesRegex(
+                ProfileConfigError, rf"Invalid database config YAML: {re.escape(str(config_path))}"
+            ):
+                load_database_config(config_path)
 
     def test_environment_values_expand_for_inner_dws(self):
         content = """

@@ -60,8 +60,8 @@ Lineage imports use `backend/data/lineage/mapping.xlsx`; the rebuildable SQLite 
 
 ```powershell
 copy frontend\.env.example frontend\.env
-copy backend\svn_check\configs\database.example.yaml backend\svn_check\configs\database.yaml
-copy backend\svn_check\configs\svn.example.yaml backend\svn_check\configs\svn.yaml
+copy backend\database.example.yaml backend\database.yaml
+copy backend\audit\configs\svn.example.yaml backend\audit\configs\svn.yaml
 ```
 
 真实配置只放在本地，不提交。

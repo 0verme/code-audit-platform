@@ -1,5 +1,6 @@
 from .profiles import (
     CONFIG_PATH_ENV,
+    LEGACY_CONFIG_PATH_ENV,
     PROFILE_ENV,
     DatabaseProfile,
     ProfileConfigError,
@@ -47,6 +48,7 @@ __all__ = [
     "CompatCursor",
     "CompatRow",
     "CONFIG_PATH_ENV",
+    "LEGACY_CONFIG_PATH_ENV",
     "DB_PATH",
     "PROFILE_ENV",
     "DatabaseProfile",

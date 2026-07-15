@@ -4,10 +4,10 @@
 
 ## 配置文件
 
-- 模板文件：`backend/svn_check/configs/database.example.yaml`
-- 实际文件：`backend/svn_check/configs/database.yaml`
+- 模板文件：`backend/database.example.yaml`
+- 实际文件：`backend/database.yaml`
 - 可选环境变量：
-  - `CODE_AUDIT_DB_CONFIG_PATH`
+  - `AUDIT_DATABASE_CONFIG`（绝对路径覆盖）
   - `CODE_AUDIT_DB_PROFILE`
 
 ## 统一约束

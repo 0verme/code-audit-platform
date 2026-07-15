@@ -26,11 +26,11 @@ to existing allowed roots (a JSON array is recommended, especially on Windows).
 ## 准备配置
 
 ```bash
-cp backend/svn_check/configs/database.example.yaml backend/svn_check/configs/database.yaml
-cp backend/svn_check/configs/svn.example.yaml backend/svn_check/configs/svn.yaml
+cp backend/database.example.yaml backend/database.yaml
+cp backend/audit/configs/svn.example.yaml backend/audit/configs/svn.yaml
 ```
 
-编辑 `backend/svn_check/configs/database.yaml`，只保留一个实际使用的 profile，并让 `default_profile` 指向它。
+编辑 `backend/database.yaml`，只保留一个实际使用的 profile，并让 `default_profile` 指向它。
 
 示例：
 
