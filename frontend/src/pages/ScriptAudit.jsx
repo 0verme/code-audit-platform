@@ -8,9 +8,10 @@ const SD_STATE = {
 };
 
 export function scriptAudit(script) {
-  const miss = script.result.filter((item) => item.state === "missing").length;
-  const extra = script.result.filter((item) => item.state === "extra").length;
-  const lint = script.lint || [];
+  const result = Array.isArray(script?.result) ? script.result : [];
+  const miss = result.filter((item) => item.state === "missing").length;
+  const extra = result.filter((item) => item.state === "extra").length;
+  const lint = Array.isArray(script?.lint) ? script.lint : [];
   const lintErr = lint.filter((item) => item.level === "err").length;
   const lintWarn = lint.filter((item) => item.level === "warn").length;
   const err = miss + lintErr;
@@ -19,21 +20,13 @@ export function scriptAudit(script) {
 }
 
 export function PyScriptAuditSection({ d, reg, onOpen }) {
-  const scripts = d.pyScripts || [];
+  const scripts = Array.isArray(d.pyScripts) ? d.pyScripts : [];
   const flagged = scripts.filter((script) => {
     const audit = scriptAudit(script);
     return audit.err || audit.warn;
   });
   const anyErr = scripts.some((script) => scriptAudit(script).err);
-  const refTables = d.refTables || [];
-  const totalCount = flagged.length + refTables.length;
-
-  const refTypes = [
-    { key: "result", label: "结果表", cls: "result" },
-    { key: "mid", label: "中间表", cls: "mid" },
-    { key: "src", label: "源表 / 维表", cls: "src" },
-    { key: "temp", label: "临时表", cls: "temp" },
-  ];
+  const totalCount = flagged.length;
 
   return (
     <Panel
@@ -41,7 +34,6 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
       icon="python"
       title="Python 脚本"
       registerRef={reg}
-      sub="引用表汇总"
       count={totalCount || "全部通过"}
       countTone={totalCount ? (anyErr ? "err" : "warn") : "ok"}
     >
@@ -76,32 +68,6 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
             );
           })}
         </div>
-        <div className="panel-body" style={{ borderTop: "1px solid var(--border)" }}>
-          <div className="subhead" style={{ marginBottom: 14 }}><Icon name="db" size={12} /> 引用表汇总</div>
-          <div className="legend" style={{ marginBottom: 14 }}>
-            {refTypes.map((type) => {
-              const count = refTables.filter((item) => item.type === type.key).length;
-              return (
-                <span key={type.key} className="lg-item">
-                  <span className={`chip ${type.cls}`}><span className="cdot" />{type.label}</span>
-                  <span className="mono" style={{ color: "var(--text-3)" }}>x{count}</span>
-                </span>
-              );
-            })}
-          </div>
-          {refTables.length ? refTypes.map((type) => {
-            const items = refTables.filter((item) => item.type === type.key);
-            if (!items.length) return null;
-            return (
-              <div key={type.key} style={{ marginBottom: 12 }}>
-                <div className="subhead" style={{ marginBottom: 7 }}>{type.label} / {items.length}</div>
-                <div className="chips">
-                  {items.map((item) => <span key={item.name} className={`chip ${type.cls}`}><span className="cdot" />{item.name}</span>)}
-                </div>
-              </div>
-            );
-          }) : <OkState>未发现引用表问题</OkState>}
-        </div>
       </div>
     </Panel>
   );
@@ -120,7 +86,7 @@ function CmpCell({ value, note, side, row }) {
   );
 }
 
-function ListBlock({ title, items, icon }) {
+function ListBlock({ title, items = [], icon }) {
   return (
     <div className="sd-block">
       <div className="subhead"><Icon name={icon} size={12} /> {title} <span className="sd-num mono">{items.length}</span></div>
@@ -159,8 +125,9 @@ export function ScriptDetailDrawer({ script, onClose }) {
   }, [close]);
 
   const audit = scriptAudit(script);
-  const same = script.result.filter((item) => item.state === "same").length;
-  const lint = script.lint || [];
+  const result = Array.isArray(script?.result) ? script.result : [];
+  const same = result.filter((item) => item.state === "same").length;
+  const lint = Array.isArray(script?.lint) ? script.lint : [];
 
   return (
     <div className={`sd-overlay${shown ? " shown" : ""}`} onClick={close}>
@@ -230,7 +197,7 @@ export function ScriptDetailDrawer({ script, onClose }) {
 
           <div className="sd-block">
             <div className="subhead">
-              <Icon name="db" size={12} /> 结果表对比 <span className="sd-num mono">{script.result.length}</span>
+              <Icon name="db" size={12} /> 结果表对比 <span className="sd-num mono">{result.length}</span>
               <span className="sd-tally">
                 <span className="sev ok"><Icon name="check" size={11} stroke={2.4} />{same} 相同</span>
                 {audit.miss ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{audit.miss} 缺失</span> : null}
@@ -243,7 +210,7 @@ export function ScriptDetailDrawer({ script, onClose }) {
                   <tr><th>SQL 引用</th><th><Icon name="flow" size={11} style={{ verticalAlign: "-1px", marginRight: 4 }} />调度依赖</th><th style={{ width: 78 }}>状态</th></tr>
                 </thead>
                 <tbody>
-                  {script.result.map((item, index) => {
+                  {result.map((item, index) => {
                     const meta = SD_STATE[item.state];
                     return (
                       <tr key={index} className={item.state === "missing" ? "err-row" : item.state === "extra" ? "warn-row" : ""}>

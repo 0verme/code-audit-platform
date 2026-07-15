@@ -4,7 +4,7 @@ import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTwea
 import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
 import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
 import { useAsyncResource } from "./hooks/useAsyncResource";
-import { mergePartialReport, useAuditRun } from "./hooks/useAuditRun";
+import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
 
@@ -31,10 +31,7 @@ const SECTION_NAV = [
     id: "schedule",
     label: "调度表检查",
     icon: "grid",
-    get: (data) => [
-      ...(data.schedule?.rows?.filter((row) => row.level !== "ok") || []),
-      ...((data.deps || []).map((item) => ({ ...item, level: item.level || "warn" }))),
-    ],
+    get: (data) => data.schedule?.rows?.filter((row) => row.level !== "ok") || [],
   },
   {
     id: "python",
@@ -49,7 +46,7 @@ const SECTION_NAV = [
         if (!hasErr && !hasWarn) return [];
         return [{ script: script.script, level: hasErr ? "err" : "warn" }];
       });
-      return [...flaggedScripts, ...((data.refTables || []).map((item) => ({ ...item, level: item.level || "warn" })))];
+      return flaggedScripts;
     },
     neutral: true,
   },
@@ -392,7 +389,7 @@ export default function App() {
     contentRef.current?.scrollTo({ top: 0 });
   }
 
-  const taskFailed = !!params.taskId && run.pageStatus === "failed" && !liveData;
+  const taskFailed = !!params.taskId && shouldShowAuditRunFailure(run.pageStatus, run.report);
   const isTaskStateView =
     !!params.taskId && (
       (IS_API_MODE && !!run.error && !liveData) ||

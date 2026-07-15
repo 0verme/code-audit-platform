@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { PyScriptAuditSection, ScriptDetailDrawer } from "./ScriptAudit";
+import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows } from "../utils/hcytResultPresentation";
 
 export const STATUS_META = {
   pass: { tone: "ok", icon: "check", label: "审查通过", desc: "未发现阻断性问题，可合并" },
@@ -24,20 +25,14 @@ export const SECTION_NAV = [
     id: "schedule",
     label: "调度表检查",
     icon: "grid",
-    get: (data) => [
-      ...(data.schedule?.rows?.filter((row) => row.level !== "ok") || []),
-      ...((data.deps || []).map((item) => ({ ...item, level: item.level || "warn" }))),
-    ],
+    get: getScheduleIssueRows,
   },
   {
     id: "python",
     label: "Python 脚本",
     icon: "python",
     get: (data) => {
-      return [
-        ...getPythonIssueRows(data),
-        ...((data.refTables || []).map((item) => ({ ...item, level: item.level || "warn" }))),
-      ];
+      return getPythonIssueRows(data);
     },
     neutral: true,
   },
@@ -589,12 +584,13 @@ function ConfigJsonSection({ files, reg }) {
 }
 
 function ScheduleSection({ d, reg }) {
-  const schedule = d.schedule;
+  const schedule = d.schedule || {};
+  const summary = schedule.summary || {};
   const scheduleIssues = getScheduleIssueRows(d);
-  const deps = d.deps || [];
-  if (!scheduleIssues.length && !deps.length) return null;
+  const cycleFindings = getCycleDependencyFindings(d);
+  if (!scheduleIssues.length && !cycleFindings.length) return null;
 
-  const severity = levelOf([...scheduleIssues, ...deps]);
+  const severity = levelOf(scheduleIssues);
   const columns = [
     { key: "table", label: "表" },
     { key: "item", label: "对象", cls: "rule-cell" },
@@ -609,18 +605,17 @@ function ScheduleSection({ d, reg }) {
       icon="grid"
       title="调度表检查"
       registerRef={reg}
-      sub="依赖链分析"
-      count={scheduleIssues.length + deps.length || "通过"}
+      count={scheduleIssues.length || "通过"}
       countTone={severity || "ok"}
-      defaultOpen={scheduleIssues.length > 0 || deps.length > 0}
+      defaultOpen={scheduleIssues.length > 0}
     >
       <div className="panel-body">
         <div className="metrics" style={{ marginBottom: "var(--gap)" }}>
-          <Metric label="PLAN" value={schedule.summary.plan} />
-          <Metric label="SEQ" value={schedule.summary.seq} />
-          <Metric label="JOB" value={schedule.summary.job} />
-          <Metric label="循环依赖" value={schedule.summary.cycles} tone={schedule.summary.cycles ? "err" : "ok"} />
-          <Metric label="缺失映射" value={schedule.summary.missing} tone={schedule.summary.missing ? "warn" : "ok"} />
+          <Metric label="PLAN" value={summary.plan || 0} />
+          <Metric label="SEQ" value={summary.seq || 0} />
+          <Metric label="JOB" value={summary.job || 0} />
+          <Metric label="循环依赖" value={summary.cycles || 0} tone={summary.cycles ? "err" : "ok"} />
+          <Metric label="缺失映射" value={summary.missing || 0} tone={summary.missing ? "warn" : "ok"} />
         </div>
         {schedule.tables ? <ScheduleListTables tables={schedule.tables} /> : null}
         {scheduleIssues.length ? <div className="subhead" style={{ margin: "6px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div> : null}
@@ -652,45 +647,18 @@ function ScheduleSection({ d, reg }) {
             </tbody>
           </table>
         </div> : null}
-        <div className="subhead" style={{ margin: "14px 0 7px" }}><Icon name="flow" size={12} /> 依赖链分析</div>
-        {deps.length ? (
-          <div className="dep-graph">
-            {deps.map((lane) => (
-              <div key={lane.lane} className="dep-lane">
-                <div className="dep-lane-label">{lane.lane}</div>
-                <div className="dep-nodes">
-                  {lane.nodes.map((node) => (
-                    <span key={node.name} className={`dep-node${node.focus ? " focus" : ""}`}>
-                      <Icon name={node.focus ? "play" : "db"} size={11} />
-                      {node.name}
-                      {node.q ? <span className="nq">{node.q}</span> : null}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <OkState>未发现需要关注的作业依赖问题</OkState>
-        )}
+        {cycleFindings.length ? <div className="dep-graph" style={{ marginTop: 14 }}>
+          <div className="subhead" style={{ marginBottom: 7 }}><Icon name="flow" size={12} /> 循环依赖</div>
+          {cycleFindings.map((finding, index) => (
+            <div key={`${finding.path || finding.msg}-${index}`} className="dep-lane">
+              {finding.path ? <div className="dep-nodes"><span className="dep-node focus">{finding.path}</span></div> : null}
+              {finding.msg ? <div className="dep-lane-label">{finding.msg}</div> : null}
+            </div>
+          ))}
+        </div> : null}
       </div>
     </Panel>
   );
-}
-
-function getScheduleIssueRows(data) {
-  return data.schedule?.rows?.filter((row) => row.level !== "ok") || [];
-}
-
-function getPythonIssueRows(data) {
-  return (data.pyScripts || []).flatMap((script) => {
-    const lint = script.lint || [];
-    const result = script.result || [];
-    const hasErr = lint.some((item) => item.level === "err") || result.some((item) => item.state === "missing");
-    const hasWarn = lint.some((item) => item.level === "warn") || result.some((item) => item.state === "extra");
-    if (!hasErr && !hasWarn) return [];
-    return [{ script: script.script, level: hasErr ? "err" : "warn" }];
-  });
 }
 
 export function AiSection({ d, reg }) {
@@ -778,8 +746,8 @@ const CATS = [
   { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
   { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
   { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
-  { id: "schedule", label: "调度表检查", icon: "grid", get: (data) => [...getScheduleIssueRows(data), ...((data.deps || []).map((item) => ({ ...item, level: item.level || "warn" })))] },
-  { id: "python", label: "Python 脚本", icon: "python", get: (data) => [...getPythonIssueRows(data), ...((data.refTables || []).map((item) => ({ ...item, level: item.level || "warn" })))] },
+  { id: "schedule", label: "调度表检查", icon: "grid", get: getScheduleIssueRows },
+  { id: "python", label: "Python 脚本", icon: "python", get: getPythonIssueRows },
 ];
 
 function CategoryBoard({ d, onJump }) {
