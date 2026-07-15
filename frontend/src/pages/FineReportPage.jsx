@@ -40,7 +40,8 @@ function reportType(report) {
 function FrStatusHeader({ d }) {
   const task = d.task;
   const status = STATUS_META[task.status] || STATUS_META.warn;
-  const highRisk = d.reports.filter((report) => reportAudit(report).err).length;
+  const reports = Array.isArray(d.reports) ? d.reports : [];
+  const highRisk = reports.filter((report) => reportAudit(report).err).length;
   return (
     <div className={`status-hero card ${status.tone}`}>
       <div className="sh-main">

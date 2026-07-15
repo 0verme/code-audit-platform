@@ -104,6 +104,9 @@ const EMPTY_AUDIT_REPORT = {
   deps: [],
   pyScripts: [],
   refTables: [],
+  reports: [],
+  menu: null,
+  authority: null,
   assetIssues: [],
   unifiedAssetIssues: [],
   lineageSummary: {
@@ -299,7 +302,7 @@ export default function App() {
   const data = liveData || mockData;
   const navList = isNups ? NUPS_NAV : (isFR ? FR_NAV : SECTION_NAV);
   const workflowName = WORKFLOWS.find((workflow) => workflow.key === params.workflow)?.name || params.workflow;
-  const aiEnabled = liveData ? Boolean(liveData.ai) : (params.ai || t.showAi);
+  const aiEnabled = Boolean(data?.ai) || (!params.taskId && (params.ai || t.showAi));
   const canShowRail = view !== "home" && (!IS_API_MODE || !!liveData);
   const currentRevision = liveData?.task?.revision || run.task?.revision || (IS_API_MODE ? `task-${params.taskId || "pending"}` : data.task.revision);
   const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: IS_API_MODE && view === "home" });
