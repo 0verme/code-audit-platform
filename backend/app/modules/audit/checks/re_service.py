@@ -331,6 +331,13 @@ def build_wide_table_lineage_summary(
 
     warnings = []
     summary = _empty_wide_table_lineage_summary()
+    summary_seen = {key: set() for key in ("resultTables", "jobs", "recvPlans", "sysNames", "outfiles")}
+
+    def add_summary(key, value):
+        if not value or value in summary_seen[key]:
+            return
+        summary_seen[key].add(value)
+        summary[key].append(value)
 
     if metadata_service is not None:
         if job_outfile_rows is None and job_outfile_lookup is None:
@@ -432,7 +439,7 @@ def build_wide_table_lineage_summary(
             recv_plan = _safe_lineage_value(
                 _lineage_row_value(row, 0, ("recv_plan", "plan"))
             ).upper()
-            _dedupe_append(summary["recvPlans"], recv_plan)
+            add_summary("recvPlans", recv_plan)
         return recv_detail_map
 
     recv_detail_map = timed(
@@ -467,26 +474,34 @@ def build_wide_table_lineage_summary(
                         merge_rows=len(merge_df.index),
                         matched_rows=len(matched_df.index),
                     )
-                for _, row in matched_df.iterrows():
+                dependency_items_cache = {}
+                dependency_tables_cache = {}
+                for row in matched_df.itertuples(index=False, name=None):
                     matched_row_count += 1
-                    job_name = _normalize_lineage_job_name(row.iloc[2] if len(row) > 2 else "")
-                    dependency_raw = row.iloc[27] if len(row) > 27 else ""
-                    program_path = row.iloc[32] if len(row) > 32 else row.iloc[-6]
+                    job_name = _normalize_lineage_job_name(row[2] if len(row) > 2 else "")
+                    dependency_raw = row[27] if len(row) > 27 else ""
+                    program_path = row[32] if len(row) > 32 else row[-6]
                     result_table = _normalize_lineage_table_name(
                         _table_name_from_program_path_value(program_path)
                     )
-                    _dedupe_append(summary["jobs"], job_name)
-                    _dedupe_append(summary["resultTables"], result_table)
-                    for dependency_job in _dependency_items(dependency_raw):
+                    add_summary("jobs", job_name)
+                    add_summary("resultTables", result_table)
+                    dependency_key = dependency_raw if isinstance(dependency_raw, (str, bytes, type(None))) else str(dependency_raw)
+                    if dependency_key not in dependency_items_cache:
+                        dependency_items_cache[dependency_key] = _dependency_items(dependency_raw)
+                        dependency_tables_cache[dependency_key] = get_yilai_table_from_lookup(
+                            dependency_raw, dependency_lookup
+                        )
+                    for dependency_job in dependency_items_cache[dependency_key]:
                         normalized_job = _normalize_lineage_job_name(dependency_job)
-                        _dedupe_append(summary["jobs"], normalized_job)
-                        _dedupe_append(summary["outfiles"], job_outfile_lookup.get(normalized_job, ""))
-                    for dependency_table in get_yilai_table_from_lookup(dependency_raw, dependency_lookup):
+                        add_summary("jobs", normalized_job)
+                        add_summary("outfiles", job_outfile_lookup.get(normalized_job, ""))
+                    for dependency_table in dependency_tables_cache[dependency_key]:
                         normalized_table = _normalize_lineage_table_name(dependency_table)
-                        _dedupe_append(summary["resultTables"], normalized_table)
+                        add_summary("resultTables", normalized_table)
                         for detail in recv_detail_map.get(normalized_table, []):
-                            _dedupe_append(summary["recvPlans"], detail.get("recv_plan"))
-                            _dedupe_append(summary["sysNames"], detail.get("source_system"))
+                            add_summary("recvPlans", detail.get("recv_plan"))
+                            add_summary("sysNames", detail.get("source_system"))
                 if log_timing is not None:
                     log_timing(
                         "lineage.summary.iterate_merge_rows",
@@ -496,19 +511,20 @@ def build_wide_table_lineage_summary(
                         matched_rows=matched_row_count,
                         jobs=len(summary["jobs"]),
                         result_tables=len(summary["resultTables"]),
+                        unique_dependency_values=len(dependency_items_cache),
                     )
         except Exception as exc:
             warnings.append(f"merge metadata unavailable: {type(exc).__name__}")
 
     for table_name, details in recv_detail_map.items():
-        _dedupe_append(summary["resultTables"], table_name)
+        add_summary("resultTables", table_name)
         for detail in details:
-            _dedupe_append(summary["recvPlans"], detail.get("recv_plan"))
-            _dedupe_append(summary["sysNames"], detail.get("source_system"))
+            add_summary("recvPlans", detail.get("recv_plan"))
+            add_summary("sysNames", detail.get("source_system"))
 
     for job_name, outfile in job_outfile_lookup.items():
-        _dedupe_append(summary["jobs"], job_name)
-        _dedupe_append(summary["outfiles"], outfile)
+        add_summary("jobs", job_name)
+        add_summary("outfiles", outfile)
 
     if not any(summary[key] for key in ("resultTables", "jobs", "recvPlans", "sysNames", "outfiles")):
         warnings.append("empty lineage metadata")
