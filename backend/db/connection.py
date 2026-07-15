@@ -84,9 +84,14 @@ def connect_dws(profile: DatabaseProfile) -> Any:
         raise DatabaseDriverError("DWS JDBC driver not installed. Install JayDeBeApi==1.2.3 and JPype1==1.5.0.")
     config = profile.config
     try:
-        return jaydebeapi.connect(
+        connection = jaydebeapi.connect(
             config["driver"], config["jdbc_url"], [config["user"], config["password"]], config["jar_path"]
         )
+        # JayDeBeApi leaves JDBC connections in the driver's default auto-commit
+        # mode.  Runtime-store operations use explicit commit/rollback boundaries,
+        # so disable it before exposing the connection to callers.
+        connection.jconn.setAutoCommit(False)
+        return connection
     except Exception as exc:
         raise DatabaseDriverError(f"Failed to connect to DWS through JDBC: {exc}") from exc
 

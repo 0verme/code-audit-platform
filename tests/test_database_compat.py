@@ -114,6 +114,7 @@ class DatabaseCompatTests(unittest.TestCase):
             "com.huawei.gauss200.jdbc.Driver", "jdbc:gaussdb://db:8000/audit?currentSchema=dwp",
             ["demo", "demo"], "C:/drivers/gaussdb200.jar",
         )
+        jaydebeapi.connect.return_value.jconn.setAutoCommit.assert_called_once_with(False)
 
     def test_dws_keeps_question_mark_parameter_placeholders(self):
         fake = SequenceConnection()
