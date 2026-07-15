@@ -1,5 +1,18 @@
 from __future__ import annotations
 
+import time
+
+
+def _run_timed(label, fn, log_timing=None):
+    started = time.perf_counter()
+    if log_timing is not None:
+        log_timing(label, "start")
+    try:
+        return fn()
+    finally:
+        if log_timing is not None:
+            log_timing(label, "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1))
+
 
 def run_hcyt_rules(
     dws_url,
@@ -19,6 +32,7 @@ def run_hcyt_rules(
     set_partial,
     download_url,
     build_config_files,
+    log_timing=None,
 ):
     sql_checks = {}
     asset_issues = []
@@ -26,7 +40,7 @@ def run_hcyt_rules(
 
     if dws_url:
         task_running("dws_sql")
-        result = safe("dws.sql 规则", lambda: modules.hcyt.rule_dws(dws_url), ("", "", 0))
+        result = _run_timed("rules.dws_sql", lambda: safe("dws.sql 规则", lambda: modules.hcyt.rule_dws(dws_url), ("", "", 0)), log_timing)
         grouped["dws"] += modules.text_to_rows(
             result[0],
             result[1],
@@ -38,7 +52,7 @@ def run_hcyt_rules(
             "downloadUrl": download_url(dws_url),
         }
         dws_file_name = modules.re_service.get_filename(dws_url)
-        dws_sql_text = safe("dws.sql 内容读取", lambda: modules.re_service.read_data_from_file(dws_url), "")
+        dws_sql_text = _run_timed("rules.dws_sql.read", lambda: safe("dws.sql 内容读取", lambda: modules.re_service.read_data_from_file(dws_url), ""), log_timing)
         asset_issues += safe(
             "dws.sql 词根结构化 issue",
             lambda: modules.hcyt_ddl_rule.collect_root_missing_issues(dws_sql_text, "hcyt", dws_file_name),
@@ -56,7 +70,7 @@ def run_hcyt_rules(
 
     if hive_url:
         task_running("hive_sql")
-        result = safe("hive.sql 规则", lambda: modules.hcyt.rule_hive(hive_url), ("", "", 0))
+        result = _run_timed("rules.hive_sql", lambda: safe("hive.sql 规则", lambda: modules.hcyt.rule_hive(hive_url), ("", "", 0)), log_timing)
         grouped["hive"] += modules.text_to_rows(
             result[0],
             result[1],
@@ -74,7 +88,7 @@ def run_hcyt_rules(
 
     if sbin_lists:
         task_running("post_scripts")
-        result = safe("sbin 规则", lambda: modules.hcyt.rule_sbin(sbin_lists), ("", "", 0))
+        result = _run_timed("rules.post_scripts", lambda: safe("sbin 规则", lambda: modules.hcyt.rule_sbin(sbin_lists), ("", "", 0)), log_timing)
         grouped["sbin"] += modules.text_to_rows(result[0], result[1], "sbin")
         set_partial("sbin", grouped["sbin"])
         task_success("post_scripts", result=grouped["sbin"], summary={"issues": len(grouped["sbin"])})
@@ -83,7 +97,7 @@ def run_hcyt_rules(
 
     if recv_lists:
         task_running("recv_config")
-        result = safe("recv 卸数规则", lambda: modules.hcyt.rule_recv_json(recv_lists), ("", "", 0))
+        result = _run_timed("rules.recv_config", lambda: safe("recv 卸数规则", lambda: modules.hcyt.rule_recv_json(recv_lists), ("", "", 0)), log_timing)
         grouped["recv"] += modules.text_to_rows(result[0], result[1], "recv_json")
         set_partial("recv", grouped["recv"])
         task_success("recv_config", result=grouped["recv"], summary={"issues": len(grouped["recv"])})
@@ -92,7 +106,7 @@ def run_hcyt_rules(
 
     if schame_config_lists:
         task_running("config_files")
-        result = safe("schema_config 规则", lambda: modules.hcyt.rule_config(schame_config_lists), ("", "", 0))
+        result = _run_timed("rules.config_files", lambda: safe("schema_config 规则", lambda: modules.hcyt.rule_config(schame_config_lists), ("", "", 0)), log_timing)
         grouped["config"] += modules.text_to_rows(result[0], result[1], "SCHEMA_CONFIG", err_level="warn")
         config_files = build_config_files(schame_config_lists)
         set_partial("config", grouped["config"])
@@ -102,10 +116,10 @@ def run_hcyt_rules(
         task_skipped("config_files", "no schema config files")
 
     for path in dwo_lists or []:
-        result = safe("dwo 规则", lambda p=path: modules.hcyt.rule_dwo(p), ("", "", 0))
+        result = _run_timed("rules.dwo", lambda p=path: safe("dwo 规则", lambda: modules.hcyt.rule_dwo(p), ("", "", 0)), log_timing)
         grouped["python"] += modules.text_to_rows(result[0], result[1], modules.re_service.get_filename(path))
     for path in dwf_lists or []:
-        result = safe("dwf 规则", lambda p=path: modules.hcyt.rule_dwf(p), ("", "", 0))
+        result = _run_timed("rules.dwf", lambda p=path: safe("dwf 规则", lambda: modules.hcyt.rule_dwf(p), ("", "", 0)), log_timing)
         grouped["python"] += modules.text_to_rows(result[0], result[1], modules.re_service.get_filename(path))
 
     return sql_checks, asset_issues, config_files

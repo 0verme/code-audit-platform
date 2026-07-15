@@ -391,12 +391,14 @@ def svn_main(project: str, branch_url: str):
 
     try:
         log_task_event("svn_main.resolve_origin", "start", project=project, branch_url=safe_branch_url)
+        resolve_started = time.perf_counter()
         base_source_url, create_revision = get_branch_origin(project_config, branch_url)
         log_task_event(
             "svn_main.resolve_origin",
             "end",
             base_source_url=sanitize_svn_url_for_log(base_source_url),
             create_revision=create_revision,
+            elapsed_seconds=round(time.perf_counter() - resolve_started, 3),
         )
 
         base_compare_url = build_compare_url(base_source_url, create_revision)
@@ -406,6 +408,7 @@ def svn_main(project: str, branch_url: str):
             "svn_main.diff", "start", branch_url=safe_branch_url,
             base_compare_url=sanitize_svn_url_for_log(base_compare_url),
         )
+        diff_started = time.perf_counter()
         branch_diff_text = diff_between_urls(project_config, base_compare_url, branch_url)
         trunk_diff_text = diff_between_urls(project_config, base_compare_url, latest_trunk_url)
         log_task_event(
@@ -413,6 +416,7 @@ def svn_main(project: str, branch_url: str):
             "end",
             branch_diff_length=len(branch_diff_text),
             trunk_diff_length=len(trunk_diff_text),
+            elapsed_seconds=round(time.perf_counter() - diff_started, 3),
         )
         summarize_diff(branch_diff_text)
         summarize_diff(trunk_diff_text)
@@ -428,6 +432,7 @@ def svn_main(project: str, branch_url: str):
             file_count=len(branch_changed_files),
             local_export_root=str(local_export_root),
         )
+        export_started = time.perf_counter()
         result_paths = []
         with ThreadPoolExecutor(max_workers=4) as executor:
             futures = {
@@ -453,6 +458,7 @@ def svn_main(project: str, branch_url: str):
             "end",
             exported_count=len(result_paths),
             requested_count=len(branch_changed_files),
+            elapsed_seconds=round(time.perf_counter() - export_started, 3),
         )
         log_task_event(
             "svn_main",

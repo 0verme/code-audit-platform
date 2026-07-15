@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from dataclasses import dataclass
 
 from .issue_adapter import asset_issue_to_dict
@@ -60,10 +62,18 @@ def run_hcyt_inspections(
     task_success=None,
     set_partial=None,
     grouped=None,
+    log_timing=None,
 ):
     schedule_warning = None
     try:
-        schedule = run_schedule(plan_xls, seq_xls, cale_xls, job_xls)
+        started = time.perf_counter()
+        if log_timing is not None:
+            log_timing("inspections.schedule", "start")
+        try:
+            schedule = run_schedule(plan_xls, seq_xls, cale_xls, job_xls)
+        finally:
+            if log_timing is not None:
+                log_timing("inspections.schedule", "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1))
     except IndexError as exc:
         schedule_warning = f"调度 Excel 结构异常，已跳过调度规则检查: {exc}"
         schedule = build_schedule_shape_mismatch_result(exc)
@@ -82,9 +92,16 @@ def run_hcyt_inspections(
         update_progress(progress=65, step="加工程序检查")
     if task_running is not None:
         task_running("python_scripts")
-    py_scripts, py_rows, ref_tables, deps, py_asset_issues = run_programs(
-        py_lists, job_df, program_xls, db_job_rows
-    )
+    started = time.perf_counter()
+    if log_timing is not None:
+        log_timing("inspections.programs", "start")
+    try:
+        py_scripts, py_rows, ref_tables, deps, py_asset_issues = run_programs(
+            py_lists, job_df, program_xls, db_job_rows
+        )
+    finally:
+        if log_timing is not None:
+            log_timing("inspections.programs", "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1))
     if grouped is not None:
         grouped["python"] += py_rows
     if set_partial is not None:
@@ -107,13 +124,20 @@ def run_hcyt_inspections(
     )
     if task_running is not None:
         task_running("lineage")
-    lineage_summary = build_lineage_summary(
-        modules,
-        job_df=job_df,
-        program_xls=program_xls,
-        py_lists=py_lists,
-        db_job_rows=db_job_rows,
-    )
+    started = time.perf_counter()
+    if log_timing is not None:
+        log_timing("inspections.lineage", "start")
+    try:
+        lineage_summary = build_lineage_summary(
+            modules,
+            job_df=job_df,
+            program_xls=program_xls,
+            py_lists=py_lists,
+            db_job_rows=db_job_rows,
+        )
+    finally:
+        if log_timing is not None:
+            log_timing("inspections.lineage", "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1))
     if set_partial is not None:
         publish_hcyt_progress(set_partial, build_lineage_checked_progress(
             asset_issues=asset_issues,
