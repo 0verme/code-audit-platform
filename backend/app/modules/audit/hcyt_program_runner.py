@@ -14,6 +14,30 @@ def _timed(label, fn, log_timing=None, **fields):
             log_timing(label, "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1), **fields)
 
 
+def _load_lineage_metadata(modules, log_timing):
+    """Load lineage metadata once and retain the raw rows for this audit run."""
+    metadata_service = getattr(modules, "audit_metadata_service", None)
+    context = {
+        "job_outfile_rows": [], "result_table_recv_detail_rows": [],
+        "result_table_sys_name_rows": [], "recv_mapping_plan_rows": [], "warnings": [],
+    }
+    if metadata_service is None:
+        context["warnings"].append("lineage metadata unavailable")
+        return context
+    queries = (
+        ("job_outfile_rows", "programs.metadata.job_outfiles", "job outfile metadata", metadata_service.list_job_outfiles),
+        ("result_table_recv_detail_rows", "programs.metadata.recv_details", "result table recv detail metadata", metadata_service.list_result_table_recv_details),
+        ("result_table_sys_name_rows", "programs.metadata.sys_names", "result table sys name metadata", metadata_service.list_result_table_sys_names),
+        ("recv_mapping_plan_rows", "programs.metadata.mapping_plans", "recv mapping plan metadata", metadata_service.list_recv_mapping_plans),
+    )
+    for key, label, description, query in queries:
+        try:
+            context[key] = _timed(label, lambda query=query: query() or [], log_timing)
+        except Exception as exc:
+            context["warnings"].append(f"{description} unavailable: {type(exc).__name__}")
+    return context
+
+
 def run_hcyt_programs(
     py_lists,
     job_df,
@@ -30,12 +54,15 @@ def run_hcyt_programs(
     dedupe_tables,
     cale_map,
     log_timing=None,
+    lineage_context=None,
 ):
     py_scripts, py_rows, ref_tables, deps, asset_issues = [], [], [], [], []
     if not py_lists:
         return py_scripts, py_rows, ref_tables, deps, asset_issues
 
     program_lookup = dependency_lookup = None
+    merge_df = None
+    lineage_rows_by_path = {}
     if job_df is not None and program_xls:
         def build_lookups():
             program_df = _timed("programs.load_excel", lambda: modules.re_service.load_xls_to_df(program_xls), log_timing)
@@ -47,15 +74,29 @@ def run_hcyt_programs(
             prog_path_col = merge_program.columns[4]
             merged = _timed("programs.merge_job_program", lambda: modules.re_service.merge_job_program(merge_job, merge_program), log_timing)
             return (
+                merged,
                 _timed("programs.build_program_lookup", lambda: modules.re_service.build_program_lookup(merged, prog_path_col, tail_levels=4), log_timing),
                 _timed("programs.build_dependency_lookup", lambda: modules.re_service.build_dependency_table_lookup(merged), log_timing),
+                _timed("programs.build_lineage_row_lookup", lambda: modules.re_service.build_lineage_row_lookup(merged, tail_levels=4), log_timing, merge_rows=len(merged.index)),
             )
 
-        program_lookup, dependency_lookup = _timed(
+        merge_df, program_lookup, dependency_lookup, lineage_rows_by_path = _timed(
             "programs.build_lookups",
-            lambda: safe("JOB/PROGRAM 调度关联", build_lookups, (None, None)),
+            lambda: safe("JOB/PROGRAM 调度关联", build_lookups, (None, None, None, {})),
             log_timing,
         )
+
+    if lineage_context is not None:
+        lineage_context.update(_load_lineage_metadata(modules, log_timing))
+        lineage_context.update({
+            "merge_df": merge_df,
+            "program_lookup": program_lookup,
+            "dependency_lookup": dependency_lookup,
+            "lineage_rows_by_path": lineage_rows_by_path,
+            "job_outfile_lookup": modules.re_service.build_job_outfile_lookup(
+                lineage_context.get("job_outfile_rows")
+            ),
+        })
 
     registered = set(_timed(
         "programs.load_registered_tables",

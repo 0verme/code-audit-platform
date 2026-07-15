@@ -203,7 +203,10 @@ def get_audit_run_partial_result(task_id: int) -> dict | None:
     return _get_audit_run_partial_result(task_id)
 
 
-def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None, log_timing=None):
+def _build_lineage_summary_payload(
+    m, job_df=None, program_xls=None, py_lists=None, db_job_rows=None,
+    log_timing=None, lineage_context=None,
+):
     import time
 
     def timed(label, fn, **fields):
@@ -218,10 +221,32 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
 
     warnings = []
     merge_df = None
+    dependency_lookup = None
+    matched_rows = None
     job_outfile_lookup = {}
+    metadata_rows = {
+        "job_outfile_rows": None,
+        "result_table_recv_detail_rows": None,
+        "result_table_sys_name_rows": None,
+        "recv_mapping_plan_rows": None,
+    }
     metadata_service = getattr(m, "audit_metadata_service", None)
 
-    if metadata_service is None:
+    if lineage_context is not None:
+        merge_df = lineage_context.get("merge_df")
+        dependency_lookup = lineage_context.get("dependency_lookup")
+        job_outfile_lookup = lineage_context.get("job_outfile_lookup") or {}
+        warnings.extend(lineage_context.get("warnings") or [])
+        metadata_rows = {
+            key: lineage_context.get(key, [])
+            for key in metadata_rows
+        }
+        matched_rows = []
+        rows_by_path = lineage_context.get("lineage_rows_by_path") or {}
+        for path in py_lists or []:
+            path_tail = m.re_service.tail_path(m.re_service.safe_remove_prefix(path), 4)
+            matched_rows.extend(rows_by_path.get(path_tail, []))
+    elif metadata_service is None:
         warnings.append("job metadata unavailable")
     else:
         try:
@@ -231,7 +256,7 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
             warnings.append(lineage_warning("job outfile metadata", exc))
             job_outfile_lookup = {}
 
-    if job_df is not None and program_xls:
+    if lineage_context is None and job_df is not None and program_xls:
         try:
             program_df = timed("lineage.load_program_excel", lambda: m.re_service.load_xls_to_df(program_xls))
             merge_job = timed("lineage.normalize_job", lambda: m.hcyt.all_job_df(job_df, db_job_rows)) if db_job_rows is not None else job_df
@@ -242,7 +267,7 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
             merge_df = timed("lineage.merge_job_program", lambda: m.re_service.merge_job_program(merge_job, merge_program))
         except Exception as exc:
             warnings.append(lineage_warning("merge metadata", exc))
-    elif job_df is None:
+    elif lineage_context is None and job_df is None:
         warnings.append("job metadata unavailable")
 
     try:
@@ -252,7 +277,13 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
                 merge_df=merge_df,
                 input_path=None,
                 job_outfile_lookup=job_outfile_lookup,
-                metadata_service=metadata_service,
+                job_outfile_rows=metadata_rows["job_outfile_rows"],
+                result_table_recv_detail_rows=metadata_rows["result_table_recv_detail_rows"],
+                result_table_sys_name_rows=metadata_rows["result_table_sys_name_rows"],
+                recv_mapping_plan_rows=metadata_rows["recv_mapping_plan_rows"],
+                dependency_lookup=dependency_lookup,
+                matched_rows=matched_rows,
+                metadata_service=metadata_service if lineage_context is None else None,
                 log_timing=log_timing,
             ),
         )
@@ -355,6 +386,18 @@ class TaskRun:
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
         finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        def persist(label, fn):
+            started = time.perf_counter()
+            self.log(f"[timing] {label} start", "INFO")
+            try:
+                return fn()
+            finally:
+                self.log(
+                    f"[timing] {label} end elapsed_ms={round((time.perf_counter() - started) * 1000, 1)}",
+                    "INFO",
+                )
+
         if self.workflow in {"hcyt", "nups"} and report is not None:
             # Both workflows have complete reports and final legacy-result
             # projections on this path. Keep every completion fact in the
@@ -365,18 +408,11 @@ class TaskRun:
                 else build_legacy_nups_audit_result_rows(report.get("sqlChecks", []), rule_label)
             )
             try:
-                persist_task_completion_atomic(
-                    self.task_id,
-                    status=status,
-                    duration=duration,
-                    finished_at=finished_at,
-                    error=error,
-                    progress=100,
-                    step="completed",
-                    logs=self.logs,
-                    report=report,
-                    audit_results=audit_results,
-                )
+                persist("task.persistence.atomic", lambda: persist_task_completion_atomic(
+                    self.task_id, status=status, duration=duration, finished_at=finished_at,
+                    error=error, progress=100, step="completed", logs=self.logs,
+                    report=report, audit_results=audit_results,
+                ))
             except Exception:
                 # TaskRun.run() must not turn a failed atomic completion into a
                 # legacy, non-atomic completion attempt.
@@ -395,17 +431,11 @@ class TaskRun:
             self._ensure_run_state().mark_finished()
         else:
             self._ensure_run_state().mark_finished(error=error or status)
-        persist_task_run_completion(
-            self.task_id,
-            status=status,
-            duration=duration,
-            finished_at=finished_at,
-            error=error,
-            progress=100 if report else 0,
-            step="completed" if report else "failed",
-            logs=self.logs,
-            report=report,
-        )
+        persist("task.persistence", lambda: persist_task_run_completion(
+            self.task_id, status=status, duration=duration, finished_at=finished_at,
+            error=error, progress=100 if report else 0,
+            step="completed" if report else "failed", logs=self.logs, report=report,
+        ))
 
     def save_category_rows(self, grouped_rows):
         """Sync audit_results to preserve the legacy /api/audit-results endpoint."""
@@ -643,7 +673,7 @@ class TaskRun:
         ??? hcyt_stream.build_job_display_df ??????????"""
         return _build_job_table(job_source, db_job_rows)
 
-    def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows, log_timing=None):
+    def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows, log_timing=None, lineage_context=None):
         return _run_hcyt_programs(
             py_lists,
             job_df,
@@ -660,6 +690,7 @@ class TaskRun:
             cale_map=CALE_MAP,
             text_to_rows=text_to_rows,
             log_timing=log_timing,
+            lineage_context=lineage_context,
         )
 
     # ===================================================================
