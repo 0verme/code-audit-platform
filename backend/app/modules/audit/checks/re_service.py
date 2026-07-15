@@ -317,34 +317,57 @@ def build_wide_table_lineage_summary(
     recv_mapping_plan_rows=None,
     metadata_service=None,
     tail_levels=4,
+    log_timing=None,
 ):
+    def timed(label, fn, **fields):
+        started = time.perf_counter()
+        if log_timing is not None:
+            log_timing(label, "start", **fields)
+        try:
+            return fn()
+        finally:
+            if log_timing is not None:
+                log_timing(label, "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1), **fields)
+
     warnings = []
     summary = _empty_wide_table_lineage_summary()
 
     if metadata_service is not None:
         if job_outfile_rows is None and job_outfile_lookup is None:
-            job_outfile_rows = _safe_metadata_rows(
-                metadata_service.list_job_outfiles,
-                "job outfile metadata",
-                warnings,
+            job_outfile_rows = timed(
+                "lineage.summary.query_job_outfiles",
+                lambda: _safe_metadata_rows(
+                    metadata_service.list_job_outfiles,
+                    "job outfile metadata",
+                    warnings,
+                ),
             )
         if result_table_recv_detail_rows is None and result_table_recv_detail_map is None:
-            result_table_recv_detail_rows = _safe_metadata_rows(
-                metadata_service.list_result_table_recv_details,
-                "result table recv detail metadata",
-                warnings,
+            result_table_recv_detail_rows = timed(
+                "lineage.summary.query_recv_details",
+                lambda: _safe_metadata_rows(
+                    metadata_service.list_result_table_recv_details,
+                    "result table recv detail metadata",
+                    warnings,
+                ),
             )
         if result_table_sys_name_rows is None:
-            result_table_sys_name_rows = _safe_metadata_rows(
-                metadata_service.list_result_table_sys_names,
-                "result table sys name metadata",
-                warnings,
+            result_table_sys_name_rows = timed(
+                "lineage.summary.query_sys_names",
+                lambda: _safe_metadata_rows(
+                    metadata_service.list_result_table_sys_names,
+                    "result table sys name metadata",
+                    warnings,
+                ),
             )
         if recv_mapping_plan_rows is None:
-            recv_mapping_plan_rows = _safe_metadata_rows(
-                metadata_service.list_recv_mapping_plans,
-                "recv mapping plan metadata",
-                warnings,
+            recv_mapping_plan_rows = timed(
+                "lineage.summary.query_mapping_plans",
+                lambda: _safe_metadata_rows(
+                    metadata_service.list_recv_mapping_plans,
+                    "recv mapping plan metadata",
+                    warnings,
+                ),
             )
 
     if job_outfile_lookup is None:
@@ -356,59 +379,69 @@ def build_wide_table_lineage_summary(
             if _normalize_lineage_job_name(job) and _safe_lineage_value(outfile)
         }
 
-    recv_detail_map = {}
-    if result_table_recv_detail_map:
-        for table_name, details in result_table_recv_detail_map.items():
-            normalized_table = _normalize_lineage_table_name(table_name)
-            if not normalized_table:
+    def build_recv_detail_map():
+        recv_detail_map = {}
+        if result_table_recv_detail_map:
+            for table_name, details in result_table_recv_detail_map.items():
+                normalized_table = _normalize_lineage_table_name(table_name)
+                if not normalized_table:
+                    continue
+                recv_detail_map.setdefault(normalized_table, [])
+                for detail in details or []:
+                    recv_plan = _safe_lineage_value(
+                        _lineage_row_value(detail, 0, ("recv_plan", "plan"))
+                    ).upper()
+                    sys_name = _safe_lineage_value(
+                        _lineage_row_value(detail, 1, ("source_system", "sys_name"))
+                    )
+                    row = {"recv_plan": recv_plan, "source_system": sys_name}
+                    if (recv_plan or sys_name) and row not in recv_detail_map[normalized_table]:
+                        recv_detail_map[normalized_table].append(row)
+
+        for row in result_table_recv_detail_rows or []:
+            table_name = _normalize_lineage_table_name(
+                _lineage_row_value(row, 0, ("table_name", "result_table", "d.table_name"))
+            )
+            recv_plan = _safe_lineage_value(
+                _lineage_row_value(row, 1, ("recv_plan", "plan", "d.recv_plan"))
+            ).upper()
+            sys_name = _safe_lineage_value(
+                _lineage_row_value(row, 2, ("sys_name", "source_system", "m.sys_name"))
+            )
+            if not table_name:
                 continue
-            recv_detail_map.setdefault(normalized_table, [])
-            for detail in details or []:
-                recv_plan = _safe_lineage_value(
-                    _lineage_row_value(detail, 0, ("recv_plan", "plan"))
-                ).upper()
-                sys_name = _safe_lineage_value(
-                    _lineage_row_value(detail, 1, ("source_system", "sys_name"))
-                )
-                row = {"recv_plan": recv_plan, "source_system": sys_name}
-                if (recv_plan or sys_name) and row not in recv_detail_map[normalized_table]:
-                    recv_detail_map[normalized_table].append(row)
-
-    for row in result_table_recv_detail_rows or []:
-        table_name = _normalize_lineage_table_name(
-            _lineage_row_value(row, 0, ("table_name", "result_table", "d.table_name"))
-        )
-        recv_plan = _safe_lineage_value(
-            _lineage_row_value(row, 1, ("recv_plan", "plan", "d.recv_plan"))
-        ).upper()
-        sys_name = _safe_lineage_value(
-            _lineage_row_value(row, 2, ("sys_name", "source_system", "m.sys_name"))
-        )
-        if not table_name:
-            continue
-        recv_detail_map.setdefault(table_name, [])
-        detail = {"recv_plan": recv_plan, "source_system": sys_name}
-        if (recv_plan or sys_name) and detail not in recv_detail_map[table_name]:
-            recv_detail_map[table_name].append(detail)
-
-    for row in result_table_sys_name_rows or []:
-        table_name = _normalize_lineage_table_name(
-            _lineage_row_value(row, 0, ("table_name", "result_table", "d.table_name"))
-        )
-        sys_name = _safe_lineage_value(
-            _lineage_row_value(row, 1, ("sys_name", "source_system", "m.sys_name"))
-        )
-        if table_name and sys_name:
             recv_detail_map.setdefault(table_name, [])
-            detail = {"recv_plan": "", "source_system": sys_name}
-            if detail not in recv_detail_map[table_name]:
+            detail = {"recv_plan": recv_plan, "source_system": sys_name}
+            if (recv_plan or sys_name) and detail not in recv_detail_map[table_name]:
                 recv_detail_map[table_name].append(detail)
 
-    for row in recv_mapping_plan_rows or []:
-        recv_plan = _safe_lineage_value(
-            _lineage_row_value(row, 0, ("recv_plan", "plan"))
-        ).upper()
-        _dedupe_append(summary["recvPlans"], recv_plan)
+        for row in result_table_sys_name_rows or []:
+            table_name = _normalize_lineage_table_name(
+                _lineage_row_value(row, 0, ("table_name", "result_table", "d.table_name"))
+            )
+            sys_name = _safe_lineage_value(
+                _lineage_row_value(row, 1, ("sys_name", "source_system", "m.sys_name"))
+            )
+            if table_name and sys_name:
+                recv_detail_map.setdefault(table_name, [])
+                detail = {"recv_plan": "", "source_system": sys_name}
+                if detail not in recv_detail_map[table_name]:
+                    recv_detail_map[table_name].append(detail)
+
+        for row in recv_mapping_plan_rows or []:
+            recv_plan = _safe_lineage_value(
+                _lineage_row_value(row, 0, ("recv_plan", "plan"))
+            ).upper()
+            _dedupe_append(summary["recvPlans"], recv_plan)
+        return recv_detail_map
+
+    recv_detail_map = timed(
+        "lineage.summary.build_recv_detail_map",
+        build_recv_detail_map,
+        recv_detail_rows=len(result_table_recv_detail_rows or []),
+        sys_name_rows=len(result_table_sys_name_rows or []),
+        mapping_plan_rows=len(recv_mapping_plan_rows or []),
+    )
 
     if merge_df is not None:
         try:
@@ -420,8 +453,22 @@ def build_wide_table_lineage_summary(
                     matched_df = merge_df[
                         merge_df[program_path_col].apply(lambda x: tail_path(x, tail_levels)) == input_tail
                     ]
-                dependency_lookup = build_dependency_table_lookup(merge_df)
+                dependency_lookup = timed(
+                    "lineage.summary.build_dependency_lookup",
+                    lambda: build_dependency_table_lookup(merge_df),
+                    merge_rows=len(merge_df.index),
+                )
+                merge_started = time.perf_counter()
+                matched_row_count = 0
+                if log_timing is not None:
+                    log_timing(
+                        "lineage.summary.iterate_merge_rows",
+                        "start",
+                        merge_rows=len(merge_df.index),
+                        matched_rows=len(matched_df.index),
+                    )
                 for _, row in matched_df.iterrows():
+                    matched_row_count += 1
                     job_name = _normalize_lineage_job_name(row.iloc[2] if len(row) > 2 else "")
                     dependency_raw = row.iloc[27] if len(row) > 27 else ""
                     program_path = row.iloc[32] if len(row) > 32 else row.iloc[-6]
@@ -440,6 +487,16 @@ def build_wide_table_lineage_summary(
                         for detail in recv_detail_map.get(normalized_table, []):
                             _dedupe_append(summary["recvPlans"], detail.get("recv_plan"))
                             _dedupe_append(summary["sysNames"], detail.get("source_system"))
+                if log_timing is not None:
+                    log_timing(
+                        "lineage.summary.iterate_merge_rows",
+                        "end",
+                        elapsed_ms=round((time.perf_counter() - merge_started) * 1000, 1),
+                        merge_rows=len(merge_df.index),
+                        matched_rows=matched_row_count,
+                        jobs=len(summary["jobs"]),
+                        result_tables=len(summary["resultTables"]),
+                    )
         except Exception as exc:
             warnings.append(f"merge metadata unavailable: {type(exc).__name__}")
 
@@ -457,7 +514,14 @@ def build_wide_table_lineage_summary(
         warnings.append("empty lineage metadata")
 
     summary["warnings"] = warnings
-    return _finalize_wide_table_lineage_summary(summary)
+    return timed(
+        "lineage.summary.finalize",
+        lambda: _finalize_wide_table_lineage_summary(summary),
+        jobs=len(summary["jobs"]),
+        result_tables=len(summary["resultTables"]),
+        recv_plans=len(summary["recvPlans"]),
+        sys_names=len(summary["sysNames"]),
+    )
 
 
 def get_result(merge_df, input_path, tail_levels=3, prog_path_col=None):

@@ -253,6 +253,7 @@ def _build_lineage_summary_payload(m, job_df=None, program_xls=None, py_lists=No
                 input_path=None,
                 job_outfile_lookup=job_outfile_lookup,
                 metadata_service=metadata_service,
+                log_timing=log_timing,
             ),
         )
     except Exception as exc:
