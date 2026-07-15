@@ -1,27 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
+import { ReferenceTableList } from "../components/ReferenceTableList";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 
 const FR_CAT = {
-  dataset: { label: "Dataset", icon: "db" },
-  conn: { label: "Connection", icon: "link" },
-  param: { label: "Parameter", icon: "layers" },
-  tpl: { label: "Template", icon: "grid" },
-  perf: { label: "Performance", icon: "gauge" },
-  perm: { label: "Permission", icon: "shield" },
+  dataset: { label: "数据集", icon: "db" },
+  conn: { label: "连接", icon: "link" },
+  param: { label: "参数", icon: "layers" },
+  tpl: { label: "模板", icon: "grid" },
+  perf: { label: "性能", icon: "gauge" },
+  perm: { label: "权限", icon: "shield" },
 };
 
-const FR_REF_TYPES = [
-  { key: "result", label: "Result Table", cls: "result" },
-  { key: "mid", label: "Middle Table", cls: "mid" },
-  { key: "src", label: "Source Table", cls: "src" },
-  { key: "temp", label: "Temp Table", cls: "temp" },
-];
-
 export const FR_NAV = [
-  { id: "overview", label: "Overview", icon: "layers" },
-  { id: "reports", label: "Report Checks", icon: "grid", get: (data) => data.reports, neutral: true },
-  { id: "reftables", label: "Referenced Tables", icon: "db", get: (data) => data.refTables, neutral: true },
+  { id: "overview", label: "概览", icon: "layers" },
+  { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
 ];
 
 function reportAudit(report) {
@@ -33,8 +26,8 @@ function reportAudit(report) {
 
 function reportType(report) {
   return report.type === "frm"
-    ? { icon: "screen", label: "Decision Screen .frm" }
-    : { icon: "grid", label: "Standard Report .cpt" };
+    ? { icon: "screen", label: "决策大屏 .frm" }
+    : { icon: "grid", label: "普通报表 .cpt" };
 }
 
 function FrStatusHeader({ d }) {
@@ -55,8 +48,8 @@ function FrStatusHeader({ d }) {
           </div>
           <p className="sh-desc">
             {task.status === "pass"
-              ? "All reports passed validation and are ready to publish."
-              : "There are unresolved dataset, connection, or permission issues."}
+              ? "所有报表均已通过检查，可以发布。"
+              : "存在尚未解决的数据集、连接或权限问题。"}
           </p>
           <div className="sh-meta mono">
             <span><Icon name="branch" size={12} /> {task.revision}</span>
@@ -65,16 +58,16 @@ function FrStatusHeader({ d }) {
             <span className="sh-sep">/</span>
             <span><Icon name="clock" size={12} /> {task.startedAt}</span>
             <span className="sh-sep">/</span>
-            <span>Duration {task.duration}</span>
+            <span>时长 {task.duration}</span>
           </div>
         </div>
       </div>
       <div className="metrics sh-metrics">
-        <Metric label="Reports" value={task.reports} icon="grid" />
-        <Metric label="Checks" value={task.checks} icon="layers" />
-        <Metric label="Errors" value={task.errors} tone={task.errors ? "err" : "ok"} icon="x" />
-        <Metric label="Warnings" value={task.warnings} tone={task.warnings ? "warn" : "ok"} icon="alert" />
-        <Metric label="High Risk" value={highRisk} tone={highRisk ? "err" : "ok"} icon="shield" />
+        <Metric label="报表" value={task.reports} icon="grid" />
+        <Metric label="检查项" value={task.checks} icon="layers" />
+        <Metric label="错误" value={task.errors} tone={task.errors ? "err" : "ok"} icon="x" />
+        <Metric label="警告" value={task.warnings} tone={task.warnings ? "warn" : "ok"} icon="alert" />
+        <Metric label="高风险" value={highRisk} tone={highRisk ? "err" : "ok"} icon="shield" />
       </div>
     </div>
   );
@@ -89,10 +82,10 @@ function ReportListSection({ d, reg, onOpen }) {
     <Panel
       id="reports"
       icon="grid"
-      title="Report Review List"
+      title="报表检查列表"
       registerRef={reg}
-      sub="Dataset / Connection / Parameter / Template / Performance / Permission"
-      count={flagged ? `${flagged} reports need fixes` : "All passed"}
+      sub="数据集 / 连接 / 参数 / 模板 / 性能 / 权限"
+      count={flagged ? `${flagged} 个报表需要修复` : "全部通过"}
       countTone={flagged ? (anyErr ? "err" : "warn") : "ok"}
     >
       <div className="panel-body flush">
@@ -115,65 +108,21 @@ function ReportListSection({ d, reg, onOpen }) {
                 <span className="fr-meta mono">
                   <span className="fr-type">{report.type === "frm" ? "FRM" : "CPT"}</span>
                   <span className="fr-dot">/</span>
-                  <span>Datasets {report.datasets.length}</span>
+                  <span>数据集 {report.datasets.length}</span>
                   <span className="fr-dot">/</span>
-                  <span>Refs {report.refTables.length}</span>
+                  <span>引用表 {Array.isArray(report.refTables) ? report.refTables.length : 0}</span>
                 </span>
                 <span className="pas-tags">
-                  <span className="pas-grp-label">Check</span>
+                  <span className="pas-grp-label">检查</span>
                   {audit.err ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{audit.err}</span> : null}
                   {audit.warn ? <span className="sev warn"><Icon name="alert" size={11} stroke={2.4} />{audit.warn}</span> : null}
-                  {!audit.total ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} />Pass</span> : null}
+                  {!audit.total ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} />通过</span> : null}
                 </span>
                 <Icon name="chevron" size={16} className="pas-chev" />
               </button>
             );
           })}
         </div>
-      </div>
-    </Panel>
-  );
-}
-
-function FrRefTablesSection({ d, reg }) {
-  return (
-    <Panel
-      id="reftables"
-      icon="db"
-      title="Referenced Tables"
-      registerRef={reg}
-      count={d.refTables.length}
-      sub="Grouped by table type"
-    >
-      <div className="panel-body">
-        <div className="legend" style={{ marginBottom: 14 }}>
-          {FR_REF_TYPES.map((type) => {
-            const count = d.refTables.filter((item) => item.type === type.key).length;
-            if (!count) return null;
-            return (
-              <span key={type.key} className="lg-item">
-                <span className={`chip ${type.cls}`}><span className="cdot" />{type.label}</span>
-                <span className="mono" style={{ color: "var(--text-3)" }}>x{count}</span>
-              </span>
-            );
-          })}
-        </div>
-        {FR_REF_TYPES.map((type) => {
-          const items = d.refTables.filter((item) => item.type === type.key);
-          if (!items.length) return null;
-          return (
-            <div key={type.key} style={{ marginBottom: 12 }}>
-              <div className="subhead" style={{ marginBottom: 7 }}>{type.label} / {items.length}</div>
-              <div className="chips">
-                {items.map((item) => (
-                  <span key={item.name} className={`chip ${type.cls}`}>
-                    <span className="cdot" />{item.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </Panel>
   );
@@ -238,7 +187,7 @@ function DatasetSqlCard({ dataset, index }) {
           <Icon name="chevron" size={14} className="fr-ds-chevron" />
           <span className="fr-ds-name mono">{dataset.name}</span>
         </span>
-        <span className="fr-ds-rows mono">{dataset.rows} rows</span>
+        <span className="fr-ds-rows mono">{dataset.rows} 行</span>
       </button>
       {open ? <pre id={sqlId} className="fr-ds-sql mono">{dataset.sql}</pre> : null}
     </div>
@@ -263,6 +212,7 @@ function ReportDetailDrawer({ report, onClose }) {
 
   const audit = reportAudit(report);
   const type = reportType(report);
+  const refTables = Array.isArray(report.refTables) ? report.refTables : [];
   const issues = [...(report.issues || [])].sort(
     (left, right) => (left.level === "err" ? 0 : 1) - (right.level === "err" ? 0 : 1),
   );
@@ -294,7 +244,7 @@ function ReportDetailDrawer({ report, onClose }) {
             <div><dt>数据源</dt><dd className="mono">{report.conn}</dd></div>
             {report.engine ? <div><dt>引擎</dt><dd>{report.engine}</dd></div> : null}
             {report.sheets?.length ? <div><dt>Sheet 页</dt><dd className="mono">{report.sheets.length} 个：{report.sheets.join(", ")}</dd></div> : null}
-            <div><dt>数据集 / 引用表</dt><dd className="mono">{report.datasets.length} / {report.refTables.length}</dd></div>
+            <div><dt>数据集 / 引用表</dt><dd className="mono">{report.datasets.length} / {refTables.length}</dd></div>
           </dl>
         </div>
 
@@ -302,28 +252,28 @@ function ReportDetailDrawer({ report, onClose }) {
           <div className="sd-focus">
             <span className="sd-focus-ic"><Icon name="search" size={14} /></span>
             <div>
-              <div className="sd-focus-label">Review Focus</div>
+              <div className="sd-focus-label">检查重点</div>
               <p className="sd-focus-text">{report.focus}</p>
             </div>
           </div>
 
           <div className="sd-block">
             <div className="subhead">
-              <Icon name="search" size={12} /> Issues <span className="sd-num mono">{issues.length}</span>
+              <Icon name="search" size={12} /> 问题明细 <span className="sd-num mono">{issues.length}</span>
               <span className="sd-tally">
-                {audit.err ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{audit.err} errors</span> : null}
-                {audit.warn ? <span className="sev warn"><Icon name="alert" size={11} stroke={2.4} />{audit.warn} warnings</span> : null}
+                {audit.err ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{audit.err} 个错误</span> : null}
+                {audit.warn ? <span className="sev warn"><Icon name="alert" size={11} stroke={2.4} />{audit.warn} 个警告</span> : null}
               </span>
             </div>
             <div className="table-wrap sd-cmp">
               <table className="tbl">
                 <thead>
                   <tr>
-                    <th style={{ width: 110 }}>Category</th>
-                    <th style={{ width: 120 }}>Location</th>
-                    <th>Rule</th>
-                    <th className="severity-cell">Level</th>
-                    <th>Message</th>
+                    <th style={{ width: 110 }}>类别</th>
+                    <th style={{ width: 120 }}>位置</th>
+                    <th>规则</th>
+                    <th className="severity-cell">级别</th>
+                    <th>说明</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -345,7 +295,7 @@ function ReportDetailDrawer({ report, onClose }) {
           </div>
 
           <div className="sd-block">
-            <div className="subhead"><Icon name="db" size={12} /> Datasets <span className="sd-num mono">{report.datasets.length}</span></div>
+            <div className="subhead"><Icon name="db" size={12} /> 数据集 <span className="sd-num mono">{report.datasets.length}</span></div>
             <div className="fr-ds-list">
               {report.datasets.map((dataset, index) => (
                 <DatasetSqlCard key={`${dataset.name}-${index}`} dataset={dataset} index={index} />
@@ -354,19 +304,8 @@ function ReportDetailDrawer({ report, onClose }) {
           </div>
 
           <div className="sd-block">
-            <div className="subhead"><Icon name="db" size={12} /> Referenced Tables <span className="sd-num mono">{report.refTables.length}</span></div>
-            <div className="chips">
-              {report.refTables.map((item) => (
-                <span
-                  key={item.name}
-                  className={`chip ${item.type === "result" ? "result" : item.type === "mid" ? "mid" : "src"}`}
-                  style={item.highlight ? { color: "var(--err-fg)", fontWeight: 700 } : undefined}
-                >
-                  <span className="cdot" />{item.name}
-                  {item.disabled ? "（禁用）" : item.sysNames?.length ? `（${item.sysNames.join("/")}）` : ""}
-                </span>
-              ))}
-            </div>
+            <div className="subhead"><Icon name="db" size={12} /> 引用表 <span className="sd-num mono">{refTables.length}</span></div>
+            {report.type === "cpt" ? <ReferenceTableList items={refTables} /> : null}
           </div>
         </div>
       </div>
@@ -411,13 +350,12 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
 
   return (
     <div className="results-page fade-in">
-      {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>Loading FineReport items...</div> : null}
+      {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>正在加载报表检查数据...</div> : null}
       {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--err)" }}>FineReport API 不可用，请检查任务接口配置。</div> : null}
       <FrStatusHeader d={mergedData} />
       <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
       <ReportListSection d={mergedData} reg={reg} onOpen={setOpenReport} />
-      <FrRefTablesSection d={mergedData} reg={reg} />
       <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
       {openReport ? <ReportDetailDrawer report={openReport} onClose={() => setOpenReport(null)} /> : null}

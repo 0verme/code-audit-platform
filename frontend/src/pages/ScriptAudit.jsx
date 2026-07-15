@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
+import { ReferenceTableList } from "../components/ReferenceTableList";
 
 const SD_STATE = {
   same: { cls: "ok", label: "相同", icon: "check" },
@@ -91,11 +92,7 @@ function ListBlock({ title, items = [], icon }) {
     <div className="sd-block">
       <div className="subhead"><Icon name={icon} size={12} /> {title} <span className="sd-num mono">{items.length}</span></div>
       {items.length ? (
-        <div className="chips">
-          {items.map((item) => (
-            <span key={item} className="chip src"><span className="cdot" />{item}</span>
-          ))}
-        </div>
+        <ReferenceTableList items={items} />
       ) : (
         <div className="sd-empty">无</div>
       )}

@@ -54,7 +54,6 @@ const SECTION_NAV = [
 const FR_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
   { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
-  { id: "reftables", label: "引用表汇总", icon: "db", get: (data) => data.refTables, neutral: true },
 ];
 
 const DEBUG_LINES = [

@@ -23,3 +23,18 @@ test("FineReport dataset SQL cards expose keyboard focus styling", () => {
   assert.match(styleSource, /\.fr-ds-trigger:focus-visible/);
   assert.match(styleSource, /\.fr-ds\.open \.fr-ds-chevron/);
 });
+
+test("FineReport keeps referenced tables inside CPT drilldown", () => {
+  assert.doesNotMatch(pageSource, /function FrRefTablesSection/);
+  assert.doesNotMatch(pageSource, /id="reftables"/);
+  assert.match(pageSource, /ReferenceTableList/);
+  assert.match(pageSource, /report\.type === "cpt"/);
+  assert.match(pageSource, /引[^\n]*表/);
+});
+
+test("shared referenced table list renders FineReport table metadata", () => {
+  const source = readFileSync(new URL("../components/ReferenceTableList.jsx", import.meta.url), "utf8");
+  assert.match(source, /item\.disabled/);
+  assert.match(source, /item\.sysNames/);
+  assert.match(source, /emptyText = "无"/);
+});
