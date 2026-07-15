@@ -6,7 +6,7 @@ The platform runtime database and rule metadata database use the same config
 file:
 
 ```text
-backend/database.yaml
+backend/configs/database.yaml
 ```
 
 That config must use `backend: postgres`. The platform maps its `postgres` block
@@ -18,10 +18,10 @@ tables live in the same PostgreSQL database.
 Copy the committed template before editing local credentials:
 
 ```bash
-copy backend\database.example.yaml backend\database.yaml
+copy backend\configs\database.example.yaml backend\configs\database.yaml
 ```
 
-`backend/database.yaml` is ignored by git. Do not commit real
+`backend/configs/database.yaml` is ignored by git. Do not commit real
 hostnames, usernames, passwords, tokens, or connection strings.
 
 Override the config file path with:

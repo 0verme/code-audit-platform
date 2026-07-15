@@ -15,6 +15,7 @@ from db.profiles import (  # noqa: E402
     CONFIG_PATH_ENV,
     DEFAULT_CONFIG_PATH,
     DEPLOYMENT_MODE_ENV,
+    LEGACY_CONFIG_PATH_ENV,
     PROFILE_ENV,
     ProfileConfigError,
     load_database_config,
@@ -75,13 +76,18 @@ class DatabaseProfileTests(unittest.TestCase):
                 profile = resolve_profile(config_path=config_path)
         self.assertEqual(profile.name, "local_dws")
 
-    def test_default_path_is_backend_database_yaml_independent_of_cwd(self):
-        expected = DEFAULT_CONFIG_PATH
+    def test_default_path_is_backend_configs_database_yaml_independent_of_cwd(self):
+        expected = BACKEND_DIR / "configs" / "database.yaml"
+        self.assertEqual(DEFAULT_CONFIG_PATH, expected)
         original_cwd = Path.cwd()
         with tempfile.TemporaryDirectory() as tmp:
             os.chdir(tmp)
             try:
-                with patch.dict(os.environ, {CONFIG_PATH_ENV: ""}, clear=False):
+                with patch.dict(
+                    os.environ,
+                    {CONFIG_PATH_ENV: "", LEGACY_CONFIG_PATH_ENV: ""},
+                    clear=False,
+                ):
                     self.assertEqual(resolve_config_path(), expected)
             finally:
                 os.chdir(original_cwd)
@@ -89,7 +95,23 @@ class DatabaseProfileTests(unittest.TestCase):
     def test_environment_config_override_has_priority(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
-            with patch.dict(os.environ, {CONFIG_PATH_ENV: str(config_path)}, clear=False):
+            legacy_path = Path(tmp) / "legacy.yaml"
+            legacy_path.write_text(CONFIG_TEXT.replace("local_pg", "legacy_pg"), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {CONFIG_PATH_ENV: str(config_path), LEGACY_CONFIG_PATH_ENV: str(legacy_path)},
+                clear=False,
+            ):
+                self.assertEqual(resolve_config_path(), config_path)
+
+    def test_legacy_environment_config_override_is_supported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            with patch.dict(
+                os.environ,
+                {CONFIG_PATH_ENV: "", LEGACY_CONFIG_PATH_ENV: str(config_path)},
+                clear=False,
+            ):
                 self.assertEqual(resolve_config_path(), config_path)
 
     def test_legacy_mixed_mode_is_rejected(self):
@@ -157,7 +179,11 @@ profiles:
         with tempfile.TemporaryDirectory() as tmp:
             missing_path = Path(tmp) / "missing.yaml"
             with patch("db.profiles.DEFAULT_CONFIG_PATH", missing_path):
-                with patch.dict(os.environ, {CONFIG_PATH_ENV: "", PROFILE_ENV: ""}, clear=False):
+                with patch.dict(
+                    os.environ,
+                    {CONFIG_PATH_ENV: "", LEGACY_CONFIG_PATH_ENV: "", PROFILE_ENV: ""},
+                    clear=False,
+                ):
                     with self.assertRaisesRegex(ProfileConfigError, rf"does not exist: {re.escape(str(missing_path))}"):
                         resolve_profile()
 

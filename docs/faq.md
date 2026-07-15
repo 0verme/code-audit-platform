@@ -25,7 +25,7 @@
 
 排查步骤：
 
-1. 检查 `backend/database.yaml` 是否存在。
+1. 检查 `backend/configs/database.yaml` 是否存在。
 2. 检查 `AUDIT_DATABASE_CONFIG` 和 `CODE_AUDIT_DB_PROFILE` 环境变量是否覆盖了 YAML。
 3. 用数据库客户端验证 host、port、库名、用户、schema。
 4. 确认 Postgres 已执行 `python backend/init_pg.py`。

@@ -50,7 +50,7 @@
 
 - **Git：** 前端输入和 `auditSources.js` 展示/提交 Git；`resolve_workspace()` 仅分 `local`，其余均进 SVN loader，`normalize_source_payload()` 强制 `svn`。Git URL 确定进入 SVN CLI 并误标来源。结论：近期前后端一致禁用/明确拒绝 Git；不要保留前端可选、后端不可用。
 - **lineage：** `mapping_compat.py`、`traversal.py` 默认路径均指向已删除的 `backend/svn_check`；`HEADER_ALIASES` 中文乱码，不能匹配正常中文 Excel。生产 HCYT 是否总走默认 SQLite 未获证明；默认调用必失败。测试多传临时路径，并从该常量自身构造表头。最小边界是修默认资源位置/配置、UTF-8 alias、真实中文 xlsx 与 default-path smoke；不重构 traversal。
-- **SVN 日志：** `run_svn_text()` 在 start/end/exception/slow 都传完整 command；command 含 `--username`/`--password`。成功、异常和超时都会泄漏；内部 URL 也出现于结构化日志/print。受跟踪 `backend/audit/configs/svn.yaml` 密码为空但含内部 URL，未发现真实 secret；真实配置不应继续 Git 跟踪。最小修复是日志脱敏视图和四路径测试，不重写 service。
+- **SVN 日志：** `run_svn_text()` 在 start/end/exception/slow 都传完整 command；command 含 `--username`/`--password`。成功、异常和超时都会泄漏；内部 URL 也出现于结构化日志/print。真实 SVN 配置应位于忽略的 `backend/configs/svn.yaml`，仓库仅保留脱敏模板；最小修复是日志脱敏视图和四路径测试，不重写 service。
 - **任务完成：** `persist_task_run_completion()` 先用一个连接提交 task，再用第二连接 delete/insert report；`replace_audit_results()` 第三个连接 delete 后逐行 insert，FineReport 明细另有独立路径。因此可有 success 无 report、report 新而 results 旧、删后插入失败；无 completion version，重试幂等性不明确。PostgreSQL/DWS/SQLite 尚未做三方真实故障注入，但多连接窗口三者都有。最小协议：同一 repository transaction 内 CAS/version 更新 task、upsert versioned report、批量替换明细；提交后才发布内存终态；跨库投影用可重放 completion version/outbox。
 - **metadata：** `TaskRun.safe()` 可把异常变为 `[]/{}/None`；`re_service._safe_metadata_rows()` 异常后 warning + `[]`。runner 通常不能分辨真实空数据与失败，最终报告无统一覆盖面。最小状态为 `executed`、`skipped`、`degraded`、`failed` 与原因；task execution status 必须与 audit verdict 分离。
 

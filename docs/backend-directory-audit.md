@@ -8,14 +8,14 @@
 
 ## 2. 当前目录概览
 
-`backend/` 包含应用入口 `app.py`、运行时数据库层 `db/`、审计领域包 `audit/`、元数据模块 `metadata/`、运维脚本 `scripts/`、运行数据目录 `data/` 与日志目录 `logs/`。`audit/` 内的 `checks/`、`rules/`、`prompts/` 是领域资源；`audit/configs/` 现仅保留 SVN 配置模板，归属合理。
+`backend/` 包含应用入口 `app.py`、运行时数据库层 `db/`、审计领域包 `audit/`、元数据模块 `metadata/`、运维脚本 `scripts/`、运行级配置目录 `configs/`、运行数据目录 `data/` 与日志目录 `logs/`。`audit/` 内的 `checks/`、`rules/`、`prompts/` 是领域资源；外部连接配置不属于业务包资源。
 
 ## 3. 数据库配置迁移结果
 
-- 本地运行配置：`backend/audit/configs/database.yaml` → `backend/database.yaml`（保留在本地，未纳入 Git）。
-- 配置模板：`backend/audit/configs/database.example.yaml` → `backend/database.example.yaml`（已纳入 Git）。
+- 本地运行配置：`backend/configs/database.yaml`（保留在本地，未纳入 Git）。
+- 配置模板：`backend/configs/database.example.yaml` 和 `backend/configs/svn.example.yaml`（已纳入 Git）。
 - 加载入口：`backend/db/profiles.py`。
-- 默认路径：由该模块自身位置计算的 `backend/database.yaml`，不依赖当前工作目录。
+- 默认路径：由集中路径定义模块计算的 `backend/configs/database.yaml`，不依赖当前工作目录。
 - 覆盖方式：`AUDIT_DATABASE_CONFIG` 优先；保留 `CODE_AUDIT_DB_CONFIG_PATH` 作为旧环境变量兼容入口。
 
 ## 4. 已完成调整
@@ -38,11 +38,12 @@
 ```text
 backend/
 ├── app.py
-├── database.yaml              # 本地、忽略
-├── database.example.yaml      # 脱敏模板
+├── configs/
+│   ├── database.yaml          # 本地、忽略
+│   ├── database.example.yaml  # 脱敏模板
+│   └── svn.example.yaml       # SVN 连接模板
 ├── audit/
 │   ├── checks/
-│   ├── configs/               # SVN 模块配置
 │   ├── prompts/
 │   └── rules/
 ├── db/
@@ -63,7 +64,7 @@ backend/
 
 ## 9. 配置与敏感信息风险
 
-真实 `backend/database.yaml` 已保留为本地忽略文件；模板文件使用占位值。审计未输出真实配置内容。Git 历史中曾出现配置类路径的风险需要在公开发布前按现有历史清理计划复核，本次未重写历史。
+真实 `backend/configs/database.yaml` 已保留为本地忽略文件；模板文件使用占位值。审计未输出真实配置内容。Git 历史中曾出现配置类路径的风险需要在公开发布前按现有历史清理计划复核，本次未重写历史。
 
 ## 10. 启动入口审计
 
@@ -75,4 +76,4 @@ backend/
 
 ## 12. 测试和脚本目录审计
 
-测试位于顶级 `tests/`，未与生产包混放。数据库初始化、迁移和自检脚本集中在 `backend/scripts/`。SVN 配置被 `audit.checks.svn_service` 加载，因此 `svn.example.yaml` 保留在 `backend/audit/configs/`；它不是全局数据库运行配置。
+测试位于顶级 `tests/`，未与生产包混放。数据库初始化、迁移和自检脚本集中在 `backend/scripts/`。SVN 配置虽然由 `audit.checks.svn_service` 读取，但它包含部署人员维护的外部连接、认证和工作区参数，因此与数据库配置一起归入 `backend/configs/`。

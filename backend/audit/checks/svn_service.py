@@ -15,11 +15,10 @@ import yaml
 
 from audit.checks.diag_service import log_exception_event, log_task_event, log_warning_event
 from audit.checks.re_service import get_export_base
+from config_paths import DEFAULT_SVN_CONFIG
 
-# 拷贝进代码审查平台后，配置随包放在 svn_check/configs/ 下。
-# 层级：svn_check/services/svn_service.py -> parents[1] = svn_check
-ROOT_DIR = Path(__file__).resolve().parents[1]
-CONFIG_PATH = ROOT_DIR / 'configs' / 'svn.yaml'
+# SVN credentials and connection settings are deployment configuration, not package resources.
+CONFIG_PATH = DEFAULT_SVN_CONFIG
 DEFAULT_SVN_BIN = 'svn'
 SENSITIVE_URL_QUERY_KEYS = {
     'access_token', 'apikey', 'api_key', 'authorization', 'credential',
@@ -474,4 +473,4 @@ def svn_main(project: str, branch_url: str):
 
 
 if __name__ == '__main__':
-    raise SystemExit("Configure SVN in audit/configs/svn.yaml and invoke svn_main from the application.")
+    raise SystemExit("Configure SVN in configs/svn.yaml and invoke svn_main from the application.")

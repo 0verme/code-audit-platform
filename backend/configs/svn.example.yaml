@@ -1,5 +1,5 @@
 # SVN access configuration template.
-# Copy this file to svn.yaml in your deployment environment and fill real values.
+# Copy this file to backend/configs/svn.yaml in your deployment environment and fill real values.
 # Do not commit real usernames, passwords, tokens, or internal repository URLs.
 
 defaults:

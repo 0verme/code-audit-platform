@@ -28,12 +28,9 @@ frontend/.env.local
 .DS_Store
 Thumbs.db
 
-# Python 缓存（含 svn_check 子包）
-__pycache__/
-
-# 真实数据库连接信息（含口令），不入库；用 database.example.yaml 作模板
-/backend/database.yaml
-backend/audit/configs/svn.yaml
+# Local runtime connection configuration; use committed example templates instead.
+/backend/configs/database.yaml
+/backend/configs/svn.yaml
 
 # Codex local state
 .codex/

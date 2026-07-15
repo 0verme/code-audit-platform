@@ -7,9 +7,9 @@ from typing import Any
 
 import yaml
 
-BACKEND_DIR = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = BACKEND_DIR.parent
-DEFAULT_CONFIG_PATH = BACKEND_DIR / "database.yaml"
+from config_paths import BACKEND_DIR, CONFIG_DIR, DEFAULT_DATABASE_CONFIG, PROJECT_ROOT
+
+DEFAULT_CONFIG_PATH = DEFAULT_DATABASE_CONFIG
 
 CONFIG_PATH_ENV = "AUDIT_DATABASE_CONFIG"
 LEGACY_CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
@@ -98,7 +98,7 @@ def load_database_config(config_path: str | os.PathLike[str] | None = None) -> d
         source = "an explicit path or environment override" if override_used else "the default location"
         raise ProfileConfigError(
             f"Database config file does not exist: {path} ({source}). "
-            f"Copy {BACKEND_DIR / 'database.example.yaml'} to {DEFAULT_CONFIG_PATH}, or set {CONFIG_PATH_ENV} "
+            f"Copy {CONFIG_DIR / 'database.example.yaml'} to {DEFAULT_CONFIG_PATH}, or set {CONFIG_PATH_ENV} "
             "to an absolute configuration path."
         )
 

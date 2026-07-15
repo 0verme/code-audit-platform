@@ -139,8 +139,8 @@ flowchart LR
 ### P1-03 SVN 凭据会随完整命令写入日志
 
 - **类型**：安全 / 敏感信息。
-- **位置**：`backend/audit/checks/svn_service.py:78-128`；`backend/audit/configs/svn.yaml`。
-- **当前实现**：密码通过 `--password` 放入命令数组，随后整个 `command` 被传给 start/end/exception/slow 日志；默认还启用 `--trust-server-cert`。当前跟踪的 `svn.yaml` 密码为空，但包含内部仓库地址。
+- **位置**：`backend/audit/checks/svn_service.py:78-128`；`backend/configs/svn.yaml`。
+- **当前实现**：密码通过 `--password` 放入命令数组，随后整个 `command` 被传给 start/end/exception/slow 日志；默认还启用 `--trust-server-cert`。仓库仅跟踪脱敏的 `svn.example.yaml`，部署用 `svn.yaml` 必须保持本地忽略。
 - **为何/影响**：部署填入密码后，日志、异常采集或控制台可持久化明文凭据；仓库地址也扩大内部信息暴露面。
 - **性质**：当前代码路径真实，凭据是否已泄露需检查部署日志，本审计未读取生产日志。
 - **建议**：构建专用脱敏命令视图；密码优先使用安全 credential store/环境注入，严禁记录参数值；证书信任改为显式配置且默认 false；跟踪文件只保留 example。

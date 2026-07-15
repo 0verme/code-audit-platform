@@ -7,7 +7,7 @@ provided. With no `AUDIT_DATABASE_CONFIG` or `CODE_AUDIT_DB_PROFILE`, the
 app reuses the metadata database config from:
 
 ```text
-backend/database.yaml
+backend/configs/database.yaml
 ```
 
 That file must set `backend: postgres`. The runtime platform tables and rule
@@ -15,7 +15,7 @@ metadata tables will be created/read in the same PostgreSQL database.
 
 ## Move to PostgreSQL or DWS
 
-1. Create `backend/database.yaml` from the template.
+1. Create `backend/configs/database.yaml` from the template.
 2. Add a `postgresql` or `dws` profile with test or environment-specific values.
 3. Set `AUDIT_DATABASE_CONFIG` to an absolute path when using a non-default file.
 4. Set `CODE_AUDIT_DB_PROFILE`.

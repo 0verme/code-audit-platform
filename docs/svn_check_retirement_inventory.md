@@ -23,8 +23,8 @@
 |---|---|---|---|---|---|---|---|---|---|---|
 | `backend/svn_check/__init__.py` | 生产代码 | 旧顶层包标记 | 旧路径导入 | 是 | 暂留兼容壳 | 最终删除 | 是，至阶段 8 | 旧包兼容导入；阶段 8 改为退役断言 | 中 | 所有实现、调用方和兼容测试已迁出 |
 | `backend/svn_check/configs/database.example.yaml` | fixture | metadata DB 脱敏配置模板 | `backend/db/profiles.py` 的默认配置约定、部署文档 | 是 | 迁移到 metadata | `backend/metadata/configs/database.example.yaml` | 视配置路径兼容策略 | profile/config 路径解析 | 高 | 不改 profile 默认值；同步代码与部署文档 |
-| `backend/svn_check/configs/svn.example.yaml` | fixture | SVN 脱敏配置模板 | `services/svn_service.py`、部署文档 | 是 | 迁移到 audit checks | `backend/audit/configs/svn.example.yaml` | 是 | SVN 配置解析与环境变量展开 | 中 | 先迁移 SVN 服务并保持配置优先级 |
-| `backend/svn_check/configs/svn.yaml` | fixture | 仓库内 SVN 默认/示例配置 | `services/svn_service.py` | 是 | 迁移到 audit checks | `backend/audit/configs/svn.yaml` | 是 | SVN 配置 fallback | 高 | 复核无凭据；保持现有默认行为 |
+| `backend/svn_check/configs/svn.example.yaml` | fixture | SVN 脱敏配置模板 | `services/svn_service.py`、部署文档 | 是 | 迁移到后端运行配置 | `backend/configs/svn.example.yaml` | 是 | SVN 配置解析与环境变量展开 | 中 | 先迁移 SVN 服务并保持配置优先级 |
+| `backend/svn_check/configs/svn.yaml` | fixture | 仓库内 SVN 默认/示例配置 | `services/svn_service.py` | 是 | 迁移到后端运行配置 | `backend/configs/svn.yaml` | 是 | SVN 配置 fallback | 高 | 复核无凭据；保持现有默认行为 |
 | `backend/svn_check/core/__init__.py` | 生产代码 | 旧规则包标记 | `core.*` 导入 | 是 | 暂留兼容壳 | `backend/audit/rules/__init__.py` | 是 | 新旧规则包导入 | 中 | 规则实现全部迁移 |
 | `backend/svn_check/core/asset_issue.py` | 生产代码 | issue 构造、key/hash、去重和统一 issue 转换 | `backend/audit/engine.py`、issue/portal tests | 是 | 迁移到 audit rules | `backend/audit/rules/asset_issue.py` | 是 | `test_asset_issue`、报告契约 | 高 | 保持 issue、`unifiedAssetIssues`、`assetIssues` 结构 |
 | `backend/svn_check/core/fine_rule.py` | 生产代码 | FineReport XML、菜单、权限、模板和 SQL 检查 | `backend/audit/engine.py`、Fine runner | 是 | 迁移到 audit checks | `backend/audit/checks/fine_rule.py` | 是 | Fine runner/contract 回归 | 高 | 保持命中语义和报告字段 |
@@ -74,7 +74,7 @@
 
 - `backend/audit/engine.py` 把 `backend/svn_check` 插入 `sys.path`，直接导入 `services.*`、`core.*` 和 `shared.lineage.mapping_sqlite`。
 - `backend/scripts/init_pg.py` 已在阶段 3 切换为读取 `backend/metadata/init/postgres_schema.sql`；旧 SQL 资源保留相同字节作为兼容路径。
-- `backend/db/profiles.py` 的默认配置路径仍指向 `backend/svn_check/configs/database.yaml`。
+- `backend/db/profiles.py` 的默认配置路径为 `backend/configs/database.yaml`。
 - 多组 HCYT、NUPS、FineReport、metadata、lineage、workspace 和 DB router 测试仍通过旧路径导入真实实现。
 - `shared.graph` 没有生产调用方；当前唯一代码调用来自该历史模块自身的契约测试。
 
@@ -117,10 +117,10 @@
 
 旧 Python 文件已收敛为 import alias、转发函数或包引导；每个兼容文件顶部均声明 `Deprecated compatibility path`、真实实现位置和 `Do not add new logic here`。`mapping_sqlite.py` 仅保留两个为兼容 mock/patch 语义所需的薄转发函数，不包含 cache、Excel 或遍历实现。
 
-非 Python 资源暂时双写保留：新默认 SVN 配置资源位于 `backend/audit/configs`，旧 `backend/svn_check/configs` 留待调用方和文档切换后删除；metadata SQL 的权威入口位于 `backend/metadata/init/postgres_schema.sql`，旧 SQL 保持字节一致作为兼容资源。阶段 6 未修改 schema、profile 默认值、runtime store、API 返回结构或测试断言。
+SVN 外部连接配置已归入 `backend/configs`；旧 `backend/svn_check/configs` 留待调用方和文档切换后删除。metadata SQL 的权威入口位于 `backend/metadata/init/postgres_schema.sql`，旧 SQL 保持字节一致作为兼容资源。阶段 6 未修改 schema、profile 默认值、runtime store、API 返回结构或测试断言。
 
 ## 阶段 7 调用方切换结果
 
 项目内部生产代码已不再导入 `services`、`core`、`shared.db` 或 `shared.lineage`：`backend/audit/engine.py` 直接加载新 audit、metadata 和 lineage 包，lineage 的默认 DB adapter 也已切到 `backend/db/metadata/compat`。绝大多数测试只把 `backend` 加入模块搜索路径并从新包导入；旧导入只保留在专门的兼容契约测试中。
 
-DB 默认配置入口已切到 `backend/audit/configs/database.yaml`，本地被忽略的配置文件随之迁移且不进入版本控制。旧 facade 和旧资源仍保留到阶段 8，但项目内部已进入待删除状态。日志 logger 名、外部 URL 中的 `svn_check` 文本以及 lineage 默认 cache/Excel 路径属于行为兼容值，不是旧 Python import。
+DB 默认配置入口已切到 `backend/configs/database.yaml`，本地被忽略的配置文件随之迁移且不进入版本控制。旧 facade 和旧资源仍保留到阶段 8，但项目内部已进入待删除状态。日志 logger 名、外部 URL 中的 `svn_check` 文本以及 lineage 默认 cache/Excel 路径属于行为兼容值，不是旧 Python import。

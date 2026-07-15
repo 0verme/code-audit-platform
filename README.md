@@ -90,8 +90,8 @@ pip install -r requirements.txt
 ### 准备配置文件
 
 ```powershell
-copy backend\database.example.yaml backend\database.yaml
-copy backend\audit\configs\svn.example.yaml backend\audit\configs\svn.yaml
+copy backend\configs\database.example.yaml backend\configs\database.yaml
+copy backend\configs\svn.example.yaml backend\configs\svn.yaml
 copy frontend\.env.example frontend\.env
 ```
 
@@ -108,7 +108,7 @@ cd backend
 python init_pg.py
 ```
 
-该命令读取 `backend/database.yaml` 或 `AUDIT_DATABASE_CONFIG` 环境变量，并执行当前元数据初始化 SQL。
+该命令读取 `backend/configs/database.yaml` 或 `AUDIT_DATABASE_CONFIG` 环境变量，并执行当前元数据初始化 SQL。
 
 ### 启动后端
 
@@ -153,8 +153,8 @@ npm run dev
 
 - [配置说明](docs/configuration.md)
 - `frontend/.env.example`
-- `backend/database.example.yaml`
-- `backend/audit/configs/svn.example.yaml`
+- `backend/configs/database.example.yaml`
+- `backend/configs/svn.example.yaml`
 
 真实配置文件应保留在部署环境，不应提交到仓库。
 

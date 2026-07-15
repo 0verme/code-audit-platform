@@ -1,4 +1,4 @@
-# Inner-network DWS template. Copy to database.yaml on the deployment host.
+# Inner-network DWS template. Copy to backend/configs/database.yaml on the deployment host.
 # ${NAME} values are expanded from the process environment; missing values fail startup.
 default_profile: inner_dws
 
