@@ -54,9 +54,17 @@ class SchemaTests(unittest.TestCase):
     def test_dws_schema_generates_expected_statements(self):
         statements = schema_statements(profile("dws"))
         text = "\n".join(statements)
-        self.assertIn("CREATE SCHEMA IF NOT EXISTS dwp", text)
-        for table in RUNTIME_TABLES:
-            self.assertIn(f"CREATE TABLE IF NOT EXISTS {qualified_table_name(table, profile('dws'))}", text)
+        self.assertIn("CREATE SCHEMA IF NOT EXISTS test", text)
+        expected_tables = (
+            "test.p_audit_project_config",
+            "test.p_audit_run",
+            "test.p_audit_run_report",
+            "test.p_audit_run_issue",
+            "test.fine_report_items",
+        )
+        for table in expected_tables:
+            self.assertIn(f"CREATE TABLE IF NOT EXISTS {table}", text)
+        self.assertNotIn("{{", text)
         self.assertNotIn("jsonb", text.lower())
         self.assertNotIn("ON CONFLICT", text)
 
