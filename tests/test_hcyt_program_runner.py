@@ -16,13 +16,16 @@ class FakeReService:
         return "PROGRAM_DF"
 
     def merge_job_program(self, merge_job, merge_program):
-        return "MERGED"
+        return FakeMerged()
 
     def build_program_lookup(self, merged, prog_path_col, tail_levels=4):
         return {"lookup": True}
 
     def build_dependency_table_lookup(self, merged):
         return {"dep": True}
+
+    def build_lineage_row_lookup(self, merged, tail_levels=4):
+        return {}
 
     def get_program_lookup_result(self, program_lookup, path, tail_levels=4):
         return ("JOB_A", "SYS_MONTH_END_CALENDAR", ["DM.TABLE_A", "DM.TABLE_C"])
@@ -42,6 +45,10 @@ class FakeReService:
 
 class FakeProgramDf:
     columns = ["a", "b", "c", "d", "program_path"]
+
+
+class FakeMerged:
+    index = ()
 
 
 class FakeHcyt:
@@ -135,6 +142,10 @@ class HcytProgramRunnerTests(unittest.TestCase):
         self.assertEqual(deps[0]["lane"], "上游 / 调度依赖表")
         self.assertEqual(deps[1]["nodes"], [{"name": "JOB_A", "q": "", "focus": True}])
         self.assertEqual(len(asset_issues), 2)
+        self.assertEqual(
+            asset_issues[0],
+            {"rule": "asset-review", "source": "program.py", "tables": ["DM.TABLE_A"]},
+        )
 
     def test_run_hcyt_programs_degrades_lookup_and_keeps_focus_shape(self):
         modules = FakeModules()
@@ -170,6 +181,28 @@ class HcytProgramRunnerTests(unittest.TestCase):
         self.assertIn("调度依赖比对不可用", py_scripts[0]["focus"])
         self.assertEqual(deps, [])
         self.assertEqual(len(asset_issues), 2)
+
+    def test_run_hcyt_programs_skips_asset_review_when_output_table_is_unavailable(self):
+        modules = FakeModules()
+        modules.hcyt.get_program_table_name = lambda _path: ""
+
+        *_results, asset_issues = run_hcyt_programs(
+            ["C:/repo/program.py"],
+            job_df=None,
+            program_xls=None,
+            db_job_rows=None,
+            safe=lambda _label, fn, _default: fn(),
+            modules=modules,
+            download_url=lambda path: f"download://{Path(path).name}",
+            load_result_table_annotations=lambda: (set(), {}),
+            annotate_table=lambda name, disabled, sys_name_map: {},
+            profile_name="target_profile",
+            normalize_table=normalize_table,
+            dedupe_tables=dedupe_tables,
+            cale_map={},
+        )
+
+        self.assertEqual(asset_issues, [{"rule": "root-missing", "source": "program.py"}])
 
     def test_run_hcyt_programs_returns_empty_shape_for_empty_input(self):
         modules = FakeModules()

@@ -140,21 +140,6 @@ def run_hcyt_programs(
         sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
         table_name = _timed("programs.file.table_name", lambda: safe("表名解析", lambda p=path: modules.hcyt.get_program_table_name(p), ""), log_timing, **file_fields)
         source_text = _timed("programs.file.read_source", lambda: safe(f"加工程序内容读取({file_name})", lambda p=path: modules.re_service.read_data_from_file(p), ""), log_timing, **file_fields)
-        asset_issues += safe(
-            f"加工程序资产表待核对 issue({file_name})",
-            lambda names=sql_tables, source=file_name: modules.hcyt_python_rule.build_asset_table_review_issues(
-                names, "hcyt", source
-            ),
-            [],
-        )
-        asset_issues += safe(
-            f"加工程序词根结构化 issue({file_name})",
-            lambda text=source_text, source=file_name: modules.hcyt_ddl_rule.collect_root_missing_issues(
-                text, "hcyt", source
-            ),
-            [],
-        )
-
         job_name, freq, yilai_tables = "", "", None
         if program_lookup is not None:
             def lookup(p=path):
@@ -168,6 +153,22 @@ def run_hcyt_programs(
             job_name = str(looked[0] or "")
             freq = cale_map.get(looked[1], str(looked[1] or ""))
             yilai_tables = dedupe_tables(looked[2]) if looked[2] is not None else None
+
+        if table_name:
+            asset_issues += safe(
+                f"加工程序资产表待核对 issue({file_name})",
+                lambda output_table=table_name, source=file_name: modules.hcyt_python_rule.build_asset_table_review_issues(
+                    [output_table], "hcyt", source
+                ),
+                [],
+            )
+        asset_issues += safe(
+            f"加工程序词根结构化 issue({file_name})",
+            lambda text=source_text, source=file_name: modules.hcyt_ddl_rule.collect_root_missing_issues(
+                text, "hcyt", source
+            ),
+            [],
+        )
 
         current_result_tables = registered | ({normalize_table(table_name)} if table_name else set())
         result_tables = [name for name in sql_tables if name in current_result_tables]
