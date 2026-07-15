@@ -10,7 +10,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.checks import svn_service  # noqa: E402
+from app.modules.audit.checks import svn_service  # noqa: E402
 
 
 class SvnLogRedactionTests(unittest.TestCase):

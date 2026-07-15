@@ -16,9 +16,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import db.connection as db_connection  # noqa: E402
-import db.runtime_store as runtime_store  # noqa: E402
-from db.schema import init_db  # noqa: E402
+import app.db.connection as db_connection  # noqa: E402
+import app.db.runtime_store as runtime_store  # noqa: E402
+from app.db.schema import init_db  # noqa: E402
 
 
 class InjectedPersistenceFailure(RuntimeError):

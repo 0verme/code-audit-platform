@@ -10,11 +10,11 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.hcyt_subworkflow_runtime import (  # noqa: E402
+from app.modules.audit.hcyt_subworkflow_runtime import (  # noqa: E402
     run_hcyt_programs,
     run_hcyt_schedule,
 )
-from audit.result_normalizer import dedupe_tables, normalize_table, rule_label, text_to_rows  # noqa: E402
+from app.modules.audit.result_normalizer import dedupe_tables, normalize_table, rule_label, text_to_rows  # noqa: E402
 
 
 class ScheduleModules:

@@ -8,13 +8,13 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import audit.engine as audit_engine  # noqa: E402
-from audit.run_failure_result import (  # noqa: E402
+import app.modules.audit.engine as audit_engine  # noqa: E402
+from app.modules.audit.run_failure_result import (  # noqa: E402
     SVN_CLI_MISSING_HINT,
     build_engine_load_failure_result,
     build_failure_result,
 )
-from audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
+from app.modules.audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
 
 
 class RunFailureResultTests(unittest.TestCase):

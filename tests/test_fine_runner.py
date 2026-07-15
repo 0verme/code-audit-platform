@@ -8,8 +8,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.fine_runner import run_fine  # noqa: E402
-from audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
+from app.modules.audit.fine_runner import run_fine  # noqa: E402
+from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
 
 
 class _FakeValues:

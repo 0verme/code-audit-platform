@@ -12,8 +12,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from lineage import mapping_compat
-from lineage import paths
+from app.modules.lineage import mapping_compat
+from app.modules.lineage import paths
 
 
 def workbook(path, header, row):
@@ -72,13 +72,13 @@ class LineageResourceDefaultTests(unittest.TestCase):
         with patch.dict(os.environ, {"LINEAGE_MAPPING_EXCEL_PATH": "", "LINEAGE_MAPPING_DB_PATH": ""}):
             missing_xlsx = paths.resolve_mapping_xlsx_path()
             missing_db = paths.resolve_mapping_db_path()
-            with self.assertLogs("lineage.xlsx_loader", level="ERROR") as xlsx_logs:
+            with self.assertLogs("app.modules.lineage.xlsx_loader", level="ERROR") as xlsx_logs:
                 with self.assertRaisesRegex(FileNotFoundError, "Lineage mapping Excel does not exist"):
                     mapping_compat.load_lineage_edges_from_xlsx()
             self.assertIn(str(missing_xlsx), "\n".join(xlsx_logs.output))
             self.assertFalse(missing_xlsx.exists())
 
-            with self.assertLogs("lineage.traversal", level="ERROR") as db_logs:
+            with self.assertLogs("app.modules.lineage.traversal", level="ERROR") as db_logs:
                 with self.assertRaisesRegex(FileNotFoundError, "Lineage mapping SQLite cache does not exist"):
                     mapping_compat.find_start_nodes_in_sqlite("demo.source", "column")
             self.assertIn(str(missing_db), "\n".join(db_logs.output))

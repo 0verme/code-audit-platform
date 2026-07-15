@@ -7,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import audit.engine as audit_engine  # noqa: E402
+import app.modules.audit.engine as audit_engine  # noqa: E402
 
 
 class FakeReService:
@@ -265,7 +265,7 @@ class HcytReportContractTests(unittest.TestCase):
 
     def test_final_report_retains_the_legacy_audit_results_projection_contract(self):
         report, saved_groups, _partials, _svn_result = self._run_hcyt()
-        from audit.compat import build_legacy_hcyt_audit_result_rows
+        from app.modules.audit.compat import build_legacy_hcyt_audit_result_rows
 
         self.assertEqual(saved_groups, [])
         grouped = build_legacy_hcyt_audit_result_rows(report)

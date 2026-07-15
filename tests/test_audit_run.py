@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
 
-from backend.audit.run import AuditRunState, AuditTask, AuditTaskStatus
+from app.modules.audit.run import AuditRunState, AuditTask, AuditTaskStatus
 
 
 class AuditRunModelTest(unittest.TestCase):

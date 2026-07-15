@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from backend.audit.checks.ai_service import call_sql_llm
+from app.modules.audit.checks.ai_service import call_sql_llm
 
 
 class LocalLlmAiServiceTests(unittest.TestCase):

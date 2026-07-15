@@ -11,7 +11,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import (  # noqa: E402
+from app.db.profiles import (  # noqa: E402
     CONFIG_PATH_ENV,
     DEFAULT_CONFIG_PATH,
     DEPLOYMENT_MODE_ENV,
@@ -22,7 +22,7 @@ from db.profiles import (  # noqa: E402
     resolve_config_path,
     resolve_profile,
 )
-from db.tables import qualified_table_name  # noqa: E402
+from app.db.tables import qualified_table_name  # noqa: E402
 
 
 CONFIG_TEXT = """
@@ -207,7 +207,7 @@ profiles:
     def test_missing_default_config_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
             missing_path = Path(tmp) / "missing.yaml"
-            with patch("db.profiles.DEFAULT_CONFIG_PATH", missing_path):
+            with patch("app.db.profiles.DEFAULT_CONFIG_PATH", missing_path):
                 with patch.dict(
                     os.environ,
                     {CONFIG_PATH_ENV: "", LEGACY_CONFIG_PATH_ENV: "", PROFILE_ENV: ""},

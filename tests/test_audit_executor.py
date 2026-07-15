@@ -1,8 +1,8 @@
 import time
 import unittest
 
-from backend.audit.executor import AuditTaskOutcome, BoundedAuditExecutor, ExecutableAuditTask
-from backend.audit.run import AuditRunState, AuditTask
+from app.modules.audit.executor import AuditTaskOutcome, BoundedAuditExecutor, ExecutableAuditTask
+from app.modules.audit.run import AuditRunState, AuditTask
 
 
 def executable(key, label=None, *, deps=(), weight=1, handler=None, **kwargs):

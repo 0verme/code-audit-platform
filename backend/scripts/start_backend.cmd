@@ -15,7 +15,7 @@ if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
 pushd "%BACKEND_DIR%"
 echo Starting backend; backend\.env is loaded automatically when present.
-"%PYTHON_EXE%" -u app.py 1>> "%STDOUT_LOG%" 2>> "%STDERR_LOG%"
+"%PYTHON_EXE%" -u run.py 1>> "%STDOUT_LOG%" 2>> "%STDERR_LOG%"
 set "EXIT_CODE=%ERRORLEVEL%"
 popd
 exit /b %EXIT_CODE%

@@ -16,9 +16,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import audit.engine as audit_engine  # noqa: E402
-from db.schema import init_db  # noqa: E402
-from db.sql_runner import execute_insert  # noqa: E402
+import app.modules.audit.engine as audit_engine  # noqa: E402
+from app.db.schema import init_db  # noqa: E402
+from app.db.sql_runner import execute_insert  # noqa: E402
 
 
 DWS_SQL = """\

@@ -8,9 +8,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.connection import connect  # noqa: E402
-from db.profiles import DatabaseProfile  # noqa: E402
-from db.sql_runner import SQLRunner  # noqa: E402
+from app.db.connection import connect  # noqa: E402
+from app.db.profiles import DatabaseProfile  # noqa: E402
+from app.db.sql_runner import SQLRunner  # noqa: E402
 
 
 def profile(db_type: str = "postgresql") -> DatabaseProfile:
@@ -126,7 +126,7 @@ class SQLRunnerTests(unittest.TestCase):
             def connect(**kwargs):
                 return fake_driver_connection
 
-        with patch("db.connection.psycopg", FakePsycopg), patch("db.connection.psycopg2", None), patch("db.connection.jaydebeapi") as jaydebeapi:
+        with patch("app.db.connection.psycopg", FakePsycopg), patch("app.db.connection.psycopg2", None), patch("app.db.connection.jaydebeapi") as jaydebeapi:
             self.assertIs(connect(profile("postgresql")), fake_driver_connection)
             self.assertIs(connect(profile("dws")), jaydebeapi.connect.return_value)
         jaydebeapi.connect.assert_called_once()

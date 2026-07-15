@@ -8,9 +8,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[2] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import ProfileConfigError, resolve_profile  # noqa: E402
-from db.schema import RUNTIME_TABLES, initialize_schema  # noqa: E402
-from db.sql_runner import SQLRunner  # noqa: E402
+from app.db.profiles import ProfileConfigError, resolve_profile  # noqa: E402
+from app.db.schema import RUNTIME_TABLES, initialize_schema  # noqa: E402
+from app.db.sql_runner import SQLRunner  # noqa: E402
 
 
 RUN_INTEGRATION = os.getenv("CODE_AUDIT_RUN_DB_INTEGRATION") == "1"

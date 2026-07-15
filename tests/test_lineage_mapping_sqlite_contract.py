@@ -13,8 +13,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from lineage import mapping_compat as mapping_sqlite  # noqa: E402
-from lineage import mapping_compat as new_mapping  # noqa: E402
+from app.modules.lineage import mapping_compat as mapping_sqlite  # noqa: E402
+from app.modules.lineage import mapping_compat as new_mapping  # noqa: E402
 
 
 def alias(field_name: str) -> str:

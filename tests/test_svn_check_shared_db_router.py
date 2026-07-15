@@ -9,8 +9,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import DatabaseProfile  # noqa: E402
-from db.metadata.compat import gaussdb, postgres, router  # noqa: E402
+from app.db.profiles import DatabaseProfile  # noqa: E402
+from app.db.metadata.compat import gaussdb, postgres, router  # noqa: E402
 
 
 def profile(name: str, db_type: str) -> DatabaseProfile:

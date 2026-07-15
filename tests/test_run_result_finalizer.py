@@ -1,6 +1,6 @@
 import unittest
 
-from backend.audit.run_result_finalizer import finalize_run_result
+from app.modules.audit.run_result_finalizer import finalize_run_result
 
 
 class RunResultFinalizerTests(unittest.TestCase):

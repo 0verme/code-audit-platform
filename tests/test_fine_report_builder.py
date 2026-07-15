@@ -1,6 +1,6 @@
 import unittest
 
-from backend.audit.fine_report_builder import build_fine_report
+from app.modules.audit.fine_report_builder import build_fine_report
 
 
 class FineReportBuilderTests(unittest.TestCase):

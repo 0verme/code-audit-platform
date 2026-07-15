@@ -1,6 +1,6 @@
 import unittest
 
-from backend.audit.nups_report_builder import build_nups_report
+from app.modules.audit.nups_report_builder import build_nups_report
 
 
 class NupsReportBuilderTests(unittest.TestCase):

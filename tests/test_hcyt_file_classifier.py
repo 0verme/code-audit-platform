@@ -1,7 +1,7 @@
 import unittest
 from pathlib import PureWindowsPath
 
-from backend.audit.hcyt_file_classifier import collect_hcyt_input_files
+from app.modules.audit.hcyt_file_classifier import collect_hcyt_input_files
 
 
 class FakeReService:

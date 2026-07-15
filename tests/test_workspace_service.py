@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 
-from audit.checks.workspace_service import load_local_workspace  # noqa: E402
-from runtime_security import RuntimeSecuritySettings  # noqa: E402
+from app.modules.audit.checks.workspace_service import load_local_workspace  # noqa: E402
+from app.settings import RuntimeSecuritySettings  # noqa: E402
 
 
 class WorkspaceServiceTests(unittest.TestCase):

@@ -9,10 +9,10 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.connection import connect  # noqa: E402
-from db.profiles import resolve_profile  # noqa: E402
+from app.db.connection import connect  # noqa: E402
+from app.db.profiles import resolve_profile  # noqa: E402
 
-SCHEMA_SQL = BACKEND_DIR / "metadata" / "init" / "postgres_schema.sql"
+SCHEMA_SQL = BACKEND_DIR / "app" / "modules" / "metadata" / "init" / "postgres_schema.sql"
 EXPECTED_TABLES = [
     "p_job_hjj",
     "p_program_hjj",

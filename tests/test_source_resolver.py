@@ -8,7 +8,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.source_resolver import (  # noqa: E402
+from app.modules.audit.source_resolver import (  # noqa: E402
     GIT_SOURCE_UNSUPPORTED_MESSAGE,
     UnsupportedAuditSourceError,
     build_source_label,
@@ -19,7 +19,7 @@ from audit.source_resolver import (  # noqa: E402
     resolve_workflow,
     validate_source_workflow,
 )
-from runtime_security import RuntimeSecuritySettings  # noqa: E402
+from app.settings import RuntimeSecuritySettings  # noqa: E402
 
 
 class SourceResolverTests(unittest.TestCase):

@@ -7,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.hcyt_report_builder import (  # noqa: E402
+from app.modules.audit.hcyt_report_builder import (  # noqa: E402
     build_hcyt_final_report,
     build_hcyt_partial_report,
     build_hcyt_report,

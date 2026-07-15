@@ -12,9 +12,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.checks.workspace_service import load_local_workspace, validate_local_workspace
-from audit.source_resolver import LocalSourceDisabledError, resolve_workspace
-from runtime_security import RuntimeSecuritySettings, get_runtime_security_settings, load_backend_dotenv, resolve_local_roots
+from app.modules.audit.checks.workspace_service import load_local_workspace, validate_local_workspace
+from app.modules.audit.source_resolver import LocalSourceDisabledError, resolve_workspace
+from app.settings import RuntimeSecuritySettings, get_runtime_security_settings, load_backend_dotenv, resolve_local_roots
 
 
 class RuntimeSecurityTests(unittest.TestCase):
@@ -68,7 +68,14 @@ class RuntimeSecurityTests(unittest.TestCase):
     def test_resolver_cannot_bypass_disabled_local_source(self):
         loader = Mock()
         with self.assertRaises(LocalSourceDisabledError):
-            resolve_workspace("/tmp/workspace", "hcyt", "local", svn_loader=Mock(), local_loader=loader)
+            resolve_workspace(
+                "/tmp/workspace",
+                "hcyt",
+                "local",
+                svn_loader=Mock(),
+                local_loader=loader,
+                security_settings=RuntimeSecuritySettings(local_source_enabled=False),
+            )
         loader.assert_not_called()
 
     def test_workspace_allowlist_and_symlink_boundary(self):
@@ -101,8 +108,8 @@ class RuntimeSecurityTests(unittest.TestCase):
             sys.modules.pop("app", None)
             app_module = importlib.import_module("app")
             start_task = Mock()
-            with patch.object(app_module.audit_engine, "start_task", start_task):
-                response = app_module.app.test_client().post("/api/audit-tasks", json={"sourceType": "local", "sourceRef": "/tmp/workspace"})
+            with patch("app.services.audit_task_service.audit_engine.start_task", start_task):
+                response = app_module.create_app().test_client().post("/api/audit-tasks", json={"sourceType": "local", "sourceRef": "/tmp/workspace"})
             self.assertEqual(response.status_code, 403)
             self.assertEqual(response.get_json()["errorCode"], "local_source_disabled")
             start_task.assert_not_called()
@@ -112,7 +119,7 @@ class RuntimeSecurityTests(unittest.TestCase):
         with patch.dict(os.environ, {"AUDIT_CORS_ORIGINS": "http://localhost:5173"}, clear=False):
             sys.modules.pop("app", None)
             app_module = importlib.import_module("app")
-            client = app_module.app.test_client()
+            client = app_module.create_app().test_client()
             self.assertEqual(client.get("/api/health", headers={"Origin": "http://localhost:5173"}).headers.get("Access-Control-Allow-Origin"), "http://localhost:5173")
             self.assertIsNone(client.get("/api/health", headers={"Origin": "https://untrusted.example"}).headers.get("Access-Control-Allow-Origin"))
             sys.modules.pop("app", None)

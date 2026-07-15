@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 
-from audit.checks import re_service  # noqa: E402
+from app.modules.audit.checks import re_service  # noqa: E402
 
 
 class RowLike:

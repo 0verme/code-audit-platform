@@ -11,8 +11,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import audit.engine as audit_engine  # noqa: E402
-from audit.source_download import (  # noqa: E402
+import app.modules.audit.engine as audit_engine  # noqa: E402
+from app.modules.audit.source_download import (  # noqa: E402
     build_source_download_url,
     resolve_source_download_path,
     source_relative_paths,
@@ -110,15 +110,16 @@ class SourceDownloadTests(unittest.TestCase):
             task = {"source_type": "local", "source_ref": str(root), "repo": str(root)}
             report = self._report("dws.sql")
             modules = SimpleNamespace(re_service=SimpleNamespace(get_export_base=lambda: root))
-            with patch.object(app_module, "load_audit_task", return_value=task), \
-                 patch.object(app_module, "get_task_report_row", return_value={"report_json": json.dumps(report)}), \
+            with patch("app.services.source_file_service.get_audit_task", return_value=task), \
+                 patch("app.services.source_file_service.get_task_report_row", return_value={"report_json": json.dumps(report)}), \
                  patch.object(audit_engine, "_mods", modules):
-                response = app_module.app.test_client().get("/api/audit-tasks/1/source-file?path=dws.sql")
+                client = app_module.create_app().test_client()
+                response = client.get("/api/audit-tasks/1/source-file?path=dws.sql")
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.data, b"select 1")
                 self.assertIn("attachment", response.headers["Content-Disposition"])
                 response.close()
-                missing = app_module.app.test_client().get("/api/audit-tasks/1/source-file?path=missing.sql")
+                missing = client.get("/api/audit-tasks/1/source-file?path=missing.sql")
                 self.assertEqual(missing.status_code, 404)
                 self.assertEqual(missing.get_json()["error"], "source file is not part of this audit task")
                 missing.close()

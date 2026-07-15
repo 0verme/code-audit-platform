@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 
 
-from audit.rules.asset_issue import create_audit_asset_issue  # noqa: E402
-from audit.rules.portal_link_builder import (  # noqa: E402
+from app.modules.audit.rules.asset_issue import create_audit_asset_issue  # noqa: E402
+from app.modules.audit.rules.portal_link_builder import (  # noqa: E402
     build_data_warehouse_link,
     build_portal_link,
     build_root_management_link,

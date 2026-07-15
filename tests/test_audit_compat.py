@@ -7,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.compat import (  # noqa: E402
+from app.modules.audit.compat import (  # noqa: E402
     build_audit_run_partial_result_payload,
     build_legacy_fine_audit_result_rows,
     build_legacy_nups_audit_result_rows,

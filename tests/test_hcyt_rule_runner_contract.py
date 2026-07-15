@@ -7,8 +7,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
-from audit.result_normalizer import text_to_rows  # noqa: E402
+from app.modules.audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
+from app.modules.audit.result_normalizer import text_to_rows  # noqa: E402
 
 
 class FakeReService:

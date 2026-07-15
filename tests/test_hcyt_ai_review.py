@@ -1,6 +1,6 @@
 import unittest
 
-from backend.audit.hcyt_ai_review import run_hcyt_ai_review, select_hcyt_ai_targets
+from app.modules.audit.hcyt_ai_review import run_hcyt_ai_review, select_hcyt_ai_targets
 
 
 class HcytAiReviewTests(unittest.TestCase):

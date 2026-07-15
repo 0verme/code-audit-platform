@@ -1,0 +1,13 @@
+{
+  "migrations": [
+    {
+      "version": "0001",
+      "name": "audit_schema_baseline",
+      "files": {
+        "sqlite": "sqlite/0001_audit_schema_baseline.sql",
+        "postgresql": "postgresql/0001_audit_schema_baseline.sql",
+        "dws": "dws/0001_audit_schema_baseline.sql"
+      }
+    }
+  ]
+}

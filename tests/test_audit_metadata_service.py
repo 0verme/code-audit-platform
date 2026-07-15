@@ -9,10 +9,10 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from metadata.services import audit_metadata_service as service  # noqa: E402
-from metadata.services import db_service as db_service  # noqa: E402
-from metadata.services import public_data  # noqa: E402
-from db.metadata.compat import router  # noqa: E402
+from app.modules.metadata.services import audit_metadata_service as service  # noqa: E402
+from app.modules.metadata.services import db_service as db_service  # noqa: E402
+from app.modules.metadata.services import public_data  # noqa: E402
+from app.db.metadata.compat import router  # noqa: E402
 from scripts import init_pg  # noqa: E402
 
 
@@ -33,7 +33,7 @@ class AuditMetadataServiceTests(unittest.TestCase):
         self.assertTrue(callable(db_service.select_sql))
 
     def test_metadata_init_uses_new_sql_path_without_changing_schema(self):
-        new_sql_path = BACKEND_DIR / "metadata" / "init" / "postgres_schema.sql"
+        new_sql_path = BACKEND_DIR / "app" / "modules" / "metadata" / "init" / "postgres_schema.sql"
 
         self.assertEqual(init_pg.SCHEMA_SQL, new_sql_path)
         self.assertTrue(new_sql_path.is_file())

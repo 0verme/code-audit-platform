@@ -14,12 +14,12 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-import audit.engine as audit_engine  # noqa: E402
-from audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
-from db import connection as db_connection  # noqa: E402
-from db.runtime_store import upsert_task_report  # noqa: E402
-from db.schema import init_db  # noqa: E402
-from db.sql_runner import execute_insert  # noqa: E402
+import app.modules.audit.engine as audit_engine  # noqa: E402
+from app.modules.audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
+from app.db import connection as db_connection  # noqa: E402
+from app.db.runtime_store import upsert_task_report  # noqa: E402
+from app.db.schema import init_db  # noqa: E402
+from app.db.sql_runner import execute_insert  # noqa: E402
 
 
 class LocalAuditTaskTests(unittest.TestCase):
@@ -88,8 +88,8 @@ class LocalAuditTaskTests(unittest.TestCase):
                     )
                     return None
 
-                with patch.object(app_module.audit_engine, "start_task", fake_start_task), patch.object(app_module, "validate_local_workspace"):
-                    response = app_module.app.test_client().post(
+                with patch.object(audit_engine, "start_task", fake_start_task), patch("app.services.audit_task_service.validate_local_workspace"):
+                    response = app_module.create_app().test_client().post(
                         "/api/audit-tasks",
                         json={
                             "repo": "C:\\path\\to\\local-hcyt-workspace",
@@ -131,8 +131,8 @@ class LocalAuditTaskTests(unittest.TestCase):
                 app_module = importlib.import_module("app")
                 captured = {}
 
-                with patch.object(app_module.audit_engine, "start_task", lambda *args, **kwargs: captured.update(args=args, kwargs=kwargs)):
-                    response = app_module.app.test_client().post(
+                with patch.object(audit_engine, "start_task", lambda *args, **kwargs: captured.update(args=args, kwargs=kwargs)):
+                    response = app_module.create_app().test_client().post(
                         "/api/audit-tasks",
                         json={"repo": "svn://example.com/repos/branches/demo-hcyt", "workflow": "hcyt"},
                     )
@@ -154,13 +154,13 @@ class LocalAuditTaskTests(unittest.TestCase):
                 init_db()
                 app_module = importlib.import_module("app")
                 start_task = Mock()
-                with patch.object(app_module.audit_engine, "start_task", start_task):
+                with patch.object(audit_engine, "start_task", start_task):
                     for payload in (
                         {"sourceRef": "svn://example.com/repos/branches/demo-hcyt", "sourceType": "git", "workflow": "hcyt"},
                         {"sourceRef": "svn://example.com/repos/branches/demo-hcyt", "source_type": "git", "workflow": "hcyt"},
                         {"sourceRef": "git@gitlab.example.com:team/repo.git", "workflow": "hcyt"},
                     ):
-                        response = app_module.app.test_client().post("/api/audit-tasks", json=payload)
+                        response = app_module.create_app().test_client().post("/api/audit-tasks", json=payload)
 
                         self.assertEqual(response.status_code, 400)
                         body = response.get_json()
@@ -188,13 +188,14 @@ class LocalAuditTaskTests(unittest.TestCase):
                 app_module = importlib.import_module("app")
 
                 def fake_start_task(task_id, _repo, workflow, *_args, **_kwargs):
-                    state = app_module.audit_engine.create_audit_run_state(task_id, workflow)
+                    state = audit_engine.create_audit_run_state(task_id, workflow)
                     state.mark_running()
                     state.set_section("changes", [{"path": "demo.sql"}])
                     state.get_task("source_load").mark_success(summary={"files": 1})
 
-                with patch.object(app_module.audit_engine, "start_task", fake_start_task):
-                    response = app_module.app.test_client().post(
+                with patch.object(audit_engine, "start_task", fake_start_task):
+                    client = app_module.create_app().test_client()
+                    response = client.post(
                         "/api/audit-runs",
                         json={"repo": "svn://example.com/repos/branches/demo-hcyt", "workflow": "hcyt"},
                     )
@@ -204,14 +205,14 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(body["run_id"], body["id"])
                 self.assertEqual(body["runId"], body["id"])
 
-                status_response = app_module.app.test_client().get(f"/api/audit-runs/{body['run_id']}/status")
+                status_response = client.get(f"/api/audit-runs/{body['run_id']}/status")
                 self.assertEqual(status_response.status_code, 200)
                 status = status_response.get_json()
                 self.assertEqual(status["runId"], body["id"])
                 self.assertEqual(status["taskStatus"], "running")
                 self.assertEqual(status["tasks"]["source_load"]["status"], "success")
 
-                partial_response = app_module.app.test_client().get(
+                partial_response = client.get(
                     f"/api/audit-runs/{body['run_id']}/partial-result"
                 )
                 self.assertEqual(partial_response.status_code, 200)
@@ -220,7 +221,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(partial["partialReport"]["changes"], [{"path": "demo.sql"}])
             finally:
                 if body.get("id"):
-                    app_module.audit_engine._run_states.pop(body["id"], None)
+                    audit_engine._run_states.pop(body["id"], None)
                 db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
@@ -258,7 +259,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                     datetime.now().isoformat(),
                 )
 
-                response = app_module.app.test_client().get(f"/api/audit-runs/{task_id}/partial-result")
+                response = app_module.create_app().test_client().get(f"/api/audit-runs/{task_id}/partial-result")
                 self.assertEqual(response.status_code, 200)
                 body = response.get_json()
                 self.assertTrue(body["finalReportReady"])
@@ -332,7 +333,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 }
                 upsert_task_report(task_id, json.dumps(final_report), datetime.now().isoformat())
 
-                response = app_module.app.test_client().get(f"/api/audit-runs/{task_id}/partial-result")
+                response = app_module.create_app().test_client().get(f"/api/audit-runs/{task_id}/partial-result")
                 self.assertEqual(response.status_code, 200)
                 body = response.get_json()
 
@@ -628,9 +629,9 @@ class LocalAuditTaskTests(unittest.TestCase):
                 )
 
                 with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    with patch("audit.workflow_dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
-                        with patch("audit.workflow_dispatcher.run_nups", return_value={"task": {"status": "pass"}}) as run_nups:
-                            with patch("audit.workflow_dispatcher.run_fine", return_value={"task": {"status": "pass"}}) as run_fine:
+                    with patch("app.modules.audit.workflow_dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
+                        with patch("app.modules.audit.workflow_dispatcher.run_nups", return_value={"task": {"status": "pass"}}) as run_nups:
+                            with patch("app.modules.audit.workflow_dispatcher.run_fine", return_value={"task": {"status": "pass"}}) as run_fine:
                                 for repo, expected_runner in cases:
                                     task_id = self._insert_task(repo)
                                     run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")

@@ -1,6 +1,6 @@
 import unittest
 
-from backend.audit.hcyt_progress_events import (
+from app.modules.audit.hcyt_progress_events import (
     build_lineage_checked_progress,
     build_program_checked_progress,
     build_source_classified_progress,

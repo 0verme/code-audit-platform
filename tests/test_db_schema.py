@@ -7,9 +7,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import DatabaseProfile  # noqa: E402
-from db.schema import RUNTIME_TABLES, initialize_schema, schema_statements  # noqa: E402
-from db.tables import qualified_table_name  # noqa: E402
+from app.db.profiles import DatabaseProfile  # noqa: E402
+from app.db.schema import RUNTIME_TABLES, initialize_schema, schema_statements  # noqa: E402
+from app.db.tables import qualified_table_name  # noqa: E402
 
 
 def profile(db_type: str) -> DatabaseProfile:

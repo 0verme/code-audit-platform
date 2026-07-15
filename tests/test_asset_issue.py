@@ -7,7 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from audit.rules.asset_issue import (  # noqa: E402
+from app.modules.audit.rules.asset_issue import (  # noqa: E402
     asset_issue_to_unified_issue,
     asset_issues_to_unified_issues,
     build_issue_hash_key,

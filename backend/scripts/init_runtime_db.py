@@ -8,10 +8,10 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from db.profiles import resolve_profile  # noqa: E402
-from db.schema import RUNTIME_TABLES, ensure_runtime_tables  # noqa: E402
-from db.tables import qualified_table_name  # noqa: E402
-from db.connection import get_connection  # noqa: E402
+from app.db.profiles import resolve_profile  # noqa: E402
+from app.db.schema import RUNTIME_TABLES, ensure_runtime_tables  # noqa: E402
+from app.db.tables import qualified_table_name  # noqa: E402
+from app.db.connection import get_connection  # noqa: E402
 
 
 def main() -> None:
