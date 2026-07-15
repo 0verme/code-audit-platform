@@ -42,7 +42,7 @@ export default function HomePage({
   dataMode,
 }) {
   const [path, setPath] = useState(
-    "svn://example.com/repos/branches/demo-hcyt",
+    "",
   );
   const [ai, setAi] = useState(false);
   const [dbg, setDbg] = useState(false);
@@ -137,7 +137,7 @@ export default function HomePage({
             spellCheck={false}
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => event.key === "Enter" && submit()}
-            placeholder="svn://... 或 C:\\path\\to\\workspace"
+            placeholder="svn://svnj.app.cz/hcyt 或 fine-report"
           />
           {detectedSource.sourceType !== "unknown" ? (
             <span

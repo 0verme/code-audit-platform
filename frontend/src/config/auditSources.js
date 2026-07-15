@@ -5,7 +5,7 @@ export const GIT_SOURCE_UNSUPPORTED_MESSAGE =
   "当前版本暂不支持 Git 仓库审计；当前支持 SVN 仓库和允许启用的本地目录。";
 
 export const UNKNOWN_SOURCE_MESSAGE =
-  "审查路径未识别来源类型，请输入 svn://、svn+ssh:// 或本地目录路径。";
+  "审查路径未识别来源类型，请输入 svn://svnj.app.cz/hcyt 或 fine-report";
 
 export const AUDIT_SOURCE_LABELS = {
   local: "本地目录",
