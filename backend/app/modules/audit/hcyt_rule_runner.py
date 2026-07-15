@@ -51,6 +51,7 @@ def run_hcyt_rules(
             "script": modules.re_service.get_filename(dws_url),
             "downloadUrl": download_url(dws_url),
         }
+        set_partial("sqlChecks", dict(sql_checks))
         dws_file_name = modules.re_service.get_filename(dws_url)
         dws_sql_text = _run_timed("rules.dws_sql.read", lambda: safe("dws.sql 内容读取", lambda: modules.re_service.read_data_from_file(dws_url), ""), log_timing)
         asset_issues += safe(
@@ -81,6 +82,7 @@ def run_hcyt_rules(
             "script": modules.re_service.get_filename(hive_url),
             "downloadUrl": download_url(hive_url),
         }
+        set_partial("sqlChecks", dict(sql_checks))
         set_partial("hive", grouped["hive"])
         task_success("hive_sql", result=grouped["hive"], summary={"issues": len(grouped["hive"])})
     else:

@@ -99,6 +99,19 @@ class HcytReportBuilderTests(unittest.TestCase):
         self.assertEqual(list(report.keys())[-1], "ai")
         self.assertEqual(report["ai"], {"verdict": "warn"})
 
+    def test_change_and_dws_download_urls_match_for_the_same_source_file(self):
+        inputs = _sample_inputs()
+        download_url = "/api/audit-tasks/42/source-file?path=dws.sql"
+        inputs["changes"][0]["downloadUrl"] = download_url
+        inputs["sql_checks"]["dws"]["downloadUrl"] = download_url
+
+        report = build_hcyt_final_report(**inputs)
+
+        self.assertEqual(
+            report["changes"][0]["downloadUrl"],
+            report["sqlChecks"]["dws"]["downloadUrl"],
+        )
+
     def test_partial_report_field_structure_is_stable(self):
         inputs = _sample_inputs()
 

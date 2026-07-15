@@ -96,7 +96,12 @@ class HcytRuleRunnerTests(unittest.TestCase):
 
         self.assertEqual(list(sql_checks.keys()), ["dws", "hive"])
         self.assertEqual(set(grouped.keys()), {"dws", "hive", "python", "sbin", "config", "recv"})
-        self.assertEqual([key for key, _value in partials], ["dws", "hive", "sbin", "recv", "config", "configFiles"])
+        self.assertEqual(
+            [key for key, _value in partials],
+            ["sqlChecks", "dws", "sqlChecks", "hive", "sbin", "recv", "config", "configFiles"],
+        )
+        self.assertEqual(partials[0][1]["dws"]["downloadUrl"], "download://dws.sql")
+        self.assertEqual(partials[2][1]["dws"]["downloadUrl"], "download://dws.sql")
         self.assertEqual(
             [event[:2] for event in events if event[0] != "skipped"],
             [

@@ -118,11 +118,16 @@ class SourceDownloadTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(response.data, b"select 1")
                 self.assertIn("attachment", response.headers["Content-Disposition"])
+                self.assertIn("dws.sql", response.headers["Content-Disposition"])
                 response.close()
                 missing = client.get("/api/audit-tasks/1/source-file?path=missing.sql")
                 self.assertEqual(missing.status_code, 404)
                 self.assertEqual(missing.get_json()["error"], "source file is not part of this audit task")
                 missing.close()
+                traversal = client.get("/api/audit-tasks/1/source-file?path=../secret.sql")
+                self.assertEqual(traversal.status_code, 400)
+                self.assertEqual(traversal.get_json()["error"], "invalid source file path")
+                traversal.close()
 
 
 if __name__ == "__main__":

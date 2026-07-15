@@ -80,7 +80,10 @@ class HcytRuleRunnerContractTests(unittest.TestCase):
             build_config_files=lambda paths: [{"path": path} for path in paths],
         )
 
-        self.assertEqual(partial_order, ["dws", "hive", "sbin", "recv", "config", "configFiles"])
+        self.assertEqual(
+            partial_order,
+            ["sqlChecks", "dws", "sqlChecks", "hive", "sbin", "recv", "config", "configFiles"],
+        )
         self.assertEqual(
             [event[:2] for event in task_events],
             [
