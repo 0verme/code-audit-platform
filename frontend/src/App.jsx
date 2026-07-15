@@ -7,6 +7,7 @@ import { useAsyncResource } from "./hooks/useAsyncResource";
 import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
+import { hasScheduleTables } from "./utils/hcytResultPresentation";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
@@ -31,7 +32,10 @@ const SECTION_NAV = [
     id: "schedule",
     label: "调度表检查",
     icon: "grid",
-    get: (data) => data.schedule?.rows?.filter((row) => row.level !== "ok") || [],
+    get: (data) => {
+      const issues = data.schedule?.rows?.filter((row) => row.level !== "ok") || [];
+      return issues.length || !hasScheduleTables(data) ? issues : [{ level: "ok" }];
+    },
   },
   {
     id: "python",

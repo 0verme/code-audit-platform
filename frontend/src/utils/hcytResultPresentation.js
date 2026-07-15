@@ -6,6 +6,11 @@ export function getScheduleIssueRows(data) {
   return Array.isArray(rows) ? rows.filter((row) => row?.level !== "ok") : [];
 }
 
+export function hasScheduleTables(data) {
+  const tables = data?.schedule?.tables;
+  return ["plan", "job", "seq", "cale"].some((key) => Array.isArray(tables?.[key]?.rows) && tables[key].rows.length > 0);
+}
+
 export function getCycleDependencyFindings(data) {
   const rows = getScheduleIssueRows(data);
   const findings = rows

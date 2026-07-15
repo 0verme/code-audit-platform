@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows } from "./hcytResultPresentation.js";
+import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "./hcytResultPresentation.js";
 
 const normalDependencies = [{ lane: "上游 / 调度依赖表", nodes: [{ name: "DM.TABLE_A" }] }];
 
@@ -25,6 +25,21 @@ test("cycle detail renders a normalized cycle path", () => {
 test("historical reports without cycle fields remain safe", () => {
   assert.deepEqual(getCycleDependencyFindings({ schedule: { rows: [] } }), []);
   assert.deepEqual(getCycleDependencyFindings({}), []);
+});
+
+test("schedule tables remain visible when every schedule rule passes", () => {
+  const data = {
+    schedule: {
+      rows: [],
+      tables: {
+        plan: { rows: [["PLAN_A"]] },
+        job: { rows: [["JOB_A"]] },
+      },
+    },
+  };
+
+  assert.equal(hasScheduleTables(data), true);
+  assert.equal(hasScheduleTables({ schedule: { tables: {} } }), false);
 });
 
 test("python counts only script findings and retains script drill-down data", () => {

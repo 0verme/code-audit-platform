@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { PyScriptAuditSection, ScriptDetailDrawer } from "./ScriptAudit";
-import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows } from "../utils/hcytResultPresentation";
+import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
 
 export const STATUS_META = {
   pass: { tone: "ok", icon: "check", label: "审查通过", desc: "未发现阻断性问题，可合并" },
@@ -593,7 +593,7 @@ function ScheduleSection({ d, reg }) {
   const summary = schedule.summary || {};
   const scheduleIssues = getScheduleIssueRows(d);
   const cycleFindings = getCycleDependencyFindings(d);
-  if (!scheduleIssues.length && !cycleFindings.length) return null;
+  if (!hasScheduleTables(d) && !scheduleIssues.length && !cycleFindings.length) return null;
 
   const severity = levelOf(scheduleIssues);
   const columns = [
