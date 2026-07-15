@@ -13,7 +13,12 @@ from app.db.runtime_store import (
 )
 from app.db.sql_runner import execute_insert
 from app.modules.audit.checks.workspace_service import validate_local_workspace
-from app.modules.audit.source_resolver import UnsupportedAuditSourceError, validate_supported_source_type
+from app.modules.audit.source_resolver import (
+    LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE,
+    SUPPORTED_LOCAL_WORKFLOWS,
+    UnsupportedAuditSourceError,
+    validate_supported_source_type,
+)
 from app.settings import get_runtime_security_settings
 from . import ServiceError
 
@@ -108,8 +113,8 @@ def create_task(payload: dict, *, client_ip: str) -> dict:
     workflow = audit_engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
     if source_type == "local":
         workflow = str(payload.get("workflow") or "hcyt").strip().lower()
-        if workflow != "hcyt":
-            raise ServiceError("local source currently supports hcyt workflow only", status_code=400)
+        if workflow not in SUPPORTED_LOCAL_WORKFLOWS:
+            raise ServiceError(LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE, status_code=400)
     operator_user = str(payload.get("operator_user") or payload.get("author") or "local-user").strip() or "local-user"
     effective_ip = str(payload.get("client_ip") or client_ip).strip()
     task_id = execute_insert(

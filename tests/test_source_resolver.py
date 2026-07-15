@@ -10,6 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.modules.audit.source_resolver import (  # noqa: E402
     GIT_SOURCE_UNSUPPORTED_MESSAGE,
+    LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE,
     UnsupportedAuditSourceError,
     build_source_label,
     build_source_load_step,
@@ -34,15 +35,17 @@ class SourceResolverTests(unittest.TestCase):
     def test_resolve_workflow_detects_fine_report(self):
         self.assertEqual(resolve_workflow("svn://example.com/branches/fine-report/demo"), "fine-report")
 
-    def test_validate_source_workflow_accepts_local_hcyt(self):
-        validate_source_workflow("local", "hcyt")
+    def test_validate_source_workflow_accepts_supported_local_workflows(self):
+        for workflow in ("hcyt", "nups", "fine-report"):
+            with self.subTest(workflow=workflow):
+                validate_source_workflow("local", workflow)
 
-    def test_validate_source_workflow_rejects_local_non_hcyt(self):
+    def test_validate_source_workflow_rejects_unsupported_local_workflow(self):
         with self.assertRaisesRegex(
             ValueError,
-            "^Local workspace source currently supports hcyt workflow only$",
+            f"^{LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE}$",
         ):
-            validate_source_workflow("local", "nups")
+            validate_source_workflow("local", "unknown")
 
     def test_build_source_label_keeps_existing_display_rules(self):
         self.assertEqual(build_source_label(r"C:\workspace\demo", "local"), "local workspace")
@@ -87,14 +90,14 @@ class SourceResolverTests(unittest.TestCase):
         self.assertEqual(calls, [(r"C:\workspace\demo", "hcyt")])
         self.assertEqual(resolved, {"source_type": "local", "workspace_root": r"C:\workspace\demo"})
 
-    def test_resolve_workspace_rejects_local_non_hcyt_with_original_message(self):
+    def test_resolve_workspace_rejects_unsupported_local_workflow(self):
         with self.assertRaisesRegex(
             ValueError,
-            "^Local workspace source currently supports hcyt workflow only$",
+            f"^{LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE}$",
         ):
             resolve_workspace(
-                r"C:\workspace\nups\demo",
-                "nups",
+                r"C:\workspace\unknown\demo",
+                "unknown",
                 "local",
                 svn_loader=lambda _source_ref: None,
                 local_loader=lambda _source_ref, _workflow: None,

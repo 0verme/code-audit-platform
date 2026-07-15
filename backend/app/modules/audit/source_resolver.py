@@ -4,6 +4,10 @@ from app.settings import RuntimeSecuritySettings, get_runtime_security_settings
 
 
 SUPPORTED_AUDIT_SOURCE_TYPES = frozenset({"svn", "local"})
+SUPPORTED_LOCAL_WORKFLOWS = frozenset({"hcyt", "nups", "fine-report"})
+LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE = (
+    "Local workspace source currently supports hcyt, nups, and fine-report workflows only"
+)
 GIT_SOURCE_UNSUPPORTED_MESSAGE = "Git audit source is not supported in the current version."
 
 
@@ -40,8 +44,8 @@ def resolve_workflow(source_ref: str, fallback: str = "hcyt") -> str:
 
 
 def validate_source_workflow(source_type: str, workflow: str) -> None:
-    if source_type == "local" and workflow != "hcyt":
-        raise ValueError("Local workspace source currently supports hcyt workflow only")
+    if source_type == "local" and workflow not in SUPPORTED_LOCAL_WORKFLOWS:
+        raise ValueError(LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE)
 
 
 def resolve_workspace(

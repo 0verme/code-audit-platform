@@ -115,6 +115,19 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(row["source_ref"], "C:\\path\\to\\local-hcyt-workspace")
                 self.assertEqual(row["operator_user"], "local-user")
                 self.assertTrue(row["client_ip"])
+
+                with patch("app.services.audit_task_service.validate_local_workspace"):
+                    for workflow in ("nups", "fine-report"):
+                        response = app_module.create_app().test_client().post(
+                            "/api/audit-tasks",
+                            json={
+                                "repo": f"C:\\path\\to\\local-{workflow}-workspace",
+                                "sourceType": "local",
+                                "workflow": workflow,
+                            },
+                        )
+                        self.assertEqual(response.status_code, 201)
+                        self.assertEqual(response.get_json()["workflow"], workflow)
             finally:
                 db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
@@ -520,43 +533,6 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(saved["sourceRef"], repo)
                 self.assertEqual(saved["workspaceRoot"], repo)
                 self.assertEqual(saved["logs"], run.logs)
-            finally:
-                audit_engine._mods = previous_mods
-                audit_engine._run_states.pop(task_id, None)
-                db_connection.DB_PATH = old_db_path
-
-    def test_task_run_local_source_rejects_non_hcyt_workflow(self):
-        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
-            db_path = Path(tmp) / "app.db"
-            old_db_path = db_connection.DB_PATH
-            db_connection.DB_PATH = db_path
-            previous_mods = audit_engine._mods
-            try:
-                init_db()
-                repo = "C:\\workspace\\nups\\demo"
-                task_id = self._insert_task(repo, workflow="hcyt", source_type="local")
-                load_local_workspace = Mock()
-                svn_main = Mock()
-                audit_engine._mods = types.SimpleNamespace(
-                    load_local_workspace=load_local_workspace,
-                    svn_main=svn_main,
-                )
-                run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="local")
-                run.update = lambda *args, **kwargs: None
-                run.run_hcyt = Mock()
-
-                with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    run.run()
-
-                row = self._load_task_row(task_id)
-                self.assertEqual(row["status"], "fail")
-                self.assertIn(
-                    "Local workspace source currently supports hcyt workflow only",
-                    row["error"],
-                )
-                load_local_workspace.assert_not_called()
-                svn_main.assert_not_called()
-                run.run_hcyt.assert_not_called()
             finally:
                 audit_engine._mods = previous_mods
                 audit_engine._run_states.pop(task_id, None)
