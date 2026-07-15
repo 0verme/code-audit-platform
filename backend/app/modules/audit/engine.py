@@ -625,11 +625,12 @@ class TaskRun:
     def get_active_profile_name():
         return get_active_profile().name
 
-    def load_result_table_annotations(self):
+    def load_result_table_annotations(self, *, sys_name_rows=None):
         return _load_result_table_annotations(
             safe=self.safe,
             public_data=_mods.public_data,
             normalize_table=normalize_table,
+            sys_name_rows=sys_name_rows,
         )
 
     def annotate_table(self, name, disabled, sys_name_map):

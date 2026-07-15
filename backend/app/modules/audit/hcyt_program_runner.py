@@ -116,7 +116,16 @@ def run_hcyt_programs(
         ),
         log_timing,
     ))
-    disabled, sys_name_map = _timed("programs.load_annotations", load_result_table_annotations, log_timing)
+    annotation_rows = lineage_context.get("result_table_sys_name_rows") if lineage_context is not None else None
+    disabled, sys_name_map = _timed(
+        "programs.load_annotations",
+        (
+            lambda: load_result_table_annotations(sys_name_rows=annotation_rows)
+            if lineage_context is not None
+            else load_result_table_annotations()
+        ),
+        log_timing,
+    )
     disabled_job_names = set(_timed(
         "programs.load_disabled_jobs",
         lambda: safe(

@@ -8,7 +8,11 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.result_normalizer import normalize_table  # noqa: E402
-from app.modules.audit.result_table_annotations import annotate_table, load_result_table_annotations  # noqa: E402
+from app.modules.audit.result_table_annotations import (  # noqa: E402
+    annotate_table,
+    build_result_table_sys_name_map,
+    load_result_table_annotations,
+)
 
 
 class FakePublicData:
@@ -80,6 +84,32 @@ class ResultTableAnnotationsTests(unittest.TestCase):
         self.assertEqual(disabled, {"DM.TABLE_A"})
         self.assertEqual(sys_name_map, {})
         self.assertEqual(len(calls), 2)
+
+    def test_snapshot_rows_are_the_source_of_truth_for_this_audit_run(self):
+        disabled, sys_name_map = load_result_table_annotations(
+            safe=lambda _label, fn, _default: fn(),
+            public_data=FakePublicData(),
+            normalize_table=normalize_table,
+            sys_name_rows=[
+                ("dwf.f_evt_comc_holiday", "核心CBS库"),
+                ("DWF.F_EVT_COMC_HOLIDAY", "核心CBS库"),
+                ("DWF.F_PTY_COM_INFO", "老信贷系统"),
+                ("DWF.F_PTY_COM_INFO", "核心CBS库"),
+            ],
+        )
+
+        self.assertEqual(disabled, {"DM.TABLE_A"})
+        self.assertEqual(
+            sys_name_map,
+            {
+                "DWF.F_EVT_COMC_HOLIDAY": ["核心CBS库"],
+                "DWF.F_PTY_COM_INFO": ["老信贷系统", "核心CBS库"],
+            },
+        )
+        self.assertEqual(
+            build_result_table_sys_name_map([], normalize_table=normalize_table),
+            {},
+        )
 
 
 if __name__ == "__main__":

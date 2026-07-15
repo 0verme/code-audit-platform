@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
+import { formatSqlReference } from "../utils/resultTablePresentation";
 
 const SD_STATE = {
   same: { cls: "ok", label: "相同", icon: "check" },
@@ -79,9 +80,9 @@ function CmpCell({ value, note, side, row }) {
   const danger = side === "sql" && row?.highlight;
   return (
     <span className="cmp-val">
-      <span className="mono" style={danger ? { color: "var(--err-fg)", fontWeight: 700 } : undefined}>{value}</span>
-      {side === "sql" && row?.disabled ? <span className="cmp-note" style={{ color: "var(--err-fg)" }}>禁用</span> : null}
-      {side === "sql" && row?.sysNames?.length ? <span className="cmp-note">{row.sysNames.join("/")}</span> : null}
+      <span className="mono" style={danger ? { color: "var(--err-fg)", fontWeight: 700 } : undefined}>
+        {side === "sql" ? formatSqlReference(value, row) : value}
+      </span>
       {note ? <span className="cmp-note">{note}</span> : null}
     </span>
   );

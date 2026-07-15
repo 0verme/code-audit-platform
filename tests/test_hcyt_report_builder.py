@@ -47,6 +47,7 @@ def _sample_inputs():
         "asset_issues": [],
         "unified_asset_issues": [{"rule_code": "asset-review", "object_name": "DM.TABLE_A"}],
         "lineage_summary": lineage_summary,
+        "metadata_profile": "czcb_dws",
     }
 
 
@@ -78,12 +79,14 @@ class HcytReportBuilderTests(unittest.TestCase):
                 "assetIssues",
                 "unifiedAssetIssues",
                 "lineageSummary",
+                "metadataProfile",
             ],
         )
         self.assertIs(report["task"], inputs["task"])
         self.assertIs(report["svn"], inputs["svn"])
         self.assertIs(report["dws"], inputs["grouped"]["dws"])
         self.assertIs(report["sqlChecks"], inputs["sql_checks"])
+        self.assertEqual(report["metadataProfile"], "czcb_dws")
 
     def test_report_alias_matches_final_report(self):
         inputs = _sample_inputs()
