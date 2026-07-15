@@ -306,11 +306,15 @@ class TaskRun:
             self.run_state.mark_running()
         return self.run_state
 
-    def log(self, msg, level="INFO"):
-        entry = {"ts": datetime.now().strftime("%H:%M:%S"), "level": level, "msg": str(msg)}
+    def log(self, msg, level="INFO", detail=False):
+        message = str(msg)
+        is_detail = detail or message.startswith("[timing]") or message.startswith("Traceback (most recent call last):")
+        if is_detail and not self.debug_enabled:
+            return
+        entry = {"ts": datetime.now().strftime("%H:%M:%S"), "level": level, "msg": message}
         self.logs.append(entry)
-        self._ensure_run_state().add_log(str(msg), level=level)
-        print(f"[task {self.task_id}] {level} {msg}", flush=True)
+        self._ensure_run_state().add_log(message, level=level)
+        print(f"[task {self.task_id}] {level} {message}", flush=True)
 
     def update(self, progress=None, step=None):
         update_task_runtime_state(
@@ -456,7 +460,7 @@ class TaskRun:
             _load_real_modules()
             if _mods is None:
                 self.log("真实审查引擎加载失败", "ERR")
-                self.log(_import_error or "未知错误", "ERR")
+                self.log(_import_error or "未知错误", "ERR", detail=True)
                 failure = build_engine_load_failure_result(_import_error)
                 self.finish(failure["status"], error=failure["error"])
                 return
@@ -516,7 +520,7 @@ class TaskRun:
             failure = build_failure_result(exc, source_type=self.source_type)
             message = failure["error"]
             self.log(f"任务异常: {message}", "ERR")
-            self.log(traceback.format_exc(), "ERR")
+            self.log(traceback.format_exc(), "ERR", detail=True)
             self.finish(failure["status"], error=message)
 
     # ---- 公共构建 ----

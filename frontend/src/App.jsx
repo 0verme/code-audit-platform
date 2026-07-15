@@ -56,15 +56,6 @@ const FR_NAV = [
   { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
 ];
 
-const DEBUG_LINES = [
-  { t: "INFO", m: "svn checkout 启动 -> 目标版本 r48217" },
-  { t: "INFO", m: "文件分类完成，DWS x3 / Hive x2 / Python x2 / 配置 x2" },
-  { t: "RULE", m: `加载规则集 hcyt-ruleset@${APP_VERSION}（共 87 条）` },
-  { t: "WARN", m: "dws_cust_asset_d.sql:18 命中规则 [禁止视图创建]" },
-  { t: "ERR", m: "dws_risk_tag_d.sql:33 命中规则 [笛卡尔积风险]" },
-  { t: "INFO", m: "审查完成 / 错误 7 / 警告 14 / 耗时 1m47s" },
-];
-
 const TWEAK_DEFAULTS = {
   density: "standard",
   sampleState: "fail",
@@ -136,32 +127,6 @@ function ThemeToggle({ theme, onToggle }) {
     <button className="iconbtn" title="切换主题" onClick={onToggle}>
       <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
     </button>
-  );
-}
-
-function DebugConsole({ open, onClose, logs }) {
-  const realLines = logs?.length
-    ? logs.map((entry) => ({ t: entry.level === "ERR" ? "ERR" : entry.level === "WARN" ? "WARN" : "INFO", m: entry.msg, ts: entry.ts }))
-    : null;
-  const lines = realLines || DEBUG_LINES;
-  return (
-    <div className={`debug-drawer${open ? " open" : ""}`}>
-      <div className="dbg-head">
-        <Icon name="terminal" size={14} /> 调试日志
-        <span className="badge mono" style={{ marginLeft: 8 }}>{realLines ? "svn_check 实时日志" : "演示日志"}</span>
-        <span style={{ flex: 1 }} />
-        <button className="iconbtn" style={{ width: 26, height: 26 }} onClick={onClose}><Icon name="x" size={14} /></button>
-      </div>
-      <div className="dbg-body mono">
-        {lines.map((line, index) => (
-          <div key={index} className="dbg-line">
-            <span className="dbg-ts">{line.ts || `14:22:${(8 + index * 11).toString().padStart(2, "0")}`}</span>
-            <span className={`dbg-tag ${line.t.trim().toLowerCase()}`}>{line.t}</span>
-            <span className="dbg-msg">{line.m}</span>
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -284,7 +249,6 @@ export default function App() {
   const [view, setView] = useState("home");
   const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt", taskId: null });
   const [active, setActive] = useState("overview");
-  const [dbgOpen, setDbgOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
   const contentRef = useRef(null);
   const registry = useRef(new Map());
@@ -386,7 +350,6 @@ export default function App() {
     setParams({ taskId: null, ...nextParams });
     setView("results");
     setActive("overview");
-    setDbgOpen(nextParams.dbg);
     setRailOpen(false);
     contentRef.current?.scrollTo({ top: 0 });
   }
@@ -488,11 +451,6 @@ export default function App() {
             <div className="crumb"><span className="seg cur">首页 / 提交审查</span></div>
           )}
           <span className="topbar-spacer" />
-          {view === "results" ? (
-            <button className={`iconbtn${dbgOpen ? " active-ic" : ""}`} title="调试日志" onClick={() => setDbgOpen((current) => !current)}>
-              <Icon name="terminal" size={16} />
-            </button>
-          ) : null}
           <ThemeToggle
             theme={theme}
             onToggle={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
@@ -509,9 +467,6 @@ export default function App() {
 
         <AppFooter />
 
-        {view === "results" && (params.dbg || run.task?.logs?.length) ? (
-          <DebugConsole open={dbgOpen} onClose={() => setDbgOpen(false)} logs={run.task?.logs} />
-        ) : null}
       </div>
 
       {showTweakControls ? <TweaksPanel title="Tweaks">

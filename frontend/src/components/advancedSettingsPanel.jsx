@@ -74,7 +74,7 @@ export function AdvancedSettingsPanel({
               onChange={onDbgChange}
               icon="terminal"
               label="调试日志"
-              desc="输出检测、分类与规则执行的详细日志（默认关闭）。"
+              desc="查看执行日志中的 timing 和内部执行细节（默认关闭）。"
             />
           </div>
         </div>
