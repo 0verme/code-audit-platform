@@ -2,8 +2,13 @@
 from __future__ import annotations
 
 import logging
+import json
+import os
+import time
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Any
+from urllib import error, request
 
 from app.db.metadata.compat import router as db_router
 from app.db.profiles import get_active_profile
@@ -11,11 +16,13 @@ from app.db.profiles import get_active_profile
 
 logger = logging.getLogger("svn_check.audit_metadata")
 
-TERM_ROOT_SQL = """
-SELECT DISTINCT upper(root_code)
-FROM dwp.p_term_root
-WHERE root_code IS NOT NULL
-"""
+ASSET_PORTAL_BASE_URL_ENV = "ASSET_PORTAL_BASE_URL"
+ASSET_PORTAL_API_TOKEN_ENV = "ASSET_PORTAL_API_TOKEN"
+ASSET_PORTAL_ROOT_CACHE_FILE_ENV = "ASSET_PORTAL_ROOT_CACHE_FILE"
+ASSET_PORTAL_ROOT_CACHE_TTL_SECONDS_ENV = "ASSET_PORTAL_ROOT_CACHE_TTL_SECONDS"
+ASSET_PORTAL_ROOT_TIMEOUT_SECONDS_ENV = "ASSET_PORTAL_ROOT_TIMEOUT_SECONDS"
+
+_term_root_memory_cache: tuple[float, list[tuple[str]]] | None = None
 
 VIEW_NAME_SQL = """
 SELECT upper(table_schema) || '.' || upper(table_name)
@@ -155,8 +162,77 @@ def _run_metadata_query(sql: str, function_name: str) -> list[Any]:
         return []
 
 
+def _asset_portal_root_url() -> str:
+    base_url = os.getenv(ASSET_PORTAL_BASE_URL_ENV, "").strip().rstrip("/")
+    return f"{base_url}/api/roots" if base_url else ""
+
+
+def _root_cache_ttl_seconds() -> float:
+    try:
+        return max(0.0, float(os.getenv(ASSET_PORTAL_ROOT_CACHE_TTL_SECONDS_ENV, "300")))
+    except ValueError:
+        return 300.0
+
+
+def _read_root_snapshot() -> list[tuple[str]]:
+    raw_path = os.getenv(ASSET_PORTAL_ROOT_CACHE_FILE_ENV, "").strip()
+    if not raw_path:
+        return []
+    try:
+        payload = json.loads(Path(raw_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return _normalize_single_column_rows(payload.get("roots") if isinstance(payload, dict) else payload)
+
+
+def _write_root_snapshot(roots: list[tuple[str]]) -> None:
+    raw_path = os.getenv(ASSET_PORTAL_ROOT_CACHE_FILE_ENV, "").strip()
+    if not raw_path:
+        return
+    try:
+        path = Path(raw_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"roots": [root[0] for root in roots]}, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        logger.warning("asset portal term-root snapshot write failed")
+
+
+def _fetch_asset_portal_term_roots() -> list[tuple[str]]:
+    url = _asset_portal_root_url()
+    if not url:
+        raise RuntimeError("asset portal API is not configured")
+    headers = {"Accept": "application/json"}
+    token = os.getenv(ASSET_PORTAL_API_TOKEN_ENV, "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        timeout = float(os.getenv(ASSET_PORTAL_ROOT_TIMEOUT_SECONDS_ENV, "10"))
+    except ValueError:
+        timeout = 10.0
+    try:
+        with request.urlopen(request.Request(url, headers=headers), timeout=max(0.1, timeout)) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (OSError, ValueError, error.HTTPError, error.URLError) as exc:
+        raise RuntimeError(type(exc).__name__) from exc
+    if not isinstance(payload, Mapping) or not isinstance(payload.get("items"), list):
+        raise RuntimeError("invalid asset portal root response")
+    return _normalize_single_column_rows(payload["items"], field_names=("abbr", "root_code", "rootCode"))
+
+
 def list_term_roots() -> list[tuple[str]]:
-    return _normalize_single_column_rows(_run_metadata_query(TERM_ROOT_SQL, "list_term_roots"))
+    global _term_root_memory_cache
+    now = time.monotonic()
+    if _term_root_memory_cache and now - _term_root_memory_cache[0] <= _root_cache_ttl_seconds():
+        return _term_root_memory_cache[1]
+    try:
+        roots = _fetch_asset_portal_term_roots()
+    except Exception as exc:
+        cached_roots = _term_root_memory_cache[1] if _term_root_memory_cache else _read_root_snapshot()
+        logger.warning("asset portal term-root query degraded error=%s cache=%s", type(exc).__name__, bool(cached_roots))
+        return cached_roots
+    _term_root_memory_cache = (now, roots)
+    _write_root_snapshot(roots)
+    return roots
 
 
 def list_view_names() -> list[tuple[str]]:

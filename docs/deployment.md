@@ -15,6 +15,16 @@ default is an empty allowlist and wildcard origins are rejected. Keep
 deployment needs local workspaces, it must also set `AUDIT_LOCAL_SOURCE_ROOTS`
 to existing allowed roots (a JSON array is recommended, especially on Windows).
 
+## Asset portal term roots
+
+Term-root validation reads the asset portal API, rather than the audit
+database. Set the existing `ASSET_PORTAL_BASE_URL` to the portal origin; it is
+used both for audit-result links and for `GET /api/roots`. If the portal is
+temporarily unavailable, the last in-process value is used. Set
+`ASSET_PORTAL_ROOT_CACHE_FILE` to retain a JSON snapshot across restarts.
+`ASSET_PORTAL_API_TOKEN` is optional and is sent as a Bearer token only when
+configured. Do not commit a real token.
+
 ## 数据库部署原则
 
 - 整个平台只能选择一套数据库：

@@ -1,8 +1,11 @@
 import logging
+import json
+import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -28,6 +31,9 @@ class AttrRow:
 
 
 class AuditMetadataServiceTests(unittest.TestCase):
+    def setUp(self):
+        service._term_root_memory_cache = None
+
     def test_metadata_path_owns_implementation(self):
         self.assertIs(service.db_router, router)
         self.assertTrue(callable(db_service.select_sql))
@@ -84,7 +90,6 @@ class AuditMetadataServiceTests(unittest.TestCase):
 
     def test_metadata_queries_degrade_to_empty_lists_on_router_failure(self):
         list_functions = [
-            service.list_term_roots,
             service.list_view_names,
             service.list_function_names,
             service.list_para_table_names,
@@ -101,7 +106,6 @@ class AuditMetadataServiceTests(unittest.TestCase):
 
     def test_metadata_queries_degrade_to_empty_lists_when_router_returns_none(self):
         with patch.object(service.db_router, "select_sql_with_profile", return_value=None):
-            self.assertEqual(service.list_term_roots(), [])
             self.assertEqual(service.list_view_names(), [])
             self.assertEqual(service.list_function_names(), [])
             self.assertEqual(service.list_para_table_names(), [])
@@ -112,7 +116,6 @@ class AuditMetadataServiceTests(unittest.TestCase):
         sample_rows = [(" table_a ",), (None,), ("",), ("TABLE_A",), ("table_b",)]
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
-            self.assertEqual(service.list_term_roots(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(service.list_view_names(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(service.list_function_names(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(service.list_para_table_names(), [("TABLE_A",), ("TABLE_B",)])
@@ -127,7 +130,6 @@ class AuditMetadataServiceTests(unittest.TestCase):
         ]
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
-            self.assertEqual(service.list_term_roots(), [("ROOT_A",), ("ROOT_B",)])
             self.assertEqual(service.list_view_names(), [("ROOT_A",), ("ROOT_B",)])
             self.assertEqual(service.list_function_names(), [("ROOT_A",), ("ROOT_B",)])
             self.assertEqual(service.list_para_table_names(), [("ROOT_A",), ("ROOT_B",)])
@@ -136,7 +138,6 @@ class AuditMetadataServiceTests(unittest.TestCase):
         sample_rows = [RowLike(name=" item_a "), RowLike(name="ITEM_A"), RowLike(name="item_b")]
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
-            self.assertEqual(service.list_term_roots(), [("ITEM_A",), ("ITEM_B",)])
             self.assertEqual(service.list_view_names(), [("ITEM_A",), ("ITEM_B",)])
             self.assertEqual(service.list_function_names(), [("ITEM_A",), ("ITEM_B",)])
             self.assertEqual(service.list_para_table_names(), [("ITEM_A",), ("ITEM_B",)])
@@ -215,8 +216,9 @@ class AuditMetadataServiceTests(unittest.TestCase):
     def test_public_data_lightweight_wrappers_remain_callable(self):
         sample_rows = [("table_a",), ("TABLE_A",), ("table_b",)]
 
+        with patch.object(service, "_fetch_asset_portal_term_roots", return_value=[("ROOT_A",), ("root_b",)]):
+            self.assertEqual(public_data.all_term_roots(), [("ROOT_A",), ("root_b",)])
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
-            self.assertEqual(public_data.all_term_roots(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(public_data.all_view_names(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(public_data.all_function_names(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(public_data.all_para_table_lists(), [("TABLE_A",), ("TABLE_B",)])
@@ -239,15 +241,49 @@ class AuditMetadataServiceTests(unittest.TestCase):
         with patch.object(service.db_router, "get_backend", return_value="gaussdb"):
             with patch.object(service.db_router, "select_sql_with_profile", side_effect=RuntimeError(sensitive_message)):
                 with self.assertLogs("svn_check.audit_metadata", level=logging.WARNING) as logs:
-                    self.assertEqual(service.list_term_roots(), [])
+                    self.assertEqual(service.list_view_names(), [])
 
         log_text = "\n".join(logs.output).lower()
         for forbidden in ["dsn", "jdbc", "password", "token", "192.0.2.10", "secret", "real_user"]:
             self.assertNotIn(forbidden, log_text)
         self.assertIn("profile=", log_text)
         self.assertIn("backend=gaussdb", log_text)
-        self.assertIn("function=list_term_roots", log_text)
+        self.assertIn("function=list_view_names", log_text)
         self.assertIn("error=runtimeerror", log_text)
+
+    @patch.dict(os.environ, {"ASSET_PORTAL_BASE_URL": "https://asset.example.test/", "ASSET_PORTAL_API_TOKEN": "test-token"}, clear=True)
+    def test_term_roots_are_read_from_asset_portal_api(self):
+        response = MagicMock()
+        response.read.return_value = json.dumps({"items": [{"abbr": "acct"}, {"abbr": "AMT"}, {"abbr": "acct"}]}).encode("utf-8")
+        response.__enter__.return_value = response
+
+        with patch("urllib.request.urlopen", return_value=response) as urlopen:
+            self.assertEqual(service.list_term_roots(), [("ACCT",), ("AMT",)])
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, "https://asset.example.test/api/roots")
+        self.assertEqual(request.get_header("Authorization"), "Bearer test-token")
+
+    @patch.dict(os.environ, {"ASSET_PORTAL_BASE_URL": "https://asset.example.test"}, clear=True)
+    def test_term_roots_fall_back_to_persistent_snapshot_when_api_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "roots.json"
+            cache_file.write_text('{"roots": ["acct", "amt"]}', encoding="utf-8")
+            with patch.dict(os.environ, {"ASSET_PORTAL_ROOT_CACHE_FILE": str(cache_file)}, clear=False):
+                with patch("urllib.request.urlopen", side_effect=OSError("offline")):
+                    self.assertEqual(service.list_term_roots(), [("ACCT",), ("AMT",)])
+
+    @patch.dict(os.environ, {"ASSET_PORTAL_BASE_URL": "https://asset.example.test"}, clear=True)
+    def test_term_roots_write_snapshot_after_successful_api_fetch(self):
+        response = MagicMock()
+        response.read.return_value = b'{"items": [{"abbr": "acct"}]}'
+        response.__enter__.return_value = response
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_file = Path(tmp) / "roots.json"
+            with patch.dict(os.environ, {"ASSET_PORTAL_ROOT_CACHE_FILE": str(cache_file)}, clear=False):
+                with patch("urllib.request.urlopen", return_value=response):
+                    self.assertEqual(service.list_term_roots(), [("ACCT",)])
+            self.assertEqual(json.loads(cache_file.read_text(encoding="utf-8")), {"roots": ["ACCT"]})
 
 
 if __name__ == "__main__":
