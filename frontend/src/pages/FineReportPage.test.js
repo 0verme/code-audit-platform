@@ -29,6 +29,7 @@ test("FineReport keeps referenced tables inside CPT drilldown", () => {
   assert.doesNotMatch(pageSource, /id="reftables"/);
   assert.match(pageSource, /ReferenceTableList/);
   assert.match(pageSource, /report\.type === "cpt"/);
+  assert.match(pageSource, /ReferenceTableList items=\{refTables\} stacked/);
   assert.match(pageSource, /引[^\n]*表/);
 });
 
@@ -37,4 +38,5 @@ test("shared referenced table list renders FineReport table metadata", () => {
   assert.match(source, /item\.disabled/);
   assert.match(source, /item\.sysNames/);
   assert.match(source, /emptyText = "无"/);
+  assert.match(source, /reference-table-list/);
 });

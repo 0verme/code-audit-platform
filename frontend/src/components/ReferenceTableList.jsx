@@ -12,11 +12,11 @@ function normalizeItem(item) {
   return item || {};
 }
 
-export function ReferenceTableList({ items = [], emptyText = "无" }) {
+export function ReferenceTableList({ items = [], emptyText = "无", stacked = false }) {
   if (!items.length) return <div className="sd-empty">{emptyText}</div>;
 
   return (
-    <div className="chips">
+    <div className={`chips reference-table-list${stacked ? " stacked" : ""}`}>
       {items.map((rawItem, index) => {
         const item = normalizeItem(rawItem);
         const type = TABLE_TYPE_META[item.type] || TABLE_TYPE_META.src;

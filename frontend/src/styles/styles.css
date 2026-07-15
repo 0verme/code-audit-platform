@@ -388,6 +388,8 @@ body {
 
 /* reference table chips */
 .chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.reference-table-list.stacked { display: flex; flex-direction: column; flex-wrap: nowrap; gap: 7px; }
+.reference-table-list.stacked .chip { width: 100%; box-sizing: border-box; justify-content: flex-start; }
 .chip {
   font-family: var(--font-mono); font-size: var(--fs-xs); padding: 4px 9px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2);

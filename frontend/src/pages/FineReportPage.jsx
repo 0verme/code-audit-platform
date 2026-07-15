@@ -305,7 +305,7 @@ function ReportDetailDrawer({ report, onClose }) {
 
           <div className="sd-block">
             <div className="subhead"><Icon name="db" size={12} /> 引用表 <span className="sd-num mono">{refTables.length}</span></div>
-            {report.type === "cpt" ? <ReferenceTableList items={refTables} /> : null}
+            {report.type === "cpt" ? <ReferenceTableList items={refTables} stacked /> : null}
           </div>
         </div>
       </div>
