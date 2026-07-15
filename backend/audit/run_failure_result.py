@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+from audit.checks.svn_service import SvnCliNotFoundError
 
 SVN_CLI_MISSING_HINT = "（未找到 svn 命令行客户端，请安装 SVN 并加入 PATH）"
 
 
 def build_failure_result(error: BaseException | str, *, source_type: str) -> dict:
     message = str(error)
-    if source_type == "svn" and (
-        isinstance(error, FileNotFoundError) or "WinError 2" in message
-    ):
+    if source_type == "svn" and isinstance(error, SvnCliNotFoundError):
         message += SVN_CLI_MISSING_HINT
     return {"status": "fail", "error": message}
 

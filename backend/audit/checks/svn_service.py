@@ -26,6 +26,10 @@ SENSITIVE_URL_QUERY_KEYS = {
 }
 
 
+class SvnCliNotFoundError(RuntimeError):
+    """Raised only when the configured SVN executable cannot be started."""
+
+
 def sanitize_svn_url_for_log(value: str) -> str:
     """Return a diagnostic-safe view of an SVN URL without changing its path."""
     if not isinstance(value, str):
@@ -139,6 +143,8 @@ def expand_env_config(config):
 
 
 def load_svn_config() -> dict:
+    if not Path(CONFIG_PATH).is_file():
+        raise FileNotFoundError(f'SVN 配置文件不存在: {CONFIG_PATH}')
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         data = yaml.safe_load(f) or {}
     defaults = expand_env_config(data.get('defaults', {}))
@@ -200,6 +206,9 @@ def run_svn_text(project_config: dict, *args: str) -> tuple[int, str, str]:
     timeout = int(project_config.get('timeout', 120))
     try:
         result = subprocess.run(command, capture_output=True, timeout=timeout)
+    except FileNotFoundError as exc:
+        _log_svn_exception("SVN_COMMAND_EXCEPTION", exc, command=command)
+        raise SvnCliNotFoundError(str(exc)) from exc
     except Exception as exc:
         _log_svn_exception("SVN_COMMAND_EXCEPTION", exc, command=command)
         raise

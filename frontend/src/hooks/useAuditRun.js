@@ -25,6 +25,10 @@ export function deriveAuditRunPageStatus(statusPayload, partialResult, error, st
   return statusPayload || partialResult ? "running" : "idle";
 }
 
+export function shouldShowAuditRunFailure(pageStatus, finalReport) {
+  return pageStatus === "failed" && !finalReport;
+}
+
 export function mergePartialReport(baseReport, statusPayload, partialResult) {
   const partialReport = partialResult?.partialReport || statusPayload?.partialReport || {};
   const finalReport = partialResult?.report || partialReport.finalReport || null;
@@ -121,10 +125,7 @@ export function useAuditRun(runId) {
       try {
         const status = await pollAuditRunStatus(targetRunId);
         const partial = await loadPartialResult(targetRunId);
-        const terminal =
-          TERMINAL_RUN_STATUSES.has(status?.status) ||
-          TERMINAL_TASK_STATUSES.has(status?.taskStatus) ||
-          partial?.finalReportReady;
+        const terminal = isTerminalAuditRun(status, partial);
         if (terminal) {
           stopPolling();
           return;
@@ -174,9 +175,9 @@ export function useAuditRun(runId) {
 
     (async () => {
       try {
-        await pollAuditRunStatus(runId);
+        const status = await pollAuditRunStatus(runId);
         const partial = await loadPartialResult(runId);
-        if (!partial?.finalReportReady) {
+        if (!isTerminalAuditRun(status, partial)) {
           schedulePoll(runId);
         }
       } catch (pollError) {
@@ -221,4 +222,12 @@ export function useAuditRun(runId) {
     statusPayload,
     stopPolling,
   ]);
+}
+
+function isTerminalAuditRun(statusPayload, partialResult) {
+  return (
+    TERMINAL_RUN_STATUSES.has(statusPayload?.status) ||
+    TERMINAL_TASK_STATUSES.has(statusPayload?.taskStatus) ||
+    partialResult?.finalReportReady
+  );
 }

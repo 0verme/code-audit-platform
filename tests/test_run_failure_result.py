@@ -14,6 +14,7 @@ from audit.run_failure_result import (  # noqa: E402
     build_engine_load_failure_result,
     build_failure_result,
 )
+from audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
 
 
 class RunFailureResultTests(unittest.TestCase):
@@ -45,16 +46,23 @@ class RunFailureResultTests(unittest.TestCase):
         )
         return run
 
-    def test_build_failure_result_preserves_svn_cli_hint_rule(self):
-        result = build_failure_result(FileNotFoundError("svn missing"), source_type="svn")
+    def test_build_failure_result_adds_svn_cli_hint_only_for_command_start_failure(self):
+        result = build_failure_result(SvnCliNotFoundError("svn missing"), source_type="svn")
 
         self.assertEqual(result["status"], "fail")
         self.assertEqual(result["error"], "svn missing" + SVN_CLI_MISSING_HINT)
 
     def test_build_failure_result_does_not_add_svn_hint_for_local_source(self):
-        result = build_failure_result(FileNotFoundError("svn missing"), source_type="local")
+        result = build_failure_result(SvnCliNotFoundError("svn missing"), source_type="local")
 
         self.assertEqual(result, {"status": "fail", "error": "svn missing"})
+
+    def test_build_failure_result_does_not_misclassify_missing_svn_config(self):
+        missing_config = FileNotFoundError("SVN 配置文件不存在: /opt/code-audit-platform/backend/configs/svn.yaml")
+
+        result = build_failure_result(missing_config, source_type="svn")
+
+        self.assertEqual(result, {"status": "fail", "error": str(missing_config)})
 
     def test_engine_load_failure_result_keeps_error_payload_text(self):
         result = build_engine_load_failure_result("import traceback")
@@ -66,7 +74,7 @@ class RunFailureResultTests(unittest.TestCase):
 
     def test_source_load_failure_keeps_outer_failure_result_structure(self):
         audit_engine._mods = types.SimpleNamespace(
-            svn_main=Mock(side_effect=FileNotFoundError("svn missing"))
+            svn_main=Mock(side_effect=SvnCliNotFoundError("svn missing"))
         )
         run = self._new_run(source_type="svn")
 

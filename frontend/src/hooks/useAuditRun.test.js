@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deriveAuditRunPageStatus, mergePartialReport } from "./useAuditRun.js";
+import { deriveAuditRunPageStatus, mergePartialReport, shouldShowAuditRunFailure } from "./useAuditRun.js";
 
 const baseReport = {
   task: {
@@ -39,6 +39,12 @@ test("deriveAuditRunPageStatus tracks running and terminal states", () => {
     ),
     "completed",
   );
+});
+
+test("shouldShowAuditRunFailure keeps an execution failure out of the empty result page", () => {
+  assert.equal(shouldShowAuditRunFailure("failed", null), true);
+  assert.equal(shouldShowAuditRunFailure("failed", { task: { status: "fail" } }), false);
+  assert.equal(shouldShowAuditRunFailure("completed", null), false);
 });
 
 test("mergePartialReport keeps partial sections and real progress metadata", () => {

@@ -15,6 +15,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import audit.engine as audit_engine  # noqa: E402
+from audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
 from db import connection as db_connection  # noqa: E402
 from db.runtime_store import upsert_task_report  # noqa: E402
 from db.schema import init_db  # noqa: E402
@@ -573,7 +574,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 svn_repo = "svn://example.com/repos/branches/demo-hcyt"
                 svn_task_id = self._insert_task(svn_repo, source_type="svn")
                 audit_engine._mods = types.SimpleNamespace(
-                    svn_main=Mock(side_effect=FileNotFoundError("svn missing"))
+                    svn_main=Mock(side_effect=SvnCliNotFoundError("svn missing"))
                 )
                 svn_run = audit_engine.TaskRun(svn_task_id, svn_repo, "hcyt", source_type="svn")
                 svn_run.update = lambda *args, **kwargs: None
