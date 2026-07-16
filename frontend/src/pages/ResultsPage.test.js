@@ -77,6 +77,18 @@ test("Python script findings auto-open after progressive results arrive without 
   assert.equal(syncAutoOpenScriptIds(refreshed, [errorScript, warningScript], dismissed), refreshed);
 });
 
+test("each HCYT Python row exposes a separate lineage action", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  const lineagePage = readFileSync(new URL("./LineagePage.jsx", import.meta.url), "utf8");
+  assert.match(scriptSource, /className="btn ghost sm pas-lineage"/);
+  assert.match(scriptSource, /getScriptLineageKey\(script\)/);
+  assert.match(scriptSource, /onClick=\{\(\) => onViewLineage\?\.\(\{ \.\.\.script, lineageKey \}\)\}/);
+  assert.match(scriptSource, /disabled=\{!lineageEnabled \|\| !lineageKey\}/);
+  assert.match(appSource, /setLineageSelection\(script\); setView\("lineage"\)/);
+  assert.match(lineagePage, /getAuditTaskLineage/);
+  assert.match(lineagePage, /返回审查结果/);
+});
+
 test("inline detail accordion uses distinct light and dark card surfaces", () => {
   assert.match(styleSource, /\.detail-accordion-content \{[\s\S]*background: #f5f7ff/);
   assert.match(styleSource, /border-top: 3px solid var\(--accent\)/);

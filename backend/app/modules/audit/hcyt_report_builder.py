@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from .lineage_overlay import build_lineage_overlay
+
 
 def build_hcyt_final_report(
     *,
@@ -40,6 +42,11 @@ def build_hcyt_final_report(
         "assetIssues": asset_issues,
         "unifiedAssetIssues": unified_asset_issues,
         "lineageSummary": lineage_summary,
+        "lineageOverlay": build_lineage_overlay(
+            py_scripts,
+            revision=task.get("revision", "") if isinstance(task, dict) else "",
+            changes=changes,
+        ),
     }
     if metadata_profile:
         report["metadataProfile"] = metadata_profile
@@ -83,4 +90,5 @@ def build_hcyt_partial_report(
         "assetIssues": asset_issues,
         "unifiedAssetIssues": unified_asset_issues,
         "lineageSummary": lineage_summary,
+        "lineageOverlay": build_lineage_overlay(py_scripts, changes=changes),
     }

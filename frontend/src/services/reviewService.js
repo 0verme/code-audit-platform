@@ -25,6 +25,10 @@ export const reviewService = {
   getAuditTaskReport(taskId) {
     return apiClient.get(API_PATHS.auditTaskReport(taskId));
   },
+  getAuditTaskLineage(taskId, params) {
+    const query = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)]));
+    return apiClient.get(`${API_PATHS.auditTaskLineage(taskId)}?${query}`);
+  },
   getAuditRunStatus(runId) {
     return apiClient.get(API_PATHS.auditRunStatus(runId));
   },

@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node --test src/config/auditWorkflows.test.js src/ui/runtimeVisibility.test.js src/hooks/useAuditRun.test.js src/components/advancedSettingsPanel.test.js src/components/recentAuditHistory.test.js src/utils/auditSourceDisplay.test.js src/utils/homePathFeedback.test.js src/utils/hcytResultPresentation.test.js src/utils/resultTablePresentation.test.js src/utils/singleFlight.test.js src/services/reviewService.test.js src/pages/HomePageSubmit.test.js src/pages/FineReportPage.test.js src/pages/ResultsPage.test.js",
+    "test": "node --test src/config/auditWorkflows.test.js src/ui/runtimeVisibility.test.js src/hooks/useAuditRun.test.js src/components/advancedSettingsPanel.test.js src/components/recentAuditHistory.test.js src/components/lineage/lineageAdapter.test.js src/utils/auditSourceDisplay.test.js src/utils/homePathFeedback.test.js src/utils/hcytResultPresentation.test.js src/utils/resultTablePresentation.test.js src/utils/singleFlight.test.js src/services/reviewService.test.js src/pages/HomePageSubmit.test.js src/pages/FineReportPage.test.js src/pages/ResultsPage.test.js",
     "build": "vite build",
     "preview": "vite preview"
   },

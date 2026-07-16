@@ -9,7 +9,15 @@ const SD_STATE = {
   extra: { cls: "warn", label: "多余", icon: "alert" },
 };
 
-export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle }) {
+export function getScriptLineageKey(script) {
+  if (script?.lineageKey) return script.lineageKey;
+  const job = String(script?.job || "").trim();
+  if (job) return `job:${job.toUpperCase()}`;
+  const path = String(script?.path || script?.script || "").trim().replaceAll("\\", "/").toLowerCase();
+  return path ? `program:${path}` : "";
+}
+
+export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLineage, lineageEnabled }) {
   const scripts = Array.isArray(d.pyScripts) ? d.pyScripts : [];
   const flagged = scripts.filter((script) => {
     const audit = scriptAudit(script);
@@ -34,8 +42,10 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle }) {
             const audit = scriptAudit(script);
             const detailId = `script-detail-${encodeURIComponent(script.script)}`;
             const isOpen = openScriptIds.has(script.script);
+            const lineageKey = getScriptLineageKey(script);
             return (
               <div key={script.script} className={`accordion-item${isOpen ? " open" : ""}`}>
+                <div className="pas-row-shell">
                 <button className="pas-row" onClick={() => onToggle(script.script)} aria-expanded={isOpen} aria-controls={detailId}>
                 <span className="pas-ico"><Icon name="python" size={16} /></span>
                 <span className="pas-main">
@@ -59,6 +69,14 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle }) {
                 </span>
                 <Icon name="chevron" size={16} className="pas-chev" />
                 </button>
+                <button
+                  type="button"
+                  className="btn ghost sm pas-lineage"
+                  onClick={() => onViewLineage?.({ ...script, lineageKey })}
+                  disabled={!lineageEnabled || !lineageKey}
+                  title={lineageEnabled ? "查看该 Python 的上下游血缘" : "审查完成后可查看"}
+                ><Icon name="flow" size={13} /> 查看血缘</button>
+                </div>
                 <ScriptDetailAccordion script={script} detailId={detailId} open={isOpen} onClose={() => onToggle(script.script)} />
               </div>
             );

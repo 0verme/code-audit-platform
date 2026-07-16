@@ -79,6 +79,7 @@ class HcytReportBuilderTests(unittest.TestCase):
                 "assetIssues",
                 "unifiedAssetIssues",
                 "lineageSummary",
+                "lineageOverlay",
                 "metadataProfile",
             ],
         )
@@ -151,6 +152,7 @@ class HcytReportBuilderTests(unittest.TestCase):
                 "assetIssues",
                 "unifiedAssetIssues",
                 "lineageSummary",
+                "lineageOverlay",
             ],
         )
         self.assertNotIn("task", partial)
@@ -187,6 +189,26 @@ class HcytReportBuilderTests(unittest.TestCase):
 
         self.assertIs(report["lineageSummary"], inputs["lineage_summary"])
         self.assertIs(partial["lineageSummary"], inputs["lineage_summary"])
+
+    def test_lineage_overlay_is_persisted_for_final_and_partial_reports(self):
+        inputs = _sample_inputs()
+        inputs["py_scripts"] = [{
+            "script": "program.py", "path": "jobs/program.py", "lineageKey": "job:JOB_A",
+            "job": "JOB_A", "table": "dm.table_a", "inputTables": ["ods.source_a"],
+            "dependencyJobs": ["JOB_SOURCE"], "freq": "daily", "jobDisabled": False,
+        }]
+
+        report = build_hcyt_report(**inputs)
+        partial = build_hcyt_partial_report(
+            changes=inputs["changes"], conflicts=inputs["conflicts"], grouped=inputs["grouped"],
+            config_files=inputs["config_files"], schedule=inputs["schedule"], py_scripts=inputs["py_scripts"],
+            ref_tables=inputs["ref_tables"], deps=inputs["deps"], asset_issues=inputs["asset_issues"],
+            unified_asset_issues=inputs["unified_asset_issues"], lineage_summary=inputs["lineage_summary"],
+        )
+
+        self.assertEqual(report["lineageOverlay"]["revision"], "")
+        self.assertEqual(report["lineageOverlay"]["programs"][0]["resultTable"], "DM.TABLE_A")
+        self.assertEqual(partial["lineageOverlay"]["programs"][0]["inputTables"], ["ODS.SOURCE_A"])
 
 
 if __name__ == "__main__":

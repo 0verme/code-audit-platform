@@ -290,19 +290,25 @@ def run_hcyt_programs(
         sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
         table_name = _timed("programs.file.table_name", lambda: safe("表名解析", lambda p=path: modules.hcyt.get_program_table_name(p), ""), log_timing, **file_fields)
         source_text = _timed("programs.file.read_source", lambda: safe(f"加工程序内容读取({file_name})", lambda p=path: modules.re_service.read_data_from_file(p), ""), log_timing, **file_fields)
-        job_name, freq, yilai_tables = "", "", None
+        job_name, freq, yilai_tables, dependency_jobs = "", "", None, []
         if program_lookup is not None:
             def lookup(p=path):
                 info = modules.re_service.get_program_lookup_result(
                     program_lookup, modules.re_service.safe_remove_prefix(p), tail_levels=4
                 )
                 yilai = modules.re_service.get_yilai_table_from_lookup(info[2], dependency_lookup)
-                return info[0], info[1], yilai
+                dependency_parser = getattr(
+                    modules.re_service,
+                    "get_dependency_items",
+                    lambda raw: [part[3:] for part in str(raw or "").split("|") if part.startswith("33:")],
+                )
+                return info[0], info[1], yilai, dependency_parser(info[2])
 
-            looked = _timed("programs.file.schedule_lookup", lambda: safe(f"调度信息关联({file_name})", lookup, ("", "", None)), log_timing, **file_fields)
+            looked = _timed("programs.file.schedule_lookup", lambda: safe(f"调度信息关联({file_name})", lookup, ("", "", None, [])), log_timing, **file_fields)
             job_name = str(looked[0] or "")
             freq = cale_map.get(looked[1], str(looked[1] or ""))
             yilai_tables = dedupe_tables(looked[2]) if looked[2] is not None else None
+            dependency_jobs = [str(item).strip() for item in looked[3] if str(item).strip()]
 
         if table_name:
             asset_issues += safe(
@@ -354,9 +360,13 @@ def run_hcyt_programs(
         if job_name:
             job_names.append(job_name)
         py_rows += lint
+        relative_path = modules.re_service.safe_remove_prefix(path)
+        lineage_path = getattr(modules.re_service, "tail_path", lambda value, _levels: str(value).replace("\\", "/"))(relative_path, 4)
+        lineage_path = lineage_path or str(relative_path).replace("\\", "/")
         py_scripts.append(
             {
                 "script": file_name,
+                "path": relative_path,
                 "downloadUrl": download_url(path),
                 "table": table_name,
                 "job": job_name,
@@ -367,6 +377,16 @@ def run_hcyt_programs(
                 "result": compare_rows,
                 "codeval": code_tables,
                 "temp": middle_tables,
+                "inputTables": [
+                    name for name in sql_tables
+                    if normalize_table(name) != normalize_table(table_name)
+                ],
+                "dependencyJobs": dependency_jobs,
+                "lineageKey": (
+                    f"job:{normalize_table(job_name)}"
+                    if job_name
+                    else f"program:{lineage_path}"
+                ),
             }
         )
 

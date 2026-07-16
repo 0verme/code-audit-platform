@@ -6,6 +6,7 @@ import "./styles/home.css";
 import "./styles/results.css";
 import "./styles/script-audit.css";
 import "./styles/fine-report.css";
+import "./styles/lineage.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>

@@ -944,7 +944,7 @@ export function mergeAuditResults(baseData, apiRows) {
   };
 }
 
-export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
+export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState, onViewLineage, lineageEnabled }) {
   const dismissedScriptIds = useRef(new Set());
   const [openScriptIds, setOpenScriptIds] = useState(() => (
     syncAutoOpenScriptIds(new Set(), d.pyScripts, dismissedScriptIds.current)
@@ -1007,7 +1007,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" />
       <ScheduleSection d={mergedData} reg={reg} />
-      <PyScriptAuditSection d={mergedData} reg={reg} openScriptIds={openScriptIds} onToggle={toggleScript} />
+      <PyScriptAuditSection d={mergedData} reg={reg} openScriptIds={openScriptIds} onToggle={toggleScript} onViewLineage={onViewLineage} lineageEnabled={lineageEnabled} />
       <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
     </div>

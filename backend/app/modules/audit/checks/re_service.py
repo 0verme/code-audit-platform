@@ -130,6 +130,11 @@ def _dependency_items(input_string):
     return [part[3:] for part in str(input_string).split('|') if part.startswith("33:")]
 
 
+def get_dependency_items(input_string):
+    """Return normalized scheduler dependency job names."""
+    return _dependency_items(input_string)
+
+
 def _table_name_from_program_path_value(path_value):
     p = Path(str(path_value))
     folder = p.parent.name

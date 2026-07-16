@@ -190,6 +190,7 @@ class HcytReportContractTests(unittest.TestCase):
                 "assetIssues",
                 "unifiedAssetIssues",
                 "lineageSummary",
+                "lineageOverlay",
                 "metadataProfile",
             ],
         )

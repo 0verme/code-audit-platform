@@ -4,6 +4,7 @@ from app.auth import require_permission
 from app.services import ServiceError
 from app.services.audit_task_service import create_task, get_report_json, get_task, get_tasks
 from app.services.source_file_service import resolve_source_file
+from app.services.lineage_service import get_task_lineage_subgraph
 from .helpers import service_error_response
 
 audit_tasks_bp = Blueprint("audit_tasks", __name__)
@@ -41,6 +42,20 @@ def source_file(task_id: int):
     try:
         path = resolve_source_file(task_id, request.args.get("path", ""))
         return send_file(path, as_attachment=True, download_name=path.name)
+    except ServiceError as exc:
+        return service_error_response(exc)
+
+
+@audit_tasks_bp.get("/api/audit-tasks/<int:task_id>/lineage/subgraph")
+def task_lineage_subgraph(task_id: int):
+    try:
+        return jsonify(get_task_lineage_subgraph(
+            task_id,
+            request.args.get("rootKey"),
+            request.args.get("direction", "both"),
+            request.args.get("depth"),
+            request.args.get("maxNodes"),
+        ))
     except ServiceError as exc:
         return service_error_response(exc)
 

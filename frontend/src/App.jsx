@@ -15,6 +15,7 @@ const HomePage = lazy(() => import("./pages/HomePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
 const FineReportResultsPage = lazy(() => import("./pages/FineReportPage").then((module) => ({ default: module.FineReportResultsPage })));
 const NupsResultsPage = lazy(() => import("./pages/NupsPage").then((module) => ({ default: module.NupsResultsPage })));
+const LineagePage = lazy(() => import("./pages/LineagePage").then((module) => ({ default: module.LineagePage })));
 const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
   { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
@@ -115,6 +116,7 @@ const EMPTY_AUDIT_REPORT = {
     warnings: [],
     stats: {},
   },
+  lineageOverlay: { schemaVersion: "1.0", revision: "", programs: [] },
   sqlChecks: {},
   ai: null,
   logs: [],
@@ -265,6 +267,7 @@ export default function App() {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [theme, setTheme] = useState(getInitialTheme);
   const [view, setView] = useState("home");
+  const [lineageSelection, setLineageSelection] = useState(null);
   const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt", taskId: null });
   const [active, setActive] = useState("overview");
   const [railOpen, setRailOpen] = useState(false);
@@ -273,7 +276,7 @@ export default function App() {
 
   const isFR = params.workflow === "fine-report";
   const isNups = params.workflow === "nups";
-  const run = useAuditRun(view === "results" ? params.taskId : null);
+  const run = useAuditRun(view !== "home" ? params.taskId : null);
   const progressiveData = params.taskId
     ? mergePartialReport(EMPTY_AUDIT_REPORT, run.statusPayload, run.partialResult)
     : null;
@@ -284,7 +287,7 @@ export default function App() {
   const navList = isNups ? NUPS_NAV : (isFR ? FR_NAV : SECTION_NAV);
   const workflowName = WORKFLOWS.find((workflow) => workflow.key === params.workflow)?.name || params.workflow;
   const aiEnabled = Boolean(data?.ai) || (!params.taskId && (params.ai || t.showAi));
-  const canShowRail = view !== "home" && (!IS_API_MODE || !!liveData);
+  const canShowRail = view === "results" && (!IS_API_MODE || !!liveData);
   const currentRevision = liveData?.task?.revision || run.task?.revision || (IS_API_MODE ? `task-${params.taskId || "pending"}` : data.task.revision);
   const projectsState = useAsyncResource(() => reviewService.getProjects(), [], { enabled: IS_API_MODE && view === "home" });
   const tasksState = useAsyncResource(() => reviewService.getAuditTasks(), [view], { enabled: IS_API_MODE && view === "home" });
@@ -394,6 +397,17 @@ export default function App() {
         </Suspense>
       );
     }
+    if (view === "lineage" && lineageSelection && params.taskId) {
+      return (
+        <Suspense fallback={<PageFallback />}>
+          <LineagePage
+            taskId={params.taskId}
+            selection={lineageSelection}
+            onBack={() => setView("results")}
+          />
+        </Suspense>
+      );
+    }
     if (IS_API_MODE && params.taskId && run.error && !liveData) {
       return <ApiErrorView error={run.error} onBack={() => setView("home")} />;
     }
@@ -428,10 +442,12 @@ export default function App() {
           reg={reg}
           onJump={jump}
           apiState={liveData ? null : auditResultsState}
+          onViewLineage={(script) => { setLineageSelection(script); setView("lineage"); }}
+          lineageEnabled={Boolean(IS_API_MODE && params.taskId && run.report && data.pyScripts?.length)}
         />
       </Suspense>
     );
-  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, liveData, params.taskId, projectsState, run.error, run.running, run.task, t.variant, taskFailed, tasksState, view]);
+  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, run.error, run.running, run.task, t.variant, taskFailed, tasksState, view]);
 
   return (
     <div className={`app${canShowRail ? "" : " no-rail"}`}>
@@ -453,12 +469,12 @@ export default function App() {
       ) : null}
       <div className="main">
         <header className="topbar">
-          {view === "results" ? (
+          {view !== "home" ? (
             <>
               <button className="iconbtn mobile-menu-btn" title="导航菜单" onClick={() => setRailOpen((o) => !o)}>
                 <Icon name="menu" size={16} />
               </button>
-              <button className="btn ghost sm" onClick={() => setView("home")}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 新建审查</button>
+              <button className="btn ghost sm" onClick={() => view === "lineage" ? setView("results") : setView("home")}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> {view === "lineage" ? "审查结果" : "新建审查"}</button>
               <div className="crumb">
                 <span className="seg">{workflowName}</span>
                 <span className="sep">/</span>
@@ -479,6 +495,8 @@ export default function App() {
         <div className={`content${isTaskStateView ? " content-task-state" : ""}`} ref={contentRef}>
           {view === "home"
             ? page
+            : view === "lineage"
+              ? <div className="content-inner">{page}</div>
             : isTaskStateView
               ? <div className="audit-running-main">{page}</div>
               : <div className="content-inner">{page}</div>}
