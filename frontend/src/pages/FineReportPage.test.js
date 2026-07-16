@@ -34,7 +34,9 @@ test("FineReport keeps referenced tables inside CPT drilldown", () => {
 });
 
 test("FineReport details use independently expanded inline accordions", () => {
-  assert.match(pageSource, /const \[openReportIds, setOpenReportIds\] = useState\(\(\) => new Set\(\)\)/);
+  assert.match(pageSource, /const \[openReportIds, setOpenReportIds\] = useState\(\(\) => new Set\(/);
+  assert.match(pageSource, /filter\(\(report\) => \{[\s\S]*return audit\.err \|\| audit\.warn/);
+  assert.match(pageSource, /map\(\(report\) => report\.file\)/);
   assert.match(pageSource, /<ReportListSection d=\{mergedData\} reg=\{reg\} openReportIds=\{openReportIds\} onToggle=\{toggleReport\}/);
   assert.match(pageSource, /aria-expanded=\{isOpen\}/);
   assert.match(pageSource, /ReportDetailAccordion report=\{report\} detailId=\{detailId\}/);

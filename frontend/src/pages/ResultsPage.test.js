@@ -24,7 +24,9 @@ test("execution logs remain the only results-page log entry", () => {
 
 test("Python script details use independently expanded inline accordions", () => {
   const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
-  assert.match(source, /const \[openScriptIds, setOpenScriptIds\] = useState\(\(\) => new Set\(\)\)/);
+  assert.match(source, /const \[openScriptIds, setOpenScriptIds\] = useState\(\(\) => new Set\(/);
+  assert.match(source, /filter\(\(script\) => \{[\s\S]*return audit\.err \|\| audit\.warn/);
+  assert.match(source, /map\(\(script\) => script\.script\)/);
   assert.match(source, /<PyScriptAuditSection d=\{mergedData\} reg=\{reg\} openScriptIds=\{openScriptIds\} onToggle=\{toggleScript\}/);
   assert.doesNotMatch(source, /ScriptDetailDrawer/);
   assert.match(scriptSource, /aria-expanded=\{isOpen\}/);

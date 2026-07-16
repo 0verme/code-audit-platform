@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
-import { PyScriptAuditSection } from "./ScriptAudit";
+import { PyScriptAuditSection, scriptAudit } from "./ScriptAudit";
 import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
 
 export const STATUS_META = {
@@ -816,7 +816,14 @@ export function mergeAuditResults(baseData, apiRows) {
 }
 
 export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
-  const [openScriptIds, setOpenScriptIds] = useState(() => new Set());
+  const [openScriptIds, setOpenScriptIds] = useState(() => new Set(
+    (Array.isArray(d.pyScripts) ? d.pyScripts : [])
+      .filter((script) => {
+        const audit = scriptAudit(script);
+        return audit.err || audit.warn;
+      })
+      .map((script) => script.script),
+  ));
   const mergedData = useMemo(() => mergeAuditResults(d, apiState?.data), [d, apiState?.data]);
 
   const toggleScript = (scriptId) => {

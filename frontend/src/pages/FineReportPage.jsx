@@ -335,7 +335,14 @@ function mergeFineReportItems(baseData, items) {
 }
 
 export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
-  const [openReportIds, setOpenReportIds] = useState(() => new Set());
+  const [openReportIds, setOpenReportIds] = useState(() => new Set(
+    (Array.isArray(d.reports) ? d.reports : [])
+      .filter((report) => {
+        const audit = reportAudit(report);
+        return audit.err || audit.warn;
+      })
+      .map((report) => report.file),
+  ));
   const mergedData = useMemo(() => mergeFineReportItems(d, apiState?.data), [d, apiState?.data]);
 
   const toggleReport = (reportId) => {
