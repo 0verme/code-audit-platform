@@ -113,3 +113,12 @@ python backend\app.py
 1. 日志中没有 SQLite 创建或回退信息。
 2. `projects`、`audit_tasks`、`audit_results`、`task_reports` 等运行表创建在当前 profile 的 `schema` 下。
 3. 元数据查询也能在同一 profile 下访问 `dwp.p_*` 表。
+## Audit-rule deployment
+
+Create ignored `backend/configs/audit_rules.yaml` from its example only when a
+deployment needs business overrides, or set `AUDIT_RULES_CONFIG` to an
+externally managed YAML file. Do not put credentials, tokens, connection
+strings, arbitrary paths, or SQL in it. A missing or malformed rule file cannot
+block startup or an audit task: it produces a sanitized warning and safely
+falls back. Put schema/table/column mappings under the selected database
+profile's `metadata` key in `database.yaml`, not in audit-rule YAML.

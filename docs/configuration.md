@@ -66,3 +66,21 @@ profiles:
 - 当前 profile 名称
 - 缺失字段名
 - 当前支持的 type 列表
+## Audit business rules
+
+Copy `backend/configs/audit_rules.example.yaml` to the ignored
+`backend/configs/audit_rules.yaml`, or set `AUDIT_RULES_CONFIG` to an absolute
+YAML path. It contains declarative, non-secret HCYT, DWS, NUPS, FineReport,
+workflow, and input-classification rules. Rules are process-cached. Missing or
+invalid YAML logs a non-sensitive warning and falls back safely: display
+highlighting is empty, calendar labels retain raw values, and audit decisions
+keep built-in compatibility defaults. Never put SQL, passwords, tokens, JDBC
+URLs, connection strings, or arbitrary paths in this file.
+
+## Profile metadata mappings
+
+Schema/table/column identifiers belong in each database profile's `metadata`
+section in `backend/configs/database.yaml`; see the example. SQL templates stay
+in code and only identifiers matching `[A-Za-z_][A-Za-z0-9_]*` are rendered.
+Invalid mappings safely fall back to built-in compatibility values. The active
+profile is used for registered result-table queries; `czcb` is not implicit.

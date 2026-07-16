@@ -22,6 +22,10 @@ from app.config.audit_rules import get_audit_rules
 def _schedule_rules():
     return get_audit_rules()["hcyt"]["schedule"]
 
+# Compatibility export for callers that import the historical constant. Rule
+# execution itself reads the cached configuration through _schedule_rules().
+REAL_JOB_PLAN_NAMES = frozenset(_schedule_rules()["real_job_plan_names"])
+
 
 def _normalize_job_value(value):
     if value is None or pd.isna(value):
