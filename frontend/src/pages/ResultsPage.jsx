@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { PyScriptAuditSection, scriptAudit } from "./ScriptAudit";
 import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
@@ -336,6 +336,118 @@ function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
   );
 }
 
+function ConfigFilesDetail({ files, detailId }) {
+  return (
+    <tr className="config-detail-row">
+      <td colSpan={5}>
+        <section id={detailId} className="config-detail fade-in" role="region" aria-label="SCHEMA_CONFIG 详情">
+          {files.map((file, fileIndex) => (
+            <div key={`${file.name}-${fileIndex}`} className="config-file-detail">
+              <div className="subhead"><Icon name="file" size={12} /> {file.name}</div>
+              {file.error ? (
+                <div className="sd-empty">{file.error}</div>
+              ) : (
+                <div className="table-wrap">
+                  <table className="tbl">
+                    <thead><tr>{file.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
+                    <tbody>
+                      {file.rows.map((row, rowIndex) => (
+                        <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} className="mono">{cell}</td>)}</tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </section>
+      </td>
+    </tr>
+  );
+}
+
+export function ConfigCheckSection({ rows = [], files = [], reg }) {
+  const [openRowIndex, setOpenRowIndex] = useState(null);
+  if (!rows.length && !files.length) return null;
+
+  const displayRows = rows.length ? rows : [{
+    file: "SCHEMA_CONFIG",
+    line: null,
+    rule: "",
+    level: "ok",
+    msg: "Schema 配置文件校验通过",
+  }];
+  const severity = levelOf(rows);
+  const errs = rows.filter((row) => row.level === "err").length;
+  const warns = rows.filter((row) => row.level === "warn").length;
+  const toggleRow = (rowIndex) => setOpenRowIndex((current) => current === rowIndex ? null : rowIndex);
+
+  return (
+    <Panel
+      id="config"
+      icon="cog"
+      title="配置文件检查"
+      accentHeader
+      registerRef={reg}
+      count={rows.length || "通过"}
+      countTone={severity || "ok"}
+      right={
+        rows.length ? (
+          <span className="mini-counts">
+            {errs ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{errs}</span> : null}
+            {warns ? <span className="sev warn"><Icon name="alert" size={11} stroke={2.4} />{warns}</span> : null}
+          </span>
+        ) : null
+      }
+    >
+      <div className="panel-body flush">
+        <div className="table-wrap">
+          <table className="tbl config-check-table">
+            <thead>
+              <tr><th>文件</th><th className="num">行号</th><th>规则</th><th className="severity-cell">级别</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              {displayRows.map((row, rowIndex) => {
+                const canExpand = files.length > 0 && String(row.file || "").toUpperCase() === "SCHEMA_CONFIG";
+                const isOpen = canExpand && openRowIndex === rowIndex;
+                const detailId = `config-detail-${rowIndex}`;
+                return (
+                  <Fragment key={`config-item-${rowIndex}`}>
+                    <tr
+                      className={`${row.level === "err" ? "err-row" : row.level === "warn" ? "warn-row" : ""}${canExpand ? " config-check-row" : ""}${isOpen ? " open" : ""}`}
+                      onClick={canExpand ? () => toggleRow(rowIndex) : undefined}
+                    >
+                      <td className="file-cell">
+                        {canExpand ? (
+                          <button
+                            type="button"
+                            className="config-file-trigger mono"
+                            onClick={(event) => { event.stopPropagation(); toggleRow(rowIndex); }}
+                            aria-expanded={isOpen}
+                            aria-controls={detailId}
+                          >
+                            <Icon name="chevron" size={14} className="config-row-chev" />
+                            {row.file}
+                          </button>
+                        ) : <span className="mono">{row.file}</span>}
+                      </td>
+                      <td className="num">{row.line}</td>
+                      <td className="rule-cell">{row.rule}</td>
+                      <td className="severity-cell"><Sev level={row.level} /></td>
+                      <td>{row.msg}</td>
+                    </tr>
+                    {isOpen ? <ConfigFilesDetail files={files} detailId={detailId} /> : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 export function AssetIssuesSection({ d, reg }) {
   const issues = d.assetIssues || [];
   if (!issues.length) return null;
@@ -558,35 +670,6 @@ function ScheduleListTables({ tables }) {
         );
       })}
     </div>
-  );
-}
-
-function ConfigJsonSection({ files, reg }) {
-  if (!files?.length) return null;
-  return (
-    <Panel id="configjson" icon="cog" title="schema_config 连接信息" accentHeader registerRef={reg} count={files.length} sub="JSON 内容表格化">
-      <div className="panel-body">
-        {files.map((file) => (
-          <div key={file.name} style={{ marginBottom: 14 }}>
-            <div className="subhead" style={{ marginBottom: 7 }}><Icon name="file" size={12} /> {file.name}</div>
-            {file.error ? (
-              <div className="sd-empty">{file.error}</div>
-            ) : (
-              <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-                <table className="tbl">
-                  <thead><tr>{file.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
-                  <tbody>
-                    {file.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}</tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </Panel>
   );
 }
 
@@ -865,8 +948,7 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <ConflictSection d={mergedData} reg={reg} />
       <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} scriptMeta={mergedData.sqlChecks?.dws} />
       <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} scriptMeta={mergedData.sqlChecks?.hive} />
-      <CheckSection id="config" icon="cog" title="配置文件检查" rows={mergedData.config} reg={reg} okMsg="Schema 配置文件校验通过" />
-      <ConfigJsonSection files={mergedData.configFiles} reg={reg} />
+      <ConfigCheckSection rows={mergedData.config} files={mergedData.configFiles} reg={reg} />
       <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" />
       <ScheduleSection d={mergedData} reg={reg} />

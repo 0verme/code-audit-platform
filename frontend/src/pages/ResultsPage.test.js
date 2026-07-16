@@ -59,9 +59,21 @@ test("HCYT check panels opt into the shared accent header treatment", () => {
   assert.match(uiSource, /accentHeader \? " accent-header" : ""/);
   assert.match(source, /function CheckSection[\s\S]*?<Panel[\s\S]*?accentHeader/);
   assert.match(source, /id="asset-issues"[\s\S]*?accentHeader/);
-  assert.match(source, /id="configjson"[\s\S]*?accentHeader/);
+  assert.match(source, /function ConfigCheckSection[\s\S]*?<Panel[\s\S]*?accentHeader/);
   assert.match(source, /id="schedule"[\s\S]*?accentHeader/);
   assert.match(scriptSource, /id="python"[\s\S]*?accentHeader/);
+});
+
+test("SCHEMA_CONFIG details expand inline instead of using a separate panel", () => {
+  assert.match(source, /<ConfigCheckSection rows=\{mergedData\.config\} files=\{mergedData\.configFiles\} reg=\{reg\} \/>/);
+  assert.doesNotMatch(source, /id="configjson"|function ConfigJsonSection/);
+  assert.match(source, /const \[openRowIndex, setOpenRowIndex\] = useState\(null\)/);
+  assert.match(source, /aria-expanded=\{isOpen\}/);
+  assert.match(source, /aria-controls=\{detailId\}/);
+  assert.match(source, /onClick=\{canExpand \? \(\) => toggleRow\(rowIndex\) : undefined\}/);
+  assert.match(source, /rows\.length \? rows : \[\{[\s\S]*?file: "SCHEMA_CONFIG"[\s\S]*?level: "ok"/);
+  assert.match(source, /files\.map\(\(file, fileIndex\)/);
+  assert.match(resultsStyleSource, /\.config-check-row\.open \.config-row-chev \{ transform: rotate\(90deg\); \}/);
 });
 
 test("accent panel headers use theme tokens for light and dark mode compatibility", () => {
