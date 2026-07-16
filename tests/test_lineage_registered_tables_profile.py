@@ -36,7 +36,7 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
         run.save_category_rows = lambda *args, **kwargs: None
         return run
 
-    def test_load_registered_result_tables_defaults_to_czcb_profile(self):
+    def test_load_registered_result_tables_defaults_to_active_profile(self):
         captured = {}
 
         def fake_select(profile, sql):
@@ -45,9 +45,10 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
             return [(" dm.table_a ",)]
 
         with patch.object(mapping_sqlite, "select_sql_with_profile", side_effect=fake_select):
-            result = mapping_sqlite.load_registered_result_tables()
+            with patch.object(mapping_sqlite, "get_active_profile", return_value=types.SimpleNamespace(name="active_profile")):
+                result = mapping_sqlite.load_registered_result_tables()
 
-        self.assertEqual(captured["profile"], "czcb")
+        self.assertEqual(captured["profile"], "active_profile")
         self.assertIn("FROM dwp.p_job_hjj", captured["sql"])
         self.assertEqual(result, {"DM.TABLE_A"})
 

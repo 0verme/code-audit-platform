@@ -18,3 +18,16 @@ profiles:
     connect_timeout: 10
     socket_timeout: 30
     statement_timeout_ms: 30000
+    # Metadata SQL uses only validated identifiers from this profile mapping.
+    metadata:
+      schema: dwp
+      tables:
+        jobs: p_job_hjj
+        programs: p_program_hjj
+        plans: p_plan_hjj
+        roles: p_role_hjj
+        fine: p_fine_hjj
+        job_outfiles: p_job_outfile
+      columns:
+        jobs: {plan_name: a, sequence_name: b, job_name: c, program_key: e, status: x, dependencies: ab}
+        programs: {program_key: b, result_table: k}

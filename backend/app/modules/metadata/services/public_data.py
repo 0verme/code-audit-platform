@@ -9,10 +9,19 @@ from .audit_metadata_service import (
     list_view_names,
 )
 from .db_service import select_sql
+from .metadata_model import column_name, table_name
+
+
+def _table(key):
+    return table_name(key)
+
+
+def _column(table, key):
+    return column_name(table, key)
 
 
 def all_real_seq():
-    sql = f"""select DISTINCT b from dwp.p_job_hjj
+    sql = f"""select DISTINCT {_column('jobs', 'sequence_name')} from {_table('jobs')}
 WHERE a IN ('PLAN_CBS_CBSRUN_REAL_DWS_DAY','PLAN_DWS_CBS_CBSRUN_DH_XQDATA_REAL',
                          'PLAN_REAL_CBS_CBSRUN_LDXJC_HOUR','PLAN_REAL_CBS_CBSRUN_LDXJC_REAL',
                          'PLAN_REAL_DWS_DWD_IJEP_REAL','PLAN_REAL_KUANYE_KUANYENEW_REAL',
@@ -21,38 +30,38 @@ WHERE a IN ('PLAN_CBS_CBSRUN_REAL_DWS_DAY','PLAN_DWS_CBS_CBSRUN_DH_XQDATA_REAL',
     return plan_lists
 
 def all_plan():
-    sql = f"""select a,b,c,d,e,f from dwp.p_plan_hjj"""
+    sql = f"""select a,b,c,d,e,f from {_table('plans')}"""
     plan_lists = select_sql(sql)
     return plan_lists
 
 
 def get_job2():
-    sql = f"""select c,DECODE(x,1,'启用',9,'禁用') as x from dwp.p_job_hjj"""
+    sql = f"""select {_column('jobs', 'job_name')},DECODE({_column('jobs', 'status')},1,'启用',9,'禁用') as x from {_table('jobs')}"""
     job_lists = select_sql(sql)
     return job_lists
 
 def all_job_dependencies():
-    sql = """select c, ab from dwp.p_job_hjj"""
+    sql = f"""select {_column('jobs', 'job_name')}, {_column('jobs', 'dependencies')} from {_table('jobs')}"""
     job_lists = select_sql(sql)
     return job_lists
 
 def all_job():
-    sql = f"""select * from dwp.p_job_hjj"""
+    sql = f"""select * from {_table('jobs')}"""
     job_lists = select_sql(sql)
     return job_lists
 
 def all_program():
-    sql = f"""select a,b,c,d,e,f,g,h,i,j from dwp.p_program_hjj"""
+    sql = f"""select a,b,c,d,e,f,g,h,i,j from {_table('programs')}"""
     program_lists = select_sql(sql)
     return program_lists
 
 def all_seq():
-    sql = f"""select distinct b from dwp.p_job_hjj"""
+    sql = f"""select distinct {_column('jobs', 'sequence_name')} from {_table('jobs')}"""
     seq_lists = select_sql(sql)
     return seq_lists
 
 def all_role():
-    sql = f"""select * from dwp.p_role_hjj"""
+    sql = f"""select * from {_table('roles')}"""
     role_lists = select_sql(sql)
     role_lists_r=[]
     for i in role_lists:
@@ -60,7 +69,7 @@ def all_role():
     return role_lists_r
 
 def all_fine():
-    sql = f"""select * from dwp.p_fine_hjj"""
+    sql = f"""select * from {_table('fine')}"""
     fine_lists = select_sql(sql)
     fine_lists_r=[]
     for i in fine_lists:
@@ -68,17 +77,17 @@ def all_fine():
     return fine_lists_r
 
 def all_seqjob():
-    sql = f"""select DISTINCT b,c from dwp.p_job_hjj"""
+    sql = f"""select DISTINCT {_column('jobs', 'sequence_name')},{_column('jobs', 'job_name')} from {_table('jobs')}"""
     seqjob_lists = select_sql(sql)
     return seqjob_lists
 
 def all_planjob():
-    sql = f"""select DISTINCT a,c from dwp.p_job_hjj"""
+    sql = f"""select DISTINCT {_column('jobs', 'plan_name')},{_column('jobs', 'job_name')} from {_table('jobs')}"""
     planjob_lists = select_sql(sql)
     return planjob_lists
 
 def all_planseq():
-    sql = f"""select DISTINCT a,b from dwp.p_job_hjj"""
+    sql = f"""select DISTINCT {_column('jobs', 'plan_name')},{_column('jobs', 'sequence_name')} from {_table('jobs')}"""
     planseq_lists = select_sql(sql)
     return planseq_lists
 
@@ -86,7 +95,7 @@ def all_job_outfile():
     return list_job_outfiles()
 
 def all_sstb():
-    sql = f"""select a from dwp.p_job_outfile"""
+    sql = f"""select a from {_table('job_outfiles')}"""
     sstb_lists = select_sql(sql)
     return sstb_lists
 

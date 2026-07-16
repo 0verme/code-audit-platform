@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 
 from app.db.metadata.compat.router import select_sql_with_profile
+from app.db.profiles import get_active_profile
 from . import cache_store as cache_store_helpers
 from . import registered_tables as registered_tables_helpers
 from . import traversal as traversal_helpers
@@ -66,11 +67,12 @@ def get_mapping_db_status(db_path: str | Path | None = None, xlsx_path: str | Pa
     )
 
 
-def load_registered_result_tables(profile: str = "czcb") -> set[str]:
+def load_registered_result_tables(profile: str | None = None) -> set[str]:
+    profile = profile or get_active_profile().name
     return registered_tables_helpers.load_registered_result_tables(profile=profile, select_sql_with_profile=select_sql_with_profile)
 
 
-def filter_registered_result_nodes(nodes, result_tables=None, profile: str = "czcb"):
+def filter_registered_result_nodes(nodes, result_tables=None, profile: str | None = None):
     return registered_tables_helpers.filter_registered_result_nodes(
         nodes=nodes, result_tables=result_tables, profile=profile, load_registered_result_tables_func=load_registered_result_tables
     )
