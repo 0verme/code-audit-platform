@@ -123,9 +123,10 @@ def build_job_table(job_source, db_job_rows):
         if len(row) > 23 and norm(row[2]):
             prod[norm(row[2])] = row
 
+    display_rows = display.astype(str).values.tolist()
     row_states = []
-    for _, row in display.iterrows():
-        prod_row = prod.get(norm(row["作业名"]))
+    for row in display_rows:
+        prod_row = prod.get(norm(row[2]))
         if prod_row is None:
             row_states.append("new" if db_job_rows else "")
         elif str(prod_row[23]).strip() in ("9", "9.0"):
@@ -133,4 +134,4 @@ def build_job_table(job_source, db_job_rows):
         else:
             row_states.append("")
 
-    return {"columns": list(display.columns), "rows": display.astype(str).values.tolist()}, row_states
+    return {"columns": list(display.columns), "rows": display_rows}, row_states

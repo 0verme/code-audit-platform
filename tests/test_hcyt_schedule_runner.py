@@ -22,6 +22,9 @@ class FakeReService:
 
 
 class FakeHcyt:
+    def __init__(self):
+        self.job_rule_timing_log = None
+
     def rule_excle_plan(self, plan_df):
         return ("计划 成环", "计划 警告", 0, {"plan": "PLAN_A"})
 
@@ -29,6 +32,9 @@ class FakeHcyt:
         return ("", "顺序 缺失", 0)
 
     def rule_excle_job(self, job_df, r_plan=None, timing_log=None, job_rows=None):
+        self.job_rule_timing_log = timing_log
+        if timing_log is not None:
+            timing_log("JOB规则主循环完成：1 行，0.01s")
         return ("作业 不存在\n作业 成环", "作业 警告", 0)
 
 
@@ -99,6 +105,40 @@ class HcytScheduleRunnerTests(unittest.TestCase):
         self.assertIs(result["_job_df"], job_df)
         self.assertEqual(result["_r_plan"], {"plan": "PLAN_A"})
         self.assertEqual(result["_db_job_rows"], [("row",)])
+
+    def test_run_hcyt_schedule_forwards_job_rule_detail_timings(self):
+        job_df = pd.DataFrame([["JOB_A", "task"]])
+        modules = FakeModules({"job.xlsx": job_df})
+        timing_events = []
+
+        run_hcyt_schedule(
+            None,
+            None,
+            None,
+            "job.xlsx",
+            safe=lambda _label, fn, _default: fn(),
+            modules=modules,
+            build_job_table=lambda _job_source, _db_job_rows: (
+                {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
+                ["new"],
+            ),
+            schedule_rows_fn=lambda result_text, warn_text: schedule_rows(
+                result_text,
+                warn_text,
+                rule_label=rule_label,
+            ),
+            log_timing=lambda label, phase, **fields: timing_events.append((label, phase, fields)),
+        )
+
+        self.assertIsNotNone(modules.hcyt.job_rule_timing_log)
+        self.assertIn(
+            (
+                "schedule.job.rules.detail",
+                "point",
+                {"message": "JOB规则主循环完成：1 行，0.01s"},
+            ),
+            timing_events,
+        )
 
 
 if __name__ == "__main__":

@@ -39,23 +39,25 @@ def _normalize_dependency_value(value):
     return str(value).strip().upper()
 
 
-def _collect_online_job_dependencies(df):
+def _collect_online_job_dependencies(job_records):
     online_jobs = {}
-    for _, row in df.iterrows():
-        job_name = _normalize_job_value(row.iloc[2])
+    for row in job_records:
+        job_name = _normalize_job_value(row[2])
         if not job_name:
             continue
-        online_jobs[job_name] = _normalize_dependency_value(row.iloc[27])
+        online_jobs[job_name] = _normalize_dependency_value(row[27])
     return online_jobs
 
 
-def _find_online_job_dependency_cycles(df, job_rows=None):
-    online_jobs = _collect_online_job_dependencies(df)
+def _find_online_job_dependency_cycles(job_records, job_rows=None, job_dependencies=None):
+    online_jobs = _collect_online_job_dependencies(job_records)
     if not online_jobs:
         return []
 
     merged_jobs = {}
-    if job_rows is None:
+    if job_dependencies is not None:
+        merged_jobs.update(job_dependencies)
+    elif job_rows is None:
         for row in all_job_dependencies():
             job_name = _normalize_job_value(row[0])
             if not job_name:
@@ -161,127 +163,132 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         if timing_log:
             timing_log(message)
 
-    stage_start = time.time()
+    stage_start = time.perf_counter()
     r_job_outfile = {}
     for i in all_job_outfile():
         r_job_outfile[i[0]] = i[1]
-    log_timing(f"JOB规则 all_job_outfile 查询/整理完成：{len(r_job_outfile)} 行，{time.time() - stage_start:.2f}s")
+    log_timing(f"JOB规则 all_job_outfile 查询/整理完成：{len(r_job_outfile)} 行，{time.perf_counter() - stage_start:.2f}s")
 
-    stage_start = time.time()
     r_planseq = {}
-    if job_rows is None:
+    r_seqjob = {}
+    r_planjob = {}
+    r_seq = set()
+    real_seq = set()
+    r_job = set()
+    r_job_status = {}
+    job_dependencies = None
+    if job_rows is not None:
+        stage_start = time.perf_counter()
+        job_dependencies = {}
+        for row in job_rows:
+            if len(row) > 1:
+                r_planseq[row[1]] = row[0]
+                if not pd.isna(row[1]):
+                    r_seq.add(row[1])
+                    if row[0] in rules["real_job_plan_names"]:
+                        real_seq.add(row[1])
+            if len(row) > 2:
+                r_seqjob[row[2]] = row[1]
+                r_planjob[row[2]] = row[0]
+                normalized_job_name = _normalize_job_value(row[2])
+                if normalized_job_name:
+                    dependency = '' if len(row) <= 27 else _normalize_dependency_value(row[27])
+                    job_dependencies[normalized_job_name] = dependency
+                job_name = '' if pd.isna(row[2]) else str(row[2]).strip()
+                if job_name:
+                    job_status_value = '' if len(row) <= 23 or pd.isna(row[23]) else str(row[23]).strip()
+                    job_status = '禁用' if job_status_value in rules["disabled_status_values"] else '启用' if job_status_value in rules["enabled_status_values"] else job_status_value
+                    r_job.add(job_name)
+                    r_job_status[job_name] = job_status
+        log_timing(
+            f"JOB规则生产元数据单次整理完成：{len(job_rows)} 行，"
+            f"{time.perf_counter() - stage_start:.2f}s"
+        )
+    else:
+        stage_start = time.perf_counter()
         planseq_rows = all_planseq()
         for i in planseq_rows:
             plan_name = i[0]
             seq_name = i[1]
             r_planseq[seq_name] = plan_name
-    else:
-        for i in job_rows:
-            if len(i) > 1:
-                r_planseq[i[1]] = i[0]
-    log_timing(f"JOB规则 all_planseq 查询/整理完成：{len(r_planseq)} 行，{time.time() - stage_start:.2f}s")
+        log_timing(f"JOB规则 all_planseq 查询/整理完成：{len(r_planseq)} 行，{time.perf_counter() - stage_start:.2f}s")
 
-    stage_start = time.time()
-    r_seqjob = {}
-    if job_rows is None:
+        stage_start = time.perf_counter()
         seqjob_rows = all_seqjob()
         for i in seqjob_rows:
             seq_name = i[0]
             job_name = i[1]
             r_seqjob[job_name] = seq_name
-    else:
-        for i in job_rows:
-            if len(i) > 2:
-                r_seqjob[i[2]] = i[1]
-    log_timing(f"JOB规则 all_seqjob 查询/整理完成：{len(r_seqjob)} 行，{time.time() - stage_start:.2f}s")
+        log_timing(f"JOB规则 all_seqjob 查询/整理完成：{len(r_seqjob)} 行，{time.perf_counter() - stage_start:.2f}s")
 
-    stage_start = time.time()
-    r_planjob = {}
-    if job_rows is None:
+        stage_start = time.perf_counter()
         planjob_rows = all_planjob()
         for i in planjob_rows:
             plan_name = i[0]
             job_name = i[1]
             r_planjob[job_name] = plan_name
-    else:
-        for i in job_rows:
-            if len(i) > 2:
-                r_planjob[i[2]] = i[0]
-    log_timing(f"JOB规则 all_planjob 查询/整理完成：{len(r_planjob)} 行，{time.time() - stage_start:.2f}s")
+        log_timing(f"JOB规则 all_planjob 查询/整理完成：{len(r_planjob)} 行，{time.perf_counter() - stage_start:.2f}s")
 
-    stage_start = time.time()
-    if job_rows is None:
-        r_seq = [i[0] for i in all_seq()]
-    else:
-        r_seq = list({i[1] for i in job_rows if len(i) > 1 and not pd.isna(i[1])})
-    log_timing(f"JOB规则 all_seq 查询/整理完成：{len(r_seq)} 行，{time.time() - stage_start:.2f}s")
+        stage_start = time.perf_counter()
+        r_seq = {i[0] for i in all_seq()}
+        log_timing(f"JOB规则 all_seq 查询/整理完成：{len(r_seq)} 行，{time.perf_counter() - stage_start:.2f}s")
 
     if r_plan is None:
-        stage_start = time.time()
+        stage_start = time.perf_counter()
         r_plan = []
         for i in all_plan():
             r_plan.append(i[0])
-        log_timing(f"JOB规则 all_plan 查询/整理完成：{len(r_plan)} 行，{time.time() - stage_start:.2f}s")
+        log_timing(f"JOB规则 all_plan 查询/整理完成：{len(r_plan)} 行，{time.perf_counter() - stage_start:.2f}s")
 
-    stage_start = time.time()
     if job_rows is None:
-        real_seq = [j[0] for j in all_real_seq()]
-    else:
-        real_seq = list({
-            j[1]
-            for j in job_rows
-            if len(j) > 1 and j[0] in _schedule_rules()["real_job_plan_names"] and not pd.isna(j[1])
-        })
-    log_timing(f"JOB规则 all_real_seq 查询/整理完成：{len(real_seq)} 行，{time.time() - stage_start:.2f}s")
+        stage_start = time.perf_counter()
+        real_seq = {j[0] for j in all_real_seq()}
+        log_timing(f"JOB规则 all_real_seq 查询/整理完成：{len(real_seq)} 行，{time.perf_counter() - stage_start:.2f}s")
 
-    stage_start = time.time()
-    r_job = []
-    r_job_status = {}
-    if job_rows is None:
+        stage_start = time.perf_counter()
         status_rows = get_job2()
         for i in status_rows:
             job_name = '' if pd.isna(i[0]) else str(i[0]).strip()
             job_status = '' if len(i) < 2 or pd.isna(i[1]) else str(i[1]).strip()
             if job_name:
-                r_job.append(job_name)
+                r_job.add(job_name)
                 r_job_status[job_name] = job_status
-    else:
-        for i in job_rows:
-            job_name = '' if len(i) <= 2 or pd.isna(i[2]) else str(i[2]).strip()
-            job_status_value = '' if len(i) <= 23 or pd.isna(i[23]) else str(i[23]).strip()
-            rules = _schedule_rules()
-            job_status = '禁用' if job_status_value in rules["disabled_status_values"] else '启用' if job_status_value in rules["enabled_status_values"] else job_status_value
-            if job_name:
-                r_job.append(job_name)
-                r_job_status[job_name] = job_status
-    log_timing(f"JOB规则 get_job2 查询/整理完成：{len(r_job)} 行，{time.time() - stage_start:.2f}s")
+        log_timing(f"JOB规则 get_job2 查询/整理完成：{len(r_job)} 行，{time.perf_counter() - stage_start:.2f}s")
+
+    stage_start = time.perf_counter()
+    job_records = list(df.itertuples(index=False, name=None))
+    log_timing(f"JOB规则 JOB Excel 转换完成：{len(job_records)} 行，{time.perf_counter() - stage_start:.2f}s")
 
     job_list = []
-    yilai_job = []
-    for _, row in df.iterrows():
-        job_name = '' if pd.isna(row.iloc[2]) else str(row.iloc[2]).strip()
+    yilai_job = set(r_job)
+    for row in job_records:
+        job_name = '' if pd.isna(row[2]) else str(row[2]).strip()
         if job_name:
-            yilai_job.append(job_name)
-    yilai_job = list(set(yilai_job + r_job))
+            yilai_job.add(job_name)
 
-    stage_start = time.time()
-    dependency_cycles = _find_online_job_dependency_cycles(df, job_rows)
-    log_timing(f"JOB规则 依赖环检查完成：{len(dependency_cycles)} 个环，{time.time() - stage_start:.2f}s")
+    stage_start = time.perf_counter()
+    dependency_cycles = _find_online_job_dependency_cycles(
+        job_records,
+        job_rows,
+        job_dependencies=job_dependencies,
+    )
+    log_timing(f"JOB规则 依赖环检查完成：{len(dependency_cycles)} 个环，{time.perf_counter() - stage_start:.2f}s")
     for cycle in dependency_cycles:
         result_text += f'作业依赖成环，请检查: {" -> ".join(cycle)}\n'
         cnt += 1
 
-    for _, row in df.iterrows():
-        plan_name = '' if pd.isna(row.iloc[0]) else str(row.iloc[0]).strip()
-        seq_name = '' if pd.isna(row.iloc[1]) else str(row.iloc[1]).strip()
-        job_name = '' if pd.isna(row.iloc[2]) else str(row.iloc[2]).strip()
-        miaoshu = '' if pd.isna(row.iloc[3]) else str(row.iloc[3]).strip()
-        program = '' if pd.isna(row.iloc[4]) else str(row.iloc[4]).strip()
-        domain = '' if pd.isna(row.iloc[5]) else str(row.iloc[5]).strip()
-        level = '' if pd.isna(row.iloc[6]) else str(row.iloc[6]).strip()
-        cale = '' if pd.isna(row.iloc[9]) else str(row.iloc[9]).strip()
-        didp_evt = '' if pd.isna(row.iloc[25]) else str(row.iloc[25]).strip()
-        depand = '' if pd.isna(row.iloc[27]) else str(row.iloc[27]).strip()
+    stage_start = time.perf_counter()
+    for row in job_records:
+        plan_name = '' if pd.isna(row[0]) else str(row[0]).strip()
+        seq_name = '' if pd.isna(row[1]) else str(row[1]).strip()
+        job_name = '' if pd.isna(row[2]) else str(row[2]).strip()
+        miaoshu = '' if pd.isna(row[3]) else str(row[3]).strip()
+        program = '' if pd.isna(row[4]) else str(row[4]).strip()
+        domain = '' if pd.isna(row[5]) else str(row[5]).strip()
+        level = '' if pd.isna(row[6]) else str(row[6]).strip()
+        cale = '' if pd.isna(row[9]) else str(row[9]).strip()
+        didp_evt = '' if pd.isna(row[25]) else str(row[25]).strip()
+        depand = '' if pd.isna(row[27]) else str(row[27]).strip()
         if job_name.upper() != job_name:
             result_text += f'作业名: {job_name} 不应该存在小写 请规范\n'
             cnt += 1
@@ -426,4 +433,5 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         if job_name in rules["required_predecessors"]:
             result_text += f'{job_name} 请确认前置需要 有这四个job JOB_DWS_DWS_DWF_F_AGT_SAVB_BASICINFO_R_ACC_DAY、JOB_DWS_DWS_DWF_F_AGT_SAVB_ACCTINFO_R_ACC_DAY、JOB_DWS_DWS_DWF_F_EVT_SAVR_OPENBOOK_R_00_DAY、JOB_DWS_DWS_DWF_F_PTY_TABLE_R_00_DAY\n'
             cnt += 1
+    log_timing(f"JOB规则主循环完成：{len(job_records)} 行，{time.perf_counter() - stage_start:.2f}s")
     return result_text, warn_result_text, cnt

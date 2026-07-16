@@ -93,9 +93,21 @@ def run_hcyt_schedule(
                 "rowStates": row_states,
                 **job_table,
             }
+            rule_timing = None
+            if log_timing is not None:
+                rule_timing = lambda message: log_timing(
+                    "schedule.job.rules.detail",
+                    "point",
+                    message=message,
+                )
             result = _timed("schedule.job.rules", lambda: safe(
                 "JOB 规则",
-                lambda: modules.hcyt.rule_excle_job(job_df, r_plan=r_plan, timing_log=None, job_rows=db_job_rows),
+                lambda: modules.hcyt.rule_excle_job(
+                    job_df,
+                    r_plan=r_plan,
+                    timing_log=rule_timing,
+                    job_rows=db_job_rows,
+                ),
                 ("", "", 0),
             ), log_timing)
             job_rows = schedule_rows_fn(result[0], result[1])
