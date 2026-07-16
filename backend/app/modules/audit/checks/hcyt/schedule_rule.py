@@ -342,22 +342,22 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         elif rules["dependency_required_job_keywords"][2] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
-        elif 'DWUPRR' in job_name and depand == '':
+        elif rules["dependency_required_job_keywords"][3] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
-        elif 'DWM' in job_name and depand == '':
+        elif rules["dependency_required_job_keywords"][4] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
-        elif 'DWA' in job_name and depand == '':
+        elif rules["dependency_required_job_keywords"][5] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
-        elif 'DWP' in job_name and depand == '':
+        elif rules["dependency_required_job_keywords"][6] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
-        elif 'SEND' in job_name and depand == '':
+        elif rules["dependency_required_job_keywords"][7] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
-        elif 'LOCAL' in job_name and depand == '':
+        elif rules["dependency_required_job_keywords"][8] in job_name and depand == '':
             result_text += f'{job_name} 为什么没有前置依赖\n'
             cnt += 1
         if '：' in depand:
