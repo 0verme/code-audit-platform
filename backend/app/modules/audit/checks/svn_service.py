@@ -16,6 +16,7 @@ import yaml
 from app.modules.audit.checks.diag_service import log_exception_event, log_task_event, log_warning_event
 from app.modules.audit.checks.re_service import get_export_base
 from app.db.config_paths import DEFAULT_SVN_CONFIG
+from app.config.audit_rules import get_audit_rules
 
 # SVN credentials and connection settings are deployment configuration, not package resources.
 CONFIG_PATH = DEFAULT_SVN_CONFIG
@@ -357,7 +358,7 @@ def extract_active_files(marker: str, diff_text: str) -> list[str]:
         path = line[1:].strip()
         if status not in ('A', 'M'):
             continue
-        if not path.lower().endswith(('.cpt', '.frm', '.txt', '.xls', '.sql', '.sh', '.py', '.json')):
+        if not path.lower().endswith(tuple(get_audit_rules()["audit_input"]["included_extensions"])):
             continue
         result.append(diff_url_to_repo_rel_path(marker, path))
     return sorted(set(result))

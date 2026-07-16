@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from urllib.parse import quote
+from app.config.audit_rules import get_audit_rules
 
 from .compat import build_legacy_fine_audit_result_rows
 from .fine_report_builder import build_fine_report
@@ -22,13 +23,14 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
     svn_result = context.source_payload
     exported = svn_result["exported_paths"]
 
+    conventions = get_audit_rules()["fine_report"]["file_conventions"]
     cpt_lists, menu_url, authority_url = [], "", ""
     for path in exported:
-        if path.endswith((".frm", ".cpt")):
+        if path.lower().endswith(tuple(conventions["template_extensions"])):
             cpt_lists.append(path)
-        elif "menu.txt" in path:
+        elif conventions["menu_filename"] in path:
             menu_url = path
-        elif "authority.txt" in path:
+        elif conventions["authority_filename"] in path:
             authority_url = path
 
     context.update(progress=40, step="目录与权限检查")

@@ -56,6 +56,16 @@ DEFAULT_RULES: dict[str, Any] = {
         "forbidden_dependency_plans": ["PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY", "PLAN_DWS_KDW_PAM_DWS_DWF_DAY"],
         "required_predecessors": {"JOB_DWS_DWS_DWUPRR_GJYW_ACCT_OPEN_INFO_R_00_DAY": ["JOB_DWS_DWS_DWF_F_AGT_SAVB_BASICINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_AGT_SAVB_ACCTINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_EVT_SAVR_OPENBOOK_R_00_DAY", "JOB_DWS_DWS_DWF_F_PTY_TABLE_R_00_DAY"]},
     }},
+    "dws": {"naming": {"schema_prefixes": {}, "temporary_table_prefixes": [], "comment_required_schemas": [], "root_check_required_schemas": []}},
+    "nups": {"file_rules": {"sql_filenames": [], "program_path_patterns": ["**/NUPS_DATA/**/*.py"], "program_table_name": {"directory_schema_prefix": "DWS_"}}},
+    "fine_report": {"file_conventions": {"menu_filename": "menu.txt", "authority_filename": "authority.txt", "template_extensions": [".cpt", ".frm"]}, "menu_normalization": {"required_root_prefix": "数据仓库/", "replacements": []}, "sensitive_field_rules": {}},
+    "audit_input": {"included_extensions": [".cpt", ".frm", ".txt", ".xls", ".sql", ".sh", ".py", ".json"], "file_categories": [
+        {"contains": "dws.sql", "category": "DWS SQL"}, {"contains": "hive.sql", "category": "Hive SQL"},
+        {"suffixes": [".sql"], "category": "SQL"}, {"suffixes": [".py"], "category": "Python"},
+        {"suffixes": [".sh"], "category": "后置脚本"}, {"contains": "/sbin/", "category": "后置脚本"},
+        {"suffixes": [".xls", ".xlsx"], "category": "调度表"}, {"suffixes": [".json"], "category": "配置文件"},
+        {"suffixes": [".cpt", ".frm"], "category": "报表模板"}, {"suffixes": [".txt"], "category": "目录/权限"},
+    ]},
 }
 
 def _config_path() -> Path:
@@ -76,8 +86,12 @@ def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
             if not isinstance(value, dict):
                 raise TypeError("audit rule %s must be a mapping" % key)
             if not base[key]:
-                if not all(isinstance(item_key, str) and isinstance(item_value, str) for item_key, item_value in value.items()):
-                    raise TypeError("audit rule %s must map strings to strings" % key)
+                if not all(
+                    isinstance(item_key, str)
+                    and (isinstance(item_value, str) or (isinstance(item_value, list) and all(isinstance(item, str) for item in item_value)))
+                    for item_key, item_value in value.items()
+                ):
+                    raise TypeError("audit rule %s must map strings to strings or string lists" % key)
                 base[key] = value
             else:
                 _merge(base[key], value)

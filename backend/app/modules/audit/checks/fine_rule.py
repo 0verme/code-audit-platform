@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 
 from app.modules.metadata.services.public_data import all_role, all_fine
 from app.modules.audit.checks.re_service import read_data_from_file, find_hardcoded_dates, extract_tables, find_dot_strings
+from app.config.audit_rules import get_audit_rules
 
 gjz_lists = ['DATETIME', 'DUAL', 'AGE','LAST_DAY']
 
@@ -40,7 +41,8 @@ def get_cpt_sql(fine_name):
 def find_sensitive_fields(text):
     upper_text = text.upper()
     hit_fields = []
-    for field_name, keywords in SENSITIVE_FIELD_RULES.items():
+    rules = get_audit_rules()["fine_report"]["sensitive_field_rules"] or SENSITIVE_FIELD_RULES
+    for field_name, keywords in rules.items():
         matched_keywords = []
         for keyword in keywords:
             if keyword.upper() in upper_text and keyword not in matched_keywords:

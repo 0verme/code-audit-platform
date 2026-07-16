@@ -12,6 +12,7 @@ from app.modules.audit.checks.hcyt._sql_parser import (
 )
 from app.modules.metadata.services.public_data import all_term_roots
 from app.modules.audit.rules.portal_link_builder import build_portal_link
+from app.config.audit_rules import get_audit_rules
 
 DWS_TABLE_PREFIX_RULES = {
     'DWF': ('F_',),
@@ -25,6 +26,16 @@ DWS_TEMP_TABLE_PREFIXES = ('TMP_',)
 
 COLUMN_COMMENT_REQUIRED_SCHEMAS = {'DWF', 'DWM', 'DWA', 'DWP', 'DWD'}
 ROOT_CHECK_REQUIRED_SCHEMAS = {'DWM', 'DWA', 'DM'}
+
+
+def _naming_rules():
+    configured = get_audit_rules()["dws"]["naming"]
+    return {
+        "schema_prefixes": configured["schema_prefixes"] or DWS_TABLE_PREFIX_RULES,
+        "temporary_table_prefixes": tuple(configured["temporary_table_prefixes"] or DWS_TEMP_TABLE_PREFIXES),
+        "comment_required_schemas": set(configured["comment_required_schemas"] or COLUMN_COMMENT_REQUIRED_SCHEMAS),
+        "root_check_required_schemas": set(configured["root_check_required_schemas"] or ROOT_CHECK_REQUIRED_SCHEMAS),
+    }
 
 
 def load_metadata_name_set(rows):
@@ -156,11 +167,12 @@ def extract_alter_table_add_columns(sql_text):
 def check_table_name_rule(full_table_name, is_temp=False):
     schema_name, table_name = split_schema_table(full_table_name)
     if is_temp or schema_name == 'TMP':
-        if not any(table_name.startswith(prefix) for prefix in DWS_TEMP_TABLE_PREFIXES):
-            return f'临时表 {full_table_name} 命名不符合规范，应以 {"/".join(DWS_TEMP_TABLE_PREFIXES)} 开头'
+        prefixes = _naming_rules()["temporary_table_prefixes"]
+        if not any(table_name.startswith(prefix) for prefix in prefixes):
+            return f'临时表 {full_table_name} 命名不符合规范，应以 {"/".join(prefixes)} 开头'
         return ''
 
-    allowed_prefixes = DWS_TABLE_PREFIX_RULES.get(schema_name)
+    allowed_prefixes = _naming_rules()["schema_prefixes"].get(schema_name)
     if allowed_prefixes and not any(table_name.startswith(prefix) for prefix in allowed_prefixes):
         return f'表 {full_table_name} 命名不符合规范，{schema_name} 层表名应以 {"/".join(allowed_prefixes)} 开头'
     return ''
@@ -169,7 +181,7 @@ def check_table_name_rule(full_table_name, is_temp=False):
 def check_column_comment_rule(column_item, comment_map):
     table_name = column_item['table_name']
     schema_name, _ = split_schema_table(table_name)
-    if schema_name not in COLUMN_COMMENT_REQUIRED_SCHEMAS:
+    if schema_name not in _naming_rules()["comment_required_schemas"]:
         return ''
 
     full_column_name = f"{table_name}.{column_item['column_name']}"
@@ -181,9 +193,9 @@ def check_column_comment_rule(column_item, comment_map):
 
 def strip_table_prefix(schema_name, table_name, is_temp=False):
     if is_temp or schema_name == 'TMP':
-        prefixes = DWS_TEMP_TABLE_PREFIXES
+        prefixes = _naming_rules()["temporary_table_prefixes"]
     else:
-        prefixes = DWS_TABLE_PREFIX_RULES.get(schema_name, ())
+        prefixes = _naming_rules()["schema_prefixes"].get(schema_name, ())
     for prefix in sorted(prefixes, key=len, reverse=True):
         if table_name.startswith(prefix):
             return table_name[len(prefix):]
@@ -200,7 +212,7 @@ def extract_root_tokens(name):
 
 def check_table_root_rule(full_table_name, term_roots, is_temp=False):
     schema_name, table_name = split_schema_table(full_table_name)
-    if schema_name not in ROOT_CHECK_REQUIRED_SCHEMAS:
+    if schema_name not in _naming_rules()["root_check_required_schemas"]:
         return ''
     pure_table_name = strip_table_prefix(schema_name, table_name, is_temp=is_temp)
     missing_roots = [token for token in extract_root_tokens(pure_table_name) if token not in term_roots]
@@ -211,7 +223,7 @@ def check_table_root_rule(full_table_name, term_roots, is_temp=False):
 
 def check_column_root_rule(column_item, term_roots):
     schema_name, _ = split_schema_table(column_item['table_name'])
-    if schema_name not in ROOT_CHECK_REQUIRED_SCHEMAS:
+    if schema_name not in _naming_rules()["root_check_required_schemas"]:
         return ''
     full_column_name = f"{column_item['table_name']}.{column_item['column_name']}"
     missing_roots = [token for token in extract_root_tokens(column_item['column_name']) if token not in term_roots]
@@ -260,7 +272,7 @@ def collect_root_missing_issues(sql_text, source_module, source_file):
 
     for item in created_tables:
         schema_name, table_name = split_schema_table(item['table_name'])
-        if schema_name not in ROOT_CHECK_REQUIRED_SCHEMAS:
+        if schema_name not in _naming_rules()["root_check_required_schemas"]:
             continue
         pure_table_name = strip_table_prefix(schema_name, table_name, is_temp=item['is_temp'])
         missing_roots = [token for token in extract_root_tokens(pure_table_name) if token not in term_roots]
@@ -278,7 +290,7 @@ def collect_root_missing_issues(sql_text, source_module, source_file):
 
     for column_item in column_items:
         schema_name, table_name = split_schema_table(column_item['table_name'])
-        if schema_name not in ROOT_CHECK_REQUIRED_SCHEMAS:
+        if schema_name not in _naming_rules()["root_check_required_schemas"]:
             continue
         missing_roots = [token for token in extract_root_tokens(column_item['column_name']) if token not in term_roots]
         full_column_name = f"{column_item['table_name']}.{column_item['column_name']}"

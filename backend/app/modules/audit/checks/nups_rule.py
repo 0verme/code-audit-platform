@@ -26,6 +26,7 @@ from app.modules.audit.checks.re_service import (
     match_path,
     read_data_from_file,
 )
+from app.config.audit_rules import get_audit_rules
 
 
 NUPS_SQL_NAMES = {
@@ -43,17 +44,21 @@ NUPS_SQL_NAMES = {
 }
 
 
+def _file_rules():
+    return get_audit_rules()["nups"]["file_rules"]
+
+
 def get_program_table_name(py_url):
     folder = Path(py_url).parent.name
     if '.' not in folder:
         return ''
     schema, table_name = folder.split('.', 1)
-    schema = schema.replace('DWS_', '')
+    schema = schema.replace(_file_rules()["program_table_name"]["directory_schema_prefix"], '')
     return f'{schema}.{table_name}'
 
 
 def is_nups_py(file_path):
-    return match_path(file_path, '**/NUPS_DATA/**/*.py') or file_path.lower().endswith('.py')
+    return any(match_path(file_path, pattern) for pattern in _file_rules()["program_path_patterns"]) or file_path.lower().endswith('.py')
 
 
 def get_nups_type(file_paths):
@@ -62,7 +67,8 @@ def get_nups_type(file_paths):
 
     for file_path in file_paths:
         file_name = Path(file_path).name.lower()
-        if file_name in NUPS_SQL_NAMES:
+        sql_names = _file_rules()["sql_filenames"] or NUPS_SQL_NAMES
+        if file_name in sql_names or (not _file_rules()["sql_filenames"] and file_name.endswith('.sql')):
             dws_url.append(file_path)
         elif is_nups_py(file_path):
             py_lists.append(file_path)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.settings import RuntimeSecuritySettings, get_runtime_security_settings
+from app.config.audit_rules import get_audit_rules
 
 
 SUPPORTED_AUDIT_SOURCE_TYPES = frozenset({"svn", "local"})
@@ -104,22 +105,15 @@ def detect_workflow(branch_url: str, fallback: str = "hcyt") -> str:
 
 def classify_change(path: str) -> str:
     lower = path.lower()
-    if "dws.sql" in lower:
-        return "DWS SQL"
-    if "hive.sql" in lower:
-        return "Hive SQL"
-    if lower.endswith(".sql"):
-        return "SQL"
-    if lower.endswith(".py"):
-        return "Python"
-    if lower.endswith(".sh") or "/sbin/" in lower:
-        return "后置脚本"
-    if lower.endswith((".xls", ".xlsx")):
-        return "调度表"
-    if lower.endswith(".json"):
-        return "配置文件"
-    if lower.endswith((".cpt", ".frm")):
-        return "报表模板"
-    if lower.endswith(".txt"):
-        return "目录/权限"
+    for rule in get_audit_rules()["audit_input"]["file_categories"]:
+        if not isinstance(rule, dict) or not isinstance(rule.get("category"), str):
+            continue
+        contains = rule.get("contains")
+        suffixes = rule.get("suffixes", [])
+        if contains and contains not in lower:
+            continue
+        if suffixes and not lower.endswith(tuple(suffixes)):
+            continue
+        if contains or suffixes:
+            return rule["category"]
     return "其他"

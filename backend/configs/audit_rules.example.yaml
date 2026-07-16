@@ -10,3 +10,20 @@ hcyt:
     real_job_plan_names: []
     allowed_domains: []
     realtime_priority_values: ["99", "99.0"]
+dws:
+  naming:
+    schema_prefixes: {DWF: [F_], DWM: [M_], DWA: [A_], DWP: [P_], DWD: [RMD_]}
+    temporary_table_prefixes: [TMP_]
+    comment_required_schemas: [DWF, DWM, DWA, DWP, DWD]
+    root_check_required_schemas: [DWM, DWA, DM]
+nups:
+  file_rules:
+    sql_filenames: [] # Empty keeps conservative scanning of all .sql files.
+fine_report:
+  file_conventions:
+    menu_filename: menu.txt
+    authority_filename: authority.txt
+    template_extensions: [.cpt, .frm]
+audit_input:
+  included_extensions: [.cpt, .frm, .txt, .xls, .sql, .sh, .py, .json]
+  file_categories: [] # Empty uses the built-in business classification map.
