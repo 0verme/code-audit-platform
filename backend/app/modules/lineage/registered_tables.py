@@ -12,11 +12,11 @@ def load_registered_result_tables(profile: str | None = None, select_sql_with_pr
         select_sql_with_profile = default_select_sql_with_profile
     profile = profile or get_active_profile().name
     sql = f"""
-        SELECT substr(p.{column_name('programs', 'result_table', profile)},5) AS table_name
+        SELECT DISTINCT substr(p.{column_name('programs', 'result_table', profile)},5) AS table_name
         FROM {metadata_table_name('jobs', profile)} j
         INNER JOIN {metadata_table_name('programs', profile)} p
         ON j.{column_name('jobs', 'program_key', profile)} = p.{column_name('programs', 'program_key', profile)}
-        WHERE substr(p.{column_name('programs', 'result_table', profile)},5) IS NOT NULL
+        WHERE p.{column_name('programs', 'result_table', profile)} IS NOT NULL
     """
     rows = select_sql_with_profile(profile, sql) or []
     result_tables = set()

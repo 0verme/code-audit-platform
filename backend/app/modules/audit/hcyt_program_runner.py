@@ -35,6 +35,50 @@ def _load_lineage_metadata(modules, log_timing):
     return context
 
 
+def _snapshot_value(snapshot, key, loader):
+    if key not in snapshot:
+        snapshot[key] = loader()
+    return snapshot[key]
+
+
+def _partition_count(rows):
+    try:
+        return int(rows[0][0] or 0)
+    except (IndexError, TypeError, ValueError):
+        return 0
+
+
+def _load_partition_counts(modules, program_tables, *, safe, normalize_table):
+    tables = list(dict.fromkeys(
+        normalized
+        for table in program_tables
+        if (normalized := normalize_table(table))
+    ))
+    if not tables:
+        return {}
+
+    load_single = getattr(modules.public_data, "all_tab_partitions", None)
+    if len(tables) == 1 and callable(load_single):
+        table = tables[0]
+        rows = safe("加工程序单表分区元数据", lambda: load_single(table), [])
+        return {table: _partition_count(rows)}
+
+    load_many = getattr(modules.public_data, "all_tab_partition_counts", None)
+    if callable(load_many):
+        return safe("加工程序批量分区元数据", lambda: load_many(tables), {})
+
+    if callable(load_single):
+        return {
+            table: _partition_count(safe(
+                "加工程序单表分区元数据",
+                lambda table=table: load_single(table),
+                [],
+            ))
+            for table in tables
+        }
+    return {}
+
+
 def run_hcyt_programs(
     py_lists,
     job_df,
@@ -83,8 +127,17 @@ def run_hcyt_programs(
             log_timing,
         )
 
+    metadata_snapshot = (
+        lineage_context.setdefault("metadata_snapshot", {})
+        if lineage_context is not None
+        else {}
+    )
     if lineage_context is not None:
-        lineage_context.update(_load_lineage_metadata(modules, log_timing))
+        lineage_context.update(_snapshot_value(
+            metadata_snapshot,
+            "lineage_metadata",
+            lambda: _load_lineage_metadata(modules, log_timing),
+        ))
         lineage_context.update({
             "merge_df": merge_df,
             "program_lookup": program_lookup,
@@ -95,66 +148,100 @@ def run_hcyt_programs(
             ),
         })
 
-    registered = set(_timed(
-        "programs.load_registered_tables",
-        lambda: safe(
-            "结果表登记库(lineage)",
-            lambda: modules.load_registered_result_tables(profile=profile_name),
-            set(),
+    registered = set(_snapshot_value(
+        metadata_snapshot,
+        "registered_tables",
+        lambda: _timed(
+            "programs.load_registered_tables",
+            lambda: safe(
+                "结果表登记库(lineage)",
+                lambda: modules.load_registered_result_tables(profile=profile_name),
+                set(),
+            ),
+            log_timing,
         ),
-        log_timing,
     ))
-    para_tables = set(_timed(
-        "programs.load_parameter_tables",
-        lambda: safe(
-            "码值参数表(all_para_table_lists)",
-            lambda: {normalize_table(row[0]) for row in modules.public_data.all_para_table_lists() if row and row[0]},
-            set(),
+    para_tables = set(_snapshot_value(
+        metadata_snapshot,
+        "parameter_tables",
+        lambda: _timed(
+            "programs.load_parameter_tables",
+            lambda: safe(
+                "码值参数表(all_para_table_lists)",
+                lambda: {normalize_table(row[0]) for row in modules.public_data.all_para_table_lists() if row and row[0]},
+                set(),
+            ),
+            log_timing,
         ),
-        log_timing,
     ))
     annotation_rows = lineage_context.get("result_table_sys_name_rows") if lineage_context is not None else None
-    disabled, sys_name_map = _timed(
-        "programs.load_annotations",
-        (
-            lambda: load_result_table_annotations(sys_name_rows=annotation_rows)
-            if lineage_context is not None
-            else load_result_table_annotations()
+    disabled, sys_name_map = _snapshot_value(
+        metadata_snapshot,
+        "result_table_annotations",
+        lambda: _timed(
+            "programs.load_annotations",
+            (
+                lambda: load_result_table_annotations(sys_name_rows=annotation_rows)
+                if lineage_context is not None
+                else load_result_table_annotations()
+            ),
+            log_timing,
         ),
-        log_timing,
     )
-    disabled_job_names = set(_timed(
-        "programs.load_disabled_jobs",
-        lambda: safe(
-            "禁用作业(all_job)",
-            lambda: {
-                str(row[2]).strip().upper()
-                for row in (db_job_rows or modules.public_data.all_job() or [])
-                if len(row) > 23 and row[2] and str(row[23]).strip() in ("9", "9.0")
-            },
-            set(),
+    disabled_job_names = set(_snapshot_value(
+        metadata_snapshot,
+        "disabled_job_names",
+        lambda: _timed(
+            "programs.load_disabled_jobs",
+            lambda: safe(
+                "禁用作业(all_job)",
+                lambda: {
+                    str(row[2]).strip().upper()
+                    for row in (db_job_rows or modules.public_data.all_job() or [])
+                    if len(row) > 23 and row[2] and str(row[23]).strip() in ("9", "9.0")
+                },
+                set(),
+            ),
+            log_timing,
         ),
-        log_timing,
     ))
 
     upstream_tables, job_names = [], []
-    rule_metadata_cache = {}
-    load_partition_counts = getattr(modules.public_data, "all_tab_partition_counts", None)
-    if callable(load_partition_counts):
-        program_tables = [
-            table_name
-            for path in py_lists
-            if (table_name := safe(
-                "加工程序结果表解析",
-                lambda p=path: modules.hcyt.get_program_table_name(p),
-                "",
-            ))
-        ]
+    rule_metadata_cache = metadata_snapshot.setdefault("rule_cache", {})
+    program_tables = [
+        table_name
+        for path in py_lists
+        if (table_name := safe(
+            "加工程序结果表解析",
+            lambda p=path: modules.hcyt.get_program_table_name(p),
+            "",
+        ))
+    ]
+    normalized_program_tables = {
+        normalized
+        for table in program_tables
+        if (normalized := normalize_table(table))
+    }
+    supports_partition_prefetch = any(callable(getattr(modules.public_data, name, None)) for name in (
+        "all_tab_partitions",
+        "all_tab_partition_counts",
+    ))
+    if (
+        normalized_program_tables
+        and supports_partition_prefetch
+        and "partition_counts" not in rule_metadata_cache
+    ):
         rule_metadata_cache["partition_counts"] = _timed(
             "programs.load_partition_metadata",
-            lambda: safe("加工程序分区元数据", lambda: load_partition_counts(program_tables), {}),
+            lambda: _load_partition_counts(
+                modules,
+                program_tables,
+                safe=safe,
+                normalize_table=normalize_table,
+            ),
             log_timing,
-            tables=len(program_tables),
+            tables=len(normalized_program_tables),
+            strategy="single" if len(normalized_program_tables) == 1 else "batch",
         )
     for path in py_lists:
         file_name = modules.re_service.get_filename(path)

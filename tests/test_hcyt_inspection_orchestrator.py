@@ -19,7 +19,16 @@ class FakeModules:
 
 
 class HcytInspectionOrchestratorTests(unittest.TestCase):
-    def _run(self, *, schedule=None, schedule_exc=None, programs=None, lineage=None, log_timing=None):
+    def _run(
+        self,
+        *,
+        schedule=None,
+        schedule_exc=None,
+        programs=None,
+        lineage=None,
+        log_timing=None,
+        schedule_supports_timing=False,
+    ):
         modules = FakeModules()
         events = []
         grouped = {"python": []}
@@ -54,11 +63,20 @@ class HcytInspectionOrchestratorTests(unittest.TestCase):
                 "stats": {"resultTables": 1},
             }
 
-        def run_schedule(*args):
-            events.append(("schedule_args", args))
+        def schedule_result(args, kwargs=None):
+            events.append(("schedule_args", args, kwargs or {}))
             if schedule_exc is not None:
                 raise schedule_exc
             return dict(schedule)
+
+        if schedule_supports_timing:
+            def run_schedule(*args, log_timing=None):
+                if log_timing is not None:
+                    log_timing("schedule.job.load_db_jobs", "end", rows=1, elapsed_ms=1.0)
+                return schedule_result(args, {"log_timing": log_timing})
+        else:
+            def run_schedule(*args):
+                return schedule_result(args)
 
         def run_programs(*args, **kwargs):
             events.append(("program_args", args, kwargs))
@@ -133,6 +151,24 @@ class HcytInspectionOrchestratorTests(unittest.TestCase):
         self.assertIsNotNone(program_event[2]["log_timing"])
         self.assertIn("lineage_context", program_event[2])
         self.assertIsInstance(program_event[2]["lineage_context"], dict)
+
+    def test_schedule_receives_timing_callback_when_supported(self):
+        timing_events = []
+
+        def callback(label, phase, **fields):
+            timing_events.append((label, phase, fields))
+
+        _result, _modules, events = self._run(
+            log_timing=callback,
+            schedule_supports_timing=True,
+        )
+
+        schedule_event = next(event for event in events if event[0] == "schedule_args")
+        self.assertIs(schedule_event[2]["log_timing"], callback)
+        self.assertIn(
+            ("schedule.job.load_db_jobs", "end", {"rows": 1, "elapsed_ms": 1.0}),
+            timing_events,
+        )
 
     def test_lineage_summary_result_and_hook_order_are_stable(self):
         result, _modules, events = self._run()

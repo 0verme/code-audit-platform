@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import time
 
 from dataclasses import dataclass
@@ -70,7 +71,24 @@ def run_hcyt_inspections(
         if log_timing is not None:
             log_timing("inspections.schedule", "start")
         try:
-            schedule = run_schedule(plan_xls, seq_xls, cale_xls, job_xls)
+            try:
+                parameters = inspect.signature(run_schedule).parameters.values()
+                supports_timing = any(
+                    parameter.name == "log_timing" or parameter.kind == inspect.Parameter.VAR_KEYWORD
+                    for parameter in parameters
+                )
+            except (TypeError, ValueError):
+                supports_timing = False
+            if supports_timing:
+                schedule = run_schedule(
+                    plan_xls,
+                    seq_xls,
+                    cale_xls,
+                    job_xls,
+                    log_timing=log_timing,
+                )
+            else:
+                schedule = run_schedule(plan_xls, seq_xls, cale_xls, job_xls)
         finally:
             if log_timing is not None:
                 log_timing("inspections.schedule", "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1))

@@ -80,6 +80,7 @@ def _build_hcyt_program_modules(modules, *, text_to_rows):
         public_data=getattr(modules, "public_data", _noop_public_data()),
         hcyt_python_rule=getattr(modules, "hcyt_python_rule", _noop_python_rule()),
         hcyt_ddl_rule=getattr(modules, "hcyt_ddl_rule", _noop_ddl_rule()),
+        audit_metadata_service=getattr(modules, "audit_metadata_service", None),
         load_registered_result_tables=getattr(
             modules,
             "load_registered_result_tables",

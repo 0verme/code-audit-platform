@@ -71,8 +71,11 @@ class FakeHcyt:
 class FakePublicData:
     def __init__(self):
         self.partition_table_calls = []
+        self.single_partition_calls = []
+        self.parameter_table_calls = 0
 
     def all_para_table_lists(self):
+        self.parameter_table_calls += 1
         return [("DM.TABLE_B",)]
 
     def all_job(self):
@@ -81,6 +84,10 @@ class FakePublicData:
     def all_tab_partition_counts(self, table_names):
         self.partition_table_calls.append(list(table_names))
         return {table_name: 0 for table_name in table_names}
+
+    def all_tab_partitions(self, table_name):
+        self.single_partition_calls.append(table_name)
+        return [(0,)]
 
 
 class FakePythonRule:
@@ -267,7 +274,72 @@ class HcytProgramRunnerTests(unittest.TestCase):
         self.assertEqual([event[1] for event in rule_events], ["start", "end"])
         self.assertEqual(rule_events[-1][2]["file"], "program.py")
         self.assertIn("elapsed_ms", rule_events[-1][2])
-        self.assertEqual(modules.public_data.partition_table_calls, [["DM.TABLE_A"]])
+        partition_events = [event for event in events if event[0] == "programs.load_partition_metadata"]
+        self.assertEqual(partition_events[-1][2]["strategy"], "single")
+        self.assertEqual(modules.public_data.single_partition_calls, ["DM.TABLE_A"])
+        self.assertEqual(modules.public_data.partition_table_calls, [])
+
+    def test_multiple_programs_use_one_batch_partition_query(self):
+        modules = FakeModules()
+        modules.hcyt.get_program_table_name = lambda path: (
+            "DM.TABLE_A" if Path(path).name == "first.py" else "DM.TABLE_B"
+        )
+        events = []
+
+        run_hcyt_programs(
+            ["C:/repo/first.py", "C:/repo/second.py"],
+            job_df=None,
+            program_xls=None,
+            db_job_rows=[],
+            safe=lambda _label, fn, _default: fn(),
+            modules=modules,
+            download_url=lambda path: path,
+            load_result_table_annotations=lambda **_kwargs: (set(), {}),
+            annotate_table=lambda name, disabled, sys_name_map: {},
+            profile_name="target_profile",
+            normalize_table=normalize_table,
+            dedupe_tables=dedupe_tables,
+            cale_map={},
+            log_timing=lambda label, phase, **fields: events.append((label, phase, fields)),
+            lineage_context={},
+        )
+
+        partition_events = [event for event in events if event[0] == "programs.load_partition_metadata"]
+        self.assertEqual(partition_events[-1][2]["strategy"], "batch")
+        self.assertEqual(modules.public_data.partition_table_calls, [["DM.TABLE_A", "DM.TABLE_B"]])
+        self.assertEqual(modules.public_data.single_partition_calls, [])
+
+    def test_metadata_snapshot_reuses_database_results_within_context(self):
+        modules = FakeModules()
+        lineage_context = {}
+        annotation_calls = []
+
+        def load_annotations(**_kwargs):
+            annotation_calls.append(True)
+            return set(), {}
+
+        for _ in range(2):
+            run_hcyt_programs(
+                ["C:/repo/program.py"],
+                job_df=None,
+                program_xls=None,
+                db_job_rows=[],
+                safe=lambda _label, fn, _default: fn(),
+                modules=modules,
+                download_url=lambda path: path,
+                load_result_table_annotations=load_annotations,
+                annotate_table=lambda name, disabled, sys_name_map: {},
+                profile_name="target_profile",
+                normalize_table=normalize_table,
+                dedupe_tables=dedupe_tables,
+                cale_map={},
+                lineage_context=lineage_context,
+            )
+
+        self.assertEqual(modules.profile_calls, ["target_profile"])
+        self.assertEqual(modules.public_data.parameter_table_calls, 1)
+        self.assertEqual(modules.public_data.single_partition_calls, ["DM.TABLE_A"])
+        self.assertEqual(annotation_calls, [True])
 
 
 if __name__ == "__main__":

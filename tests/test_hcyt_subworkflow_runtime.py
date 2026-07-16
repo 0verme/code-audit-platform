@@ -121,6 +121,37 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
         self.assertEqual(deps, [])
         self.assertEqual(asset_issues, [])
 
+    def test_program_wrapper_injects_metadata_service_for_lineage_reuse(self):
+        modules = MinimalProgramModules()
+        calls = []
+        modules.audit_metadata_service = types.SimpleNamespace(
+            list_job_outfiles=lambda: calls.append("outfiles") or [("JOB_A", "a.out")],
+            list_result_table_sys_names=lambda: calls.append("sys_names") or [("DM.TABLE_A", "SYS_A")],
+        )
+        lineage_context = {}
+
+        run_hcyt_programs(
+            ["C:/repo/program.py"],
+            job_df=None,
+            program_xls=None,
+            db_job_rows=None,
+            safe=lambda _label, fn, _default: fn(),
+            modules=modules,
+            download_url=lambda path: path,
+            load_result_table_annotations=lambda **_kwargs: (set(), {}),
+            annotate_table=lambda name, disabled, sys_name_map: {},
+            profile_name="local_pg",
+            normalize_table=normalize_table,
+            dedupe_tables=dedupe_tables,
+            cale_map={},
+            text_to_rows=text_to_rows,
+            lineage_context=lineage_context,
+        )
+
+        self.assertEqual(calls, ["outfiles", "sys_names"])
+        self.assertEqual(lineage_context["job_outfile_rows"], [("JOB_A", "a.out")])
+        self.assertEqual(lineage_context["result_table_sys_name_rows"], [("DM.TABLE_A", "SYS_A")])
+
 
 if __name__ == "__main__":
     unittest.main()
