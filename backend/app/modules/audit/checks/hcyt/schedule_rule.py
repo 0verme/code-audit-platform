@@ -138,9 +138,11 @@ def rule_excle_plan(df):
 
 def rule_excle_seq(df):
     print('===================================rule_excle_seq=================================')
-    real_seq = []
-    for j in all_real_seq():
-        real_seq.append(j)
+    real_seq = {
+        str(row[0]).strip()
+        for row in all_real_seq()
+        if row and not pd.isna(row[0])
+    }
     result_text = ''
     warn_result_text = ''
     cnt = 0
