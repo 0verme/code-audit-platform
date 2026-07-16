@@ -1,3 +1,5 @@
+import re
+
 from .audit_metadata_service import (
     list_function_names,
     list_job_outfiles,
@@ -151,3 +153,33 @@ AND upper(TABLE_NAME)='{table_name}'"""
     # for i in partitions_lists:
     #     partitions_lists_r.append(i[0])
     return partitions_lists
+
+
+def all_tab_partition_counts(tb_names):
+    normalized_names = []
+    for tb_name in tb_names or []:
+        try:
+            schema_name, table_name = str(tb_name).strip().upper().split('.', 1)
+        except ValueError:
+            continue
+        if re.fullmatch(r'[A-Z][A-Z0-9_$#]*', schema_name) and re.fullmatch(r'[A-Z][A-Z0-9_$#]*', table_name):
+            normalized_names.append((schema_name, table_name))
+    normalized_names = list(dict.fromkeys(normalized_names))
+    if not normalized_names:
+        return {}
+
+    conditions = ' OR '.join(
+        f"(upper(SCHEMA)='{schema_name}' AND upper(TABLE_NAME)='{table_name}')"
+        for schema_name, table_name in normalized_names
+    )
+    sql = f"""
+SELECT upper(SCHEMA), upper(TABLE_NAME), count(*)
+FROM dba_tab_partitions
+WHERE {conditions}
+GROUP BY upper(SCHEMA), upper(TABLE_NAME)
+"""
+    counts = {f'{schema_name}.{table_name}': 0 for schema_name, table_name in normalized_names}
+    for row in select_sql(sql) or []:
+        if len(row) >= 3 and row[0] and row[1]:
+            counts[f'{str(row[0]).upper()}.{str(row[1]).upper()}'] = int(row[2] or 0)
+    return counts

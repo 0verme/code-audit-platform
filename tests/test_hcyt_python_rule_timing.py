@@ -53,6 +53,31 @@ class HcytPythonRuleTimingTests(unittest.TestCase):
 
         self.assertEqual(len(result), 4)
 
+    def test_rule_dws_py_reuses_task_metadata_cache(self):
+        metadata_cache = {}
+        with self._patches()[0] as sstb, self._patches()[1], self._patches()[2] as views, self._patches()[3] as functions, self._patches()[4] as partitions, self._patches()[5]:
+            for _ in range(2):
+                python_rule.rule_dws_py(
+                    "C:/repo/DWS_DM.TABLE_A/program.py",
+                    metadata_cache=metadata_cache,
+                )
+
+        self.assertEqual(sstb.call_count, 1)
+        self.assertEqual(views.call_count, 1)
+        self.assertEqual(functions.call_count, 1)
+        self.assertEqual(partitions.call_count, 1)
+
+    def test_rule_dws_py_uses_prefetched_partition_count(self):
+        metadata_cache = {"partition_counts": {"DM.TABLE_A": 1}}
+        with self._patches()[0], self._patches()[1], self._patches()[2], self._patches()[3], self._patches()[4] as partitions, self._patches()[5]:
+            result = python_rule.rule_dws_py(
+                "C:/repo/DWS_DM.TABLE_A/program.py",
+                metadata_cache=metadata_cache,
+            )
+
+        self.assertEqual(partitions.call_count, 0)
+        self.assertIn("分区表应该增加分区步骤", result[0])
+
 
 if __name__ == "__main__":
     unittest.main()

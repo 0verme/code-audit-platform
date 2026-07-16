@@ -58,7 +58,7 @@ class FakeHcyt:
     def all_program_df(self, program_df):
         return FakeProgramDf()
 
-    def rule_dws_py(self, path):
+    def rule_dws_py(self, path, **_kwargs):
         return ("", "", 0, ["DM.TABLE_A", "DM.TABLE_B"])
 
     def get_program_table_name(self, path):

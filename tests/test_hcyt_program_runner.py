@@ -61,7 +61,7 @@ class FakeHcyt:
     def all_program_df(self, program_df):
         return FakeProgramDf()
 
-    def rule_dws_py(self, path, *, log_timing=None, file_name=None):
+    def rule_dws_py(self, path, *, log_timing=None, file_name=None, metadata_cache=None):
         return ("program error", "", 0, ["DM.TABLE_A", "DM.TABLE_B", "DM.TABLE_C"])
 
     def get_program_table_name(self, path):
@@ -69,11 +69,18 @@ class FakeHcyt:
 
 
 class FakePublicData:
+    def __init__(self):
+        self.partition_table_calls = []
+
     def all_para_table_lists(self):
         return [("DM.TABLE_B",)]
 
     def all_job(self):
         return []
+
+    def all_tab_partition_counts(self, table_names):
+        self.partition_table_calls.append(list(table_names))
+        return {table_name: 0 for table_name in table_names}
 
 
 class FakePythonRule:
@@ -260,6 +267,7 @@ class HcytProgramRunnerTests(unittest.TestCase):
         self.assertEqual([event[1] for event in rule_events], ["start", "end"])
         self.assertEqual(rule_events[-1][2]["file"], "program.py")
         self.assertIn("elapsed_ms", rule_events[-1][2])
+        self.assertEqual(modules.public_data.partition_table_calls, [["DM.TABLE_A"]])
 
 
 if __name__ == "__main__":

@@ -48,6 +48,26 @@ def _timed(label, fn, log_timing=None, result_fields=None, **fields):
             log_timing(label, 'end', **end_fields)
 
 
+def _load_cached_metadata(cache, key, label, loader, log_timing=None, result_fields=None, **fields):
+    cache_hit = key in cache
+
+    def load():
+        if cache_hit:
+            return cache[key]
+        value = loader()
+        cache[key] = value
+        return value
+
+    return _timed(
+        label,
+        load,
+        log_timing,
+        result_fields=result_fields,
+        cache_hit=cache_hit,
+        **fields,
+    )
+
+
 def build_asset_table_review_issues(table_names, source_module, source_file, issue_desc_prefix='SQL中识别到资产表待核对'):
     issues = []
     seen = set()
@@ -163,10 +183,13 @@ def rule_dwo(dwo_url):
     return reslut_text, warn_result_text, cnt
 
 
-def rule_dws_py(dws_url, *, log_timing=None, file_name=None):
+def rule_dws_py(dws_url, *, log_timing=None, file_name=None, metadata_cache=None):
     print('===================================rule_dws_py=================================')
     timing_fields = {'file': file_name} if file_name else {}
-    kk = _timed(
+    metadata_cache = metadata_cache if metadata_cache is not None else {}
+    kk = _load_cached_metadata(
+        metadata_cache,
+        'sstb_rows',
         'programs.file.rule.load_sstb',
         all_sstb,
         log_timing,
@@ -186,20 +209,24 @@ def rule_dws_py(dws_url, *, log_timing=None, file_name=None):
     rule_evaluation_started = time.perf_counter()
     if log_timing is not None:
         log_timing('programs.file.rule.evaluate', 'start', **timing_fields)
-    view_names = set(_timed(
+    view_names = _load_cached_metadata(
+        metadata_cache,
+        'view_names',
         'programs.file.rule.load_view_names',
-        lambda: [str(r[0]).strip().upper() for r in all_view_names() if r and r[0]],
+        lambda: {str(r[0]).strip().upper() for r in all_view_names() if r and r[0]},
         log_timing,
         result_fields=lambda names: {'rows': len(names)},
         **timing_fields,
-    ))
-    function_names = set(_timed(
+    )
+    function_names = _load_cached_metadata(
+        metadata_cache,
+        'function_names',
         'programs.file.rule.load_function_names',
-        lambda: [str(r[0]).strip().upper() for r in all_function_names() if r and r[0]],
+        lambda: {str(r[0]).strip().upper() for r in all_function_names() if r and r[0]},
         log_timing,
         result_fields=lambda names: {'rows': len(names)},
         **timing_fields,
-    ))
+    )
     raw_dws_url = dws_url
     result_table_name = get_program_table_name(raw_dws_url)
     dws_url = safe_remove_prefix(dws_url)
@@ -283,14 +310,29 @@ def rule_dws_py(dws_url, *, log_timing=None, file_name=None):
     fq_flag = has_partition_rollback_step(data)
     fq_flag2 = False
     schame, table_name = result_table_name.split('.')
-    r = _timed(
-        'programs.file.rule.load_partitions',
-        lambda: all_tab_partitions(f'{schame}.{table_name}'),
-        log_timing,
-        result_fields=lambda rows: {'rows': len(rows or [])},
-        table=f'{schame}.{table_name}',
-        **timing_fields,
-    )
+    partition_table = f'{schame}.{table_name}'.upper()
+    partition_counts = metadata_cache.get('partition_counts')
+    if partition_counts is not None:
+        r = _timed(
+            'programs.file.rule.load_partitions',
+            lambda: [(partition_counts.get(partition_table, 0),)],
+            log_timing,
+            result_fields=lambda rows: {'rows': len(rows or [])},
+            table=partition_table,
+            cache_hit=True,
+            **timing_fields,
+        )
+    else:
+        r = _load_cached_metadata(
+            metadata_cache,
+            f'partitions:{partition_table}',
+            'programs.file.rule.load_partitions',
+            lambda: all_tab_partitions(partition_table),
+            log_timing,
+            result_fields=lambda rows: {'rows': len(rows or [])},
+            table=partition_table,
+            **timing_fields,
+        )
     if r and r[0] and r[0][0] > 0:
         fq_flag2 = True
     if fq_flag2 != fq_flag:

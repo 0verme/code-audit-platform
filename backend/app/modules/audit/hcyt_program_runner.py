@@ -141,6 +141,24 @@ def run_hcyt_programs(
     ))
 
     upstream_tables, job_names = [], []
+    rule_metadata_cache = {}
+    load_partition_counts = getattr(modules.public_data, "all_tab_partition_counts", None)
+    if callable(load_partition_counts):
+        program_tables = [
+            table_name
+            for path in py_lists
+            if (table_name := safe(
+                "加工程序结果表解析",
+                lambda p=path: modules.hcyt.get_program_table_name(p),
+                "",
+            ))
+        ]
+        rule_metadata_cache["partition_counts"] = _timed(
+            "programs.load_partition_metadata",
+            lambda: safe("加工程序分区元数据", lambda: load_partition_counts(program_tables), {}),
+            log_timing,
+            tables=len(program_tables),
+        )
     for path in py_lists:
         file_name = modules.re_service.get_filename(path)
         file_fields = {"file": file_name}
@@ -148,10 +166,11 @@ def run_hcyt_programs(
             "programs.file.rules",
             lambda: safe(
                 f"加工程序规则({file_name})",
-                lambda p=path: (
-                    modules.hcyt.rule_dws_py(p, log_timing=log_timing, file_name=file_name)
-                    if log_timing is not None
-                    else modules.hcyt.rule_dws_py(p)
+                lambda p=path: modules.hcyt.rule_dws_py(
+                    p,
+                    log_timing=log_timing,
+                    file_name=file_name,
+                    metadata_cache=rule_metadata_cache,
                 ),
                 ("", "", 0, []),
             ),

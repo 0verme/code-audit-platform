@@ -45,7 +45,7 @@ class MinimalProgramModules:
             build_job_outfile_lookup=lambda _rows: {},
         )
         self.hcyt = types.SimpleNamespace(
-            rule_dws_py=lambda _path: ("", "", 0, ["DM.TABLE_A"]),
+            rule_dws_py=lambda _path, **_kwargs: ("", "", 0, ["DM.TABLE_A"]),
             get_program_table_name=lambda _path: "",
         )
 

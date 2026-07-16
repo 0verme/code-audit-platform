@@ -72,7 +72,7 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
             build_export_download_url=lambda _path: "",
         )
         hcyt = types.SimpleNamespace(
-            rule_dws_py=lambda _path: ("", "", 0, []),
+            rule_dws_py=lambda _path, **_kwargs: ("", "", 0, []),
             get_program_table_name=lambda _path: "",
         )
         audit_engine._mods = types.SimpleNamespace(
