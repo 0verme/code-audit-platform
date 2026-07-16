@@ -23,6 +23,9 @@ class FakeReService:
     def build_job_outfile_lookup(self, rows=None):
         return {}
 
+    def tail_path(self, path, levels):
+        return path
+
 
 class FakeHcyt:
     def get_hcyt_type(self, exported):
@@ -123,7 +126,7 @@ class HcytScheduleProgramContractTests(unittest.TestCase):
                 [{"rule": "asset-review"}],
             )
 
-        run.run_hcyt_programs = lambda *args: programs
+        run.run_hcyt_programs = lambda *args, **kwargs: programs
 
         svn_result = {
             "exported_paths": ["C:/workspace/program.py"],

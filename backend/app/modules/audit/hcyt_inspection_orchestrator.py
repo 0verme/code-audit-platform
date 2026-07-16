@@ -98,7 +98,12 @@ def run_hcyt_inspections(
         log_timing("inspections.programs", "start")
     try:
         py_scripts, py_rows, ref_tables, deps, py_asset_issues = run_programs(
-            py_lists, job_df, program_xls, db_job_rows, lineage_context=lineage_context
+            py_lists,
+            job_df,
+            program_xls,
+            db_job_rows,
+            log_timing=log_timing,
+            lineage_context=lineage_context,
         )
     finally:
         if log_timing is not None:

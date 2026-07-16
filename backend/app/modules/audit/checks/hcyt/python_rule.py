@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import re
+import time
 from dataclasses import replace
 from pathlib import Path
 
@@ -28,6 +29,23 @@ gjz_lists = [
     'UTILS.DIDP_BASE_FRAME',
     'UTILS.DIDP_PROCESS_TOOLS',
 ]
+
+
+def _timed(label, fn, log_timing=None, result_fields=None, **fields):
+    started = time.perf_counter()
+    if log_timing is not None:
+        log_timing(label, 'start', **fields)
+    result = None
+    try:
+        result = fn()
+        return result
+    finally:
+        if log_timing is not None:
+            end_fields = dict(fields)
+            if result_fields is not None and result is not None:
+                end_fields.update(result_fields(result))
+            end_fields['elapsed_ms'] = round((time.perf_counter() - started) * 1000, 1)
+            log_timing(label, 'end', **end_fields)
 
 
 def build_asset_table_review_issues(table_names, source_module, source_file, issue_desc_prefix='SQL中识别到资产表待核对'):
@@ -145,15 +163,43 @@ def rule_dwo(dwo_url):
     return reslut_text, warn_result_text, cnt
 
 
-def rule_dws_py(dws_url):
+def rule_dws_py(dws_url, *, log_timing=None, file_name=None):
     print('===================================rule_dws_py=================================')
-    kk = all_sstb()
+    timing_fields = {'file': file_name} if file_name else {}
+    kk = _timed(
+        'programs.file.rule.load_sstb',
+        all_sstb,
+        log_timing,
+        result_fields=lambda rows: {'rows': len(rows or [])},
+        **timing_fields,
+    )
     result_text = ''
     warn_result_text = ''
     cnt = 0
-    data = read_data_from_file(dws_url)
-    view_names = set(str(r[0]).strip().upper() for r in all_view_names() if r and r[0])
-    function_names = set(str(r[0]).strip().upper() for r in all_function_names() if r and r[0])
+    data = _timed(
+        'programs.file.rule.read_source',
+        lambda: read_data_from_file(dws_url),
+        log_timing,
+        result_fields=lambda text: {'chars': len(text or '')},
+        **timing_fields,
+    )
+    rule_evaluation_started = time.perf_counter()
+    if log_timing is not None:
+        log_timing('programs.file.rule.evaluate', 'start', **timing_fields)
+    view_names = set(_timed(
+        'programs.file.rule.load_view_names',
+        lambda: [str(r[0]).strip().upper() for r in all_view_names() if r and r[0]],
+        log_timing,
+        result_fields=lambda names: {'rows': len(names)},
+        **timing_fields,
+    ))
+    function_names = set(_timed(
+        'programs.file.rule.load_function_names',
+        lambda: [str(r[0]).strip().upper() for r in all_function_names() if r and r[0]],
+        log_timing,
+        result_fields=lambda names: {'rows': len(names)},
+        **timing_fields,
+    ))
     raw_dws_url = dws_url
     result_table_name = get_program_table_name(raw_dws_url)
     dws_url = safe_remove_prefix(dws_url)
@@ -237,7 +283,14 @@ def rule_dws_py(dws_url):
     fq_flag = has_partition_rollback_step(data)
     fq_flag2 = False
     schame, table_name = result_table_name.split('.')
-    r = all_tab_partitions(f'{schame}.{table_name}')
+    r = _timed(
+        'programs.file.rule.load_partitions',
+        lambda: all_tab_partitions(f'{schame}.{table_name}'),
+        log_timing,
+        result_fields=lambda rows: {'rows': len(rows or [])},
+        table=f'{schame}.{table_name}',
+        **timing_fields,
+    )
     if r and r[0] and r[0][0] > 0:
         fq_flag2 = True
     if fq_flag2 != fq_flag:
@@ -287,4 +340,13 @@ def rule_dws_py(dws_url):
     if "D_DATE>" in data:
         result_text += f"存在关键字 D_DATE> 请检查，如果使用全量主题表 不允许使用区间\n"
         cnt += 1
+    if log_timing is not None:
+        log_timing(
+            'programs.file.rule.evaluate',
+            'end',
+            elapsed_ms=round((time.perf_counter() - rule_evaluation_started) * 1000, 1),
+            findings=cnt,
+            sql_tables=len(sql_table),
+            **timing_fields,
+        )
     return result_text, warn_result_text, cnt, sql_table

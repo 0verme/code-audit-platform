@@ -20,13 +20,16 @@ class FakeReService:
         return "PROGRAM_DF"
 
     def merge_job_program(self, merge_job, merge_program):
-        return "MERGED"
+        return FakeMerged()
 
     def build_program_lookup(self, merged, prog_path_col, tail_levels=4):
         return {"lookup": True}
 
     def build_dependency_table_lookup(self, merged):
         return {"dep": True}
+
+    def build_lineage_row_lookup(self, merged, tail_levels=4):
+        return {}
 
     def get_program_lookup_result(self, program_lookup, path, tail_levels=4):
         return ("JOB_A", "FREQ", ["DM.TABLE_A", "DM.TABLE_X"])
@@ -42,6 +45,10 @@ class FakeReService:
 
     def read_data_from_file(self, path):
         return ""
+
+
+class FakeMerged:
+    index = ()
 
 
 class FakeHcyt:

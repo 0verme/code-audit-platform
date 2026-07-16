@@ -144,7 +144,20 @@ def run_hcyt_programs(
     for path in py_lists:
         file_name = modules.re_service.get_filename(path)
         file_fields = {"file": file_name}
-        result = _timed("programs.file.rules", lambda: safe(f"加工程序规则({file_name})", lambda p=path: modules.hcyt.rule_dws_py(p), ("", "", 0, [])), log_timing, **file_fields)
+        result = _timed(
+            "programs.file.rules",
+            lambda: safe(
+                f"加工程序规则({file_name})",
+                lambda p=path: (
+                    modules.hcyt.rule_dws_py(p, log_timing=log_timing, file_name=file_name)
+                    if log_timing is not None
+                    else modules.hcyt.rule_dws_py(p)
+                ),
+                ("", "", 0, []),
+            ),
+            log_timing,
+            **file_fields,
+        )
         lint = modules.text_to_rows(result[0], result[1], file_name)
         sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
         table_name = _timed("programs.file.table_name", lambda: safe("表名解析", lambda p=path: modules.hcyt.get_program_table_name(p), ""), log_timing, **file_fields)

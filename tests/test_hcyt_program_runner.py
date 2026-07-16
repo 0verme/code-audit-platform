@@ -27,6 +27,9 @@ class FakeReService:
     def build_lineage_row_lookup(self, merged, tail_levels=4):
         return {}
 
+    def build_job_outfile_lookup(self, rows):
+        return {}
+
     def get_program_lookup_result(self, program_lookup, path, tail_levels=4):
         return ("JOB_A", "SYS_MONTH_END_CALENDAR", ["DM.TABLE_A", "DM.TABLE_C"])
 
@@ -58,7 +61,7 @@ class FakeHcyt:
     def all_program_df(self, program_df):
         return FakeProgramDf()
 
-    def rule_dws_py(self, path):
+    def rule_dws_py(self, path, *, log_timing=None, file_name=None):
         return ("program error", "", 0, ["DM.TABLE_A", "DM.TABLE_B", "DM.TABLE_C"])
 
     def get_program_table_name(self, path):
@@ -163,7 +166,7 @@ class HcytProgramRunnerTests(unittest.TestCase):
             safe=safe,
             modules=modules,
             download_url=lambda path: f"download://{Path(path).name}",
-            load_result_table_annotations=lambda: (set(), {}),
+            load_result_table_annotations=lambda **_kwargs: (set(), {}),
             annotate_table=lambda name, disabled, sys_name_map: {
                 "name": normalize_table(name),
                 "disabled": False,
@@ -223,6 +226,40 @@ class HcytProgramRunnerTests(unittest.TestCase):
         )
 
         self.assertEqual(result, ([], [], [], [], []))
+
+    def test_run_hcyt_programs_emits_detailed_timing_events(self):
+        modules = FakeModules()
+        events = []
+
+        run_hcyt_programs(
+            ["C:/repo/program.py"],
+            job_df="JOB_DF",
+            program_xls="program.xlsx",
+            db_job_rows=[],
+            safe=lambda _label, fn, _default: fn(),
+            modules=modules,
+            download_url=lambda path: path,
+            load_result_table_annotations=lambda **_kwargs: (set(), {}),
+            annotate_table=lambda name, disabled, sys_name_map: {},
+            profile_name="target_profile",
+            normalize_table=normalize_table,
+            dedupe_tables=dedupe_tables,
+            cale_map={},
+            log_timing=lambda label, phase, **fields: events.append((label, phase, fields)),
+            lineage_context={},
+        )
+
+        labels = {event[0] for event in events}
+        self.assertTrue({
+            "programs.load_excel",
+            "programs.load_registered_tables",
+            "programs.file.rules",
+            "programs.file.read_source",
+        }.issubset(labels))
+        rule_events = [event for event in events if event[0] == "programs.file.rules"]
+        self.assertEqual([event[1] for event in rule_events], ["start", "end"])
+        self.assertEqual(rule_events[-1][2]["file"], "program.py")
+        self.assertIn("elapsed_ms", rule_events[-1][2])
 
 
 if __name__ == "__main__":

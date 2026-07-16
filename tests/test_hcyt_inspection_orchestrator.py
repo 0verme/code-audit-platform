@@ -19,7 +19,7 @@ class FakeModules:
 
 
 class HcytInspectionOrchestratorTests(unittest.TestCase):
-    def _run(self, *, schedule=None, schedule_exc=None, programs=None, lineage=None):
+    def _run(self, *, schedule=None, schedule_exc=None, programs=None, lineage=None, log_timing=None):
         modules = FakeModules()
         events = []
         grouped = {"python": []}
@@ -60,8 +60,8 @@ class HcytInspectionOrchestratorTests(unittest.TestCase):
                 raise schedule_exc
             return dict(schedule)
 
-        def run_programs(*args):
-            events.append(("program_args", args))
+        def run_programs(*args, **kwargs):
+            events.append(("program_args", args, kwargs))
             return programs
 
         def build_lineage(*args, **kwargs):
@@ -87,6 +87,7 @@ class HcytInspectionOrchestratorTests(unittest.TestCase):
             task_success=lambda key, result=None, summary=None: events.append(("success", key, result, summary)),
             set_partial=lambda key, value: events.append(("partial", key, value)),
             grouped=grouped,
+            log_timing=log_timing,
         )
         return result, modules, events
 
@@ -120,6 +121,18 @@ class HcytInspectionOrchestratorTests(unittest.TestCase):
         self.assertEqual(result.unified_asset_issues, [{"scan_batch_id": 42, "count": 2}])
         self.assertEqual(modules.unified_calls[0][1], 42)
         self.assertEqual([event[0] for event in events[3:6]], ["update", "running", "program_args"])
+
+    def test_programs_receive_timing_callback_and_lineage_context(self):
+        timing_events = []
+        _result, _modules, events = self._run(
+            log_timing=lambda label, phase, **fields: timing_events.append((label, phase, fields))
+        )
+
+        program_event = next(event for event in events if event[0] == "program_args")
+        self.assertIn("log_timing", program_event[2])
+        self.assertIsNotNone(program_event[2]["log_timing"])
+        self.assertIn("lineage_context", program_event[2])
+        self.assertIsInstance(program_event[2]["lineage_context"], dict)
 
     def test_lineage_summary_result_and_hook_order_are_stable(self):
         result, _modules, events = self._run()
