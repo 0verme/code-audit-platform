@@ -92,7 +92,7 @@ def _config_path() -> Path:
         if candidate.suffix.lower() not in {".yaml", ".yml"}:
             raise ValueError("AUDIT_RULES_CONFIG must point to a YAML file")
         return candidate
-    return Path(__file__).resolve().parents[3] / "configs" / "audit_rules.yaml"
+    return Path(__file__).resolve().parents[2] / "configs" / "audit_rules.yaml"
 
 def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     for key, value in override.items():

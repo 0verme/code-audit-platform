@@ -1,6 +1,12 @@
 from pathlib import Path
 
-from app.config.audit_rules import DEFAULT_RULES, load_audit_rules, refresh_audit_rules
+from app.config.audit_rules import DEFAULT_RULES, _config_path, load_audit_rules, refresh_audit_rules
+
+
+def test_default_config_path_targets_backend_configs(monkeypatch):
+    monkeypatch.delenv("AUDIT_RULES_CONFIG", raising=False)
+    expected = Path(__file__).resolve().parents[1] / "backend" / "configs" / "audit_rules.yaml"
+    assert _config_path() == expected
 
 
 def test_valid_rules_file_overrides_declared_values(tmp_path: Path):

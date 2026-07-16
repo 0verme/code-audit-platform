@@ -1,7 +1,14 @@
 # Non-secret audit business rules. Copy to audit_rules.yaml to override defaults.
 # Do not put SQL, passwords, tokens, connection strings, or arbitrary paths here.
 display:
-  highlight_result_source_systems: []
+  highlight_result_source_systems:
+    - 押品管理系统
+    - 移动贷后
+    - IPC智能微贷平台
+    - 风险预警报送系统
+    - 线下智能风控系统
+    - 统一授信系统
+    - 信贷管理系统
   calendar_labels:
     SYS_MONTH_END_CALENDAR: 每月末
     SYS_EVERYDAY_CALENDAR: 每日
