@@ -1,5 +1,27 @@
 const CYCLE_MARKER = /循环依赖|成环|\bcycle\b/i;
 const PATH_PATTERN = /([\w.:-]+(?:\s*(?:->|→)\s*[\w.:-]+)+)/;
+const PLAN_SORTED_TABLES = new Set(["plan", "seq", "job"]);
+
+export function getScheduleTableRows(tableKey, table) {
+  const rows = Array.isArray(table?.rows) ? table.rows : [];
+  const rowStates = Array.isArray(table?.rowStates) ? table.rowStates : [];
+  const entries = rows.map((row, originalIndex) => ({
+    row,
+    state: rowStates[originalIndex],
+    originalIndex,
+  }));
+
+  if (!PLAN_SORTED_TABLES.has(tableKey)) return entries;
+
+  return entries.sort((left, right) => {
+    const leftPlan = String(left.row?.[0] ?? "").trim();
+    const rightPlan = String(right.row?.[0] ?? "").trim();
+    if (!leftPlan && rightPlan) return 1;
+    if (leftPlan && !rightPlan) return -1;
+    const byPlanName = leftPlan.localeCompare(rightPlan, "zh-CN", { sensitivity: "base" });
+    return byPlanName || left.originalIndex - right.originalIndex;
+  });
+}
 
 export function getScheduleIssueRows(data) {
   const rows = data?.schedule?.rows;

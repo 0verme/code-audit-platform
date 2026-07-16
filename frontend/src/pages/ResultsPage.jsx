@@ -3,7 +3,13 @@ import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable 
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
 import { PyScriptAuditSection } from "./ScriptAudit";
-import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
+import {
+  getCycleDependencyFindings,
+  getPythonIssueRows,
+  getScheduleIssueRows,
+  getScheduleTableRows,
+  hasScheduleTables,
+} from "../utils/hcytResultPresentation";
 
 export const STATUS_META = {
   pass: { tone: "ok", icon: "check", label: "审查通过", desc: "未发现阻断性问题，可合并" },
@@ -649,7 +655,7 @@ function ScheduleListTables({ tables }) {
     <div className="sched-tables">
       {present.map((key) => {
         const table = tables[key];
-        const rowStates = table.rowStates || [];
+        const entries = getScheduleTableRows(key, table);
         return (
           <div key={key} className="sched-table-block">
             <div className="subhead" style={{ marginBottom: 7 }}>{table.title || key.toUpperCase()}</div>
@@ -657,11 +663,10 @@ function ScheduleListTables({ tables }) {
               <table className="tbl">
                 <thead><tr>{table.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
                 <tbody>
-                  {table.rows.map((row, rowIndex) => {
-                    const state = rowStates[rowIndex];
+                  {entries.map(({ row, state, originalIndex }) => {
                     const cls = state === "new" ? "row-new" : state === "disabled" ? "row-disabled" : "";
                     return (
-                      <tr key={rowIndex} className={cls}>
+                      <tr key={originalIndex} className={cls}>
                         {row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}
                       </tr>
                     );

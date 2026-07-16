@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "./hcytResultPresentation.js";
+import {
+  getCycleDependencyFindings,
+  getPythonIssueRows,
+  getScheduleIssueRows,
+  getScheduleTableRows,
+  hasScheduleTables,
+} from "./hcytResultPresentation.js";
 
 const normalDependencies = [{ lane: "上游 / 调度依赖表", nodes: [{ name: "DM.TABLE_A" }] }];
 
@@ -40,6 +46,45 @@ test("schedule tables remain visible when every schedule rule passes", () => {
 
   assert.equal(hasScheduleTables(data), true);
   assert.equal(hasScheduleTables({ schedule: { tables: {} } }), false);
+});
+
+test("PLAN, SEQ, and JOB tables sort stably by plan name", () => {
+  for (const tableKey of ["plan", "seq", "job"]) {
+    const entries = getScheduleTableRows(tableKey, {
+      rows: [
+        ["PLAN_B", "first B"],
+        ["PLAN_A", "first A"],
+        ["PLAN_A", "second A"],
+      ],
+    });
+
+    assert.deepEqual(entries.map(({ row }) => row), [
+      ["PLAN_A", "first A"],
+      ["PLAN_A", "second A"],
+      ["PLAN_B", "first B"],
+    ]);
+  }
+});
+
+test("JOB row states remain attached while empty plan names sort last", () => {
+  const entries = getScheduleTableRows("job", {
+    rows: [["", "JOB_EMPTY"], ["PLAN_B", "JOB_B"], ["PLAN_A", "JOB_A"]],
+    rowStates: ["disabled", "", "new"],
+  });
+
+  assert.deepEqual(entries.map(({ row, state }) => [row[1], state]), [
+    ["JOB_A", "new"],
+    ["JOB_B", ""],
+    ["JOB_EMPTY", "disabled"],
+  ]);
+});
+
+test("CALE rows keep their source order and missing table data is safe", () => {
+  const rows = [["2026-07-17"], ["2026-07-16"]];
+
+  assert.deepEqual(getScheduleTableRows("cale", { rows }).map(({ row }) => row), rows);
+  assert.deepEqual(getScheduleTableRows("plan", {}), []);
+  assert.deepEqual(getScheduleTableRows("seq"), []);
 });
 
 test("python counts only script findings and retains script drill-down data", () => {
