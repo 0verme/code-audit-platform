@@ -16,6 +16,10 @@ const homePageSource = readFileSync(
   new URL("../pages/HomePage.jsx", import.meta.url),
   "utf8",
 );
+const appSource = readFileSync(
+  new URL("../App.jsx", import.meta.url),
+  "utf8",
+);
 const homeStylesSource = readFileSync(
   new URL("../styles/home.css", import.meta.url),
   "utf8",
@@ -69,6 +73,10 @@ test("recent audit panel keeps badge display and raw source title while truncati
   );
   assert.match(panelSource, /className="rr-who recent-audits-ip-cell"/);
   assert.match(panelSource, /className="rr-when recent-audits-time-cell"/);
+});
+
+test("app loads runtime source display rules with workflow configuration", () => {
+  assert.match(appSource, /applyAuditSourceDisplayRules\(payload\?\.sourceDisplayRules\)/);
 });
 
 test("recent audit styles keep source flexible and type narrow", () => {

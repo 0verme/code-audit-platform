@@ -3,6 +3,7 @@ import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
 import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
 import { applyBackendWorkflowDefinitions } from "./config/auditWorkflows";
+import { applyAuditSourceDisplayRules } from "./config/auditSourceDisplayConfig";
 import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
@@ -255,6 +256,7 @@ export default function App() {
     reviewService.getAuditWorkflows()
       .then((payload) => {
         applyBackendWorkflowDefinitions(payload?.definitions);
+        applyAuditSourceDisplayRules(payload?.sourceDisplayRules);
         setWorkflowConfigVersion((value) => value + 1);
       })
       .catch(() => {});

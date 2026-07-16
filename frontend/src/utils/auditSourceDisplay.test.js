@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { auditSourceDisplayRules } from "../config/auditSourceDisplayConfig.js";
+import {
+  applyAuditSourceDisplayRules,
+  auditSourceDisplayRules,
+} from "../config/auditSourceDisplayConfig.js";
 import {
   findMatchedDisplayRule,
   formatAuditSourceDisplay,
@@ -91,4 +94,32 @@ test("formatAuditSourceDisplay preserves raw suffix separator style for default 
   assert.equal(result.displayText, "…\\demo");
   assert.equal(result.fullText, "C:\\workspace\\demo");
   assert.equal(result.matched, true);
+});
+
+test("runtime SVN rules simplify paths using the configured trunk prefix", () => {
+  applyAuditSourceDisplayRules([{
+    sourceType: "svn",
+    prefix: "svn://svn.example.com/hcyt/branches/",
+    replacement: "…/",
+  }]);
+
+  const result = formatAuditSourceDisplay(
+    "svn://svn.example.com/hcyt/branches/feature-demo",
+    "SVN",
+    auditSourceDisplayRules,
+  );
+
+  assert.equal(result.displayText, "…/feature-demo");
+  assert.equal(result.fullText, "svn://svn.example.com/hcyt/branches/feature-demo");
+  assert.equal(result.matched, true);
+  applyAuditSourceDisplayRules([]);
+});
+
+test("invalid runtime display rules are ignored", () => {
+  applyAuditSourceDisplayRules([
+    { sourceType: "svn", prefix: "" },
+    { sourceType: "svn", prefix: "svn://svn.example.com/", replacement: 42 },
+  ]);
+
+  assert.deepEqual(auditSourceDisplayRules, []);
 });
