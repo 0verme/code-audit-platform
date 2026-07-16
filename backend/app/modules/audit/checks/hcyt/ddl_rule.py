@@ -26,6 +26,7 @@ DWS_TEMP_TABLE_PREFIXES = ('TMP_',)
 
 COLUMN_COMMENT_REQUIRED_SCHEMAS = {'DWF', 'DWM', 'DWA', 'DWP', 'DWD'}
 ROOT_CHECK_REQUIRED_SCHEMAS = {'DWM', 'DWA', 'DM'}
+ASSET_REVIEW_REQUIRED_SCHEMAS = {'DWM', 'DWA', 'DM'}
 
 
 def _naming_rules():
@@ -35,7 +36,16 @@ def _naming_rules():
         "temporary_table_prefixes": tuple(configured["temporary_table_prefixes"] or DWS_TEMP_TABLE_PREFIXES),
         "comment_required_schemas": set(configured["comment_required_schemas"] or COLUMN_COMMENT_REQUIRED_SCHEMAS),
         "root_check_required_schemas": set(configured["root_check_required_schemas"] or ROOT_CHECK_REQUIRED_SCHEMAS),
+        "asset_review_required_schemas": {
+            normalize_sql_identifier(schema_name)
+            for schema_name in configured["asset_review_required_schemas"] or ASSET_REVIEW_REQUIRED_SCHEMAS
+        },
     }
+
+
+def is_asset_review_required_table(full_table_name):
+    schema_name, _ = split_schema_table(full_table_name)
+    return bool(schema_name) and schema_name in _naming_rules()["asset_review_required_schemas"]
 
 
 def load_metadata_name_set(rows):

@@ -16,6 +16,7 @@ dws:
     temporary_table_prefixes: [TMP_]
     comment_required_schemas: [DWF, DWM, DWA, DWP, DWD]
     root_check_required_schemas: [DWM, DWA, DM]
+    asset_review_required_schemas: [DWM, DWA, DM]
 nups:
   file_rules:
     sql_filenames: [] # Empty keeps conservative scanning of all .sql files.

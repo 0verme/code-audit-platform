@@ -61,7 +61,13 @@ DEFAULT_RULES: dict[str, Any] = {
         "forbidden_dependency_plans": ["PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY", "PLAN_DWS_KDW_PAM_DWS_DWF_DAY"],
         "required_predecessors": {"JOB_DWS_DWS_DWUPRR_GJYW_ACCT_OPEN_INFO_R_00_DAY": ["JOB_DWS_DWS_DWF_F_AGT_SAVB_BASICINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_AGT_SAVB_ACCTINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_EVT_SAVR_OPENBOOK_R_00_DAY", "JOB_DWS_DWS_DWF_F_PTY_TABLE_R_00_DAY"]},
     }},
-    "dws": {"naming": {"schema_prefixes": {}, "temporary_table_prefixes": [], "comment_required_schemas": [], "root_check_required_schemas": []}},
+    "dws": {"naming": {
+        "schema_prefixes": {},
+        "temporary_table_prefixes": [],
+        "comment_required_schemas": [],
+        "root_check_required_schemas": [],
+        "asset_review_required_schemas": ["DWM", "DWA", "DM"],
+    }},
     "nups": {"file_rules": {"sql_filenames": [], "program_path_patterns": ["**/NUPS_DATA/**/*.py"], "program_table_name": {"directory_schema_prefix": "DWS_"}}},
     "fine_report": {"file_conventions": {"menu_filename": "menu.txt", "authority_filename": "authority.txt", "template_extensions": [".cpt", ".frm"]}, "menu_normalization": {"required_root_prefix": "数据仓库/", "replacements": [{"sources": ["会计结算部", "会计部报表"], "replacement": "运营管理部", "locations": ["backend", "menu"]}, {"sources": ["互联网金融部"], "replacement": "互联网金融部", "locations": ["menu"]}]}, "sensitive_field_rules": {}},
     "audit_input": {"included_extensions": [".cpt", ".frm", ".txt", ".xls", ".sql", ".sh", ".py", ".json"], "file_categories": [

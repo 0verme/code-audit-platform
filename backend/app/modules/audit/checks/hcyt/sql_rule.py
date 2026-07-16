@@ -4,7 +4,12 @@ from dataclasses import replace
 from app.modules.audit.rules.asset_issue import create_audit_asset_issue
 from app.modules.audit.checks.hcyt._sql_parser import detect_created_functions, detect_created_views, detect_used_functions
 from app.modules.audit.checks.hcyt._sql_parser import split_schema_table
-from app.modules.audit.checks.hcyt.ddl_rule import extract_create_table_objects, load_metadata_name_set, run_dws_ddl_rules
+from app.modules.audit.checks.hcyt.ddl_rule import (
+    extract_create_table_objects,
+    is_asset_review_required_table,
+    load_metadata_name_set,
+    run_dws_ddl_rules,
+)
 from app.modules.metadata.services.public_data import all_function_names, all_view_names
 from app.modules.audit.rules.portal_link_builder import build_portal_link
 from app.modules.audit.checks.re_service import find_dot_strings, read_data_from_file
@@ -35,6 +40,8 @@ def collect_created_table_review_issues(dws_url, source_module='hcyt', source_fi
     issues = []
     for item in extract_create_table_objects(data):
         full_table_name = item['table_name']
+        if not is_asset_review_required_table(full_table_name):
+            continue
         issues.append(
             _build_asset_table_review_issue(
                 full_table_name=full_table_name,
