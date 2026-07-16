@@ -25,7 +25,10 @@ export function ReferenceTableList({ items = [], emptyText = "无", stacked = fa
           item.sysNames?.length ? item.sysNames.join("/") : null,
         ].filter(Boolean);
         return (
-          <span key={`${item.name || "table"}-${index}`} className={`chip ${type.className}`}>
+          <span
+            key={`${item.name || "table"}-${index}`}
+            className={`chip ${type.className}${item.highlight ? " highlight" : ""}`}
+          >
             <span className="cdot" />
             <span className="mono">{item.name || "未命名表"}</span>
             {notes.length ? <span>（{notes.join(" / ")}）</span> : null}

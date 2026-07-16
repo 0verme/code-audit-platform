@@ -4,6 +4,7 @@ import test from "node:test";
 
 const pageSource = readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/fine-report.css", import.meta.url), "utf8");
+const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
 
 test("FineReport dataset SQL cards default to collapsed", () => {
   assert.match(pageSource, /function DatasetSqlCard\(\{ dataset, index \}\)/);
@@ -47,6 +48,9 @@ test("shared referenced table list renders FineReport table metadata", () => {
   const source = readFileSync(new URL("../components/ReferenceTableList.jsx", import.meta.url), "utf8");
   assert.match(source, /item\.disabled/);
   assert.match(source, /item\.sysNames/);
+  assert.match(source, /item\.highlight \? " highlight"/);
   assert.match(source, /emptyText = "无"/);
   assert.match(source, /reference-table-list/);
+  assert.match(sharedStyleSource, /\.chip\.highlight \{[^}]*var\(--err-bg\)[^}]*var\(--err-bd\)[^}]*var\(--err-fg\)/);
+  assert.match(sharedStyleSource, /\.chip\.highlight \.cdot \{[^}]*var\(--err\)/);
 });

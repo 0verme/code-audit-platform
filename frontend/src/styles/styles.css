@@ -422,6 +422,8 @@ body {
 .chip.src .cdot { background: var(--text-3); }
 .chip.temp { background: color-mix(in oklab, #7a4ff0 14%, var(--surface)); border-color: color-mix(in oklab, #7a4ff0 35%, var(--surface)); color: color-mix(in oklab, #7a4ff0 70%, var(--text)); }
 .chip.temp .cdot { background: #7a4ff0; }
+.chip.highlight { background: var(--err-bg); border-color: var(--err-bd); color: var(--err-fg); }
+.chip.highlight .cdot { background: var(--err); }
 
 /* legend */
 .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: var(--fs-xs); color: var(--text-2); }
