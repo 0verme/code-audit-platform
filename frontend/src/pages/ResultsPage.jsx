@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
+import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { PyScriptAuditSection, scriptAudit } from "./ScriptAudit";
 import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
 
@@ -211,6 +212,7 @@ function ChangesSection({ d, reg }) {
       registerRef={reg}
       count={d.changes.length}
       countTone="info"
+      defaultOpen={shouldDefaultOpenChangeList(d.changes.length)}
       right={
         <span className="diffstat" style={{ marginRight: 4 }}>
           <span className="add mono">A {counts.A || 0}</span>

@@ -1,13 +1,25 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation.js";
 
 const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8");
+const nupsSource = readFileSync(new URL("./NupsPage.jsx", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/script-audit.css", import.meta.url), "utf8");
 const resultsStyleSource = readFileSync(new URL("../styles/results.css", import.meta.url), "utf8");
 const uiSource = readFileSync(new URL("../components/ui.jsx", import.meta.url), "utf8");
 const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
+
+test("change lists default to collapsed only when they contain more than ten files", () => {
+  assert.equal(shouldDefaultOpenChangeList(0), true);
+  assert.equal(shouldDefaultOpenChangeList(1), true);
+  assert.equal(shouldDefaultOpenChangeList(10), true);
+  assert.equal(shouldDefaultOpenChangeList(11), false);
+  assert.equal(shouldDefaultOpenChangeList(98), false);
+  assert.match(source, /defaultOpen=\{shouldDefaultOpenChangeList\(d\.changes\.length\)\}/);
+  assert.match(nupsSource, /defaultOpen=\{shouldDefaultOpenChangeList\(changes\.length\)\}/);
+});
 
 test("change list and SQL check use the report download URL as a direct link", () => {
   assert.match(source, /href=\{change\.downloadUrl\}[\s\S]*?target="_blank"/);

@@ -1,4 +1,5 @@
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
+import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 
 export const NUPS_NAV = [
@@ -46,7 +47,15 @@ function NupsStatusHeader({ d }) {
 function ChangesSection({ d, reg }) {
   const changes = d.changes || [];
   return (
-    <Panel id="changes" icon="git" title="SVN 变更文件列表" registerRef={reg} count={changes.length} countTone="info">
+    <Panel
+      id="changes"
+      icon="git"
+      title="SVN 变更文件列表"
+      registerRef={reg}
+      count={changes.length}
+      countTone="info"
+      defaultOpen={shouldDefaultOpenChangeList(changes.length)}
+    >
       <div className="panel-body flush">
         <div className="flist">
           {changes.map((change) => {
