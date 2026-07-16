@@ -107,12 +107,12 @@ def all_para_table_lists():
 def all_disabled_result_tables():
     sql = """
 select substr(p.k,5) as table_name
-from dwp.p_job_hjj j
-inner join dwp.p_program_hjj p
+from {jobs} j
+inner join {programs} p
 on j.e = p.b
 where substr(p.k,5) is not null
   and j.x in (9, '9')
-"""
+""".format(jobs=_table('jobs'), programs=_table('programs'))
     result_tables = select_sql(sql)
     return result_tables
 

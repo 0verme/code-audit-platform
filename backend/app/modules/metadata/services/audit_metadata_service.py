@@ -12,6 +12,7 @@ from urllib import error, request
 
 from app.db.metadata.compat import router as db_router
 from app.db.profiles import get_active_profile
+from .metadata_model import table_name
 
 
 logger = logging.getLogger("svn_check.audit_metadata")
@@ -87,6 +88,21 @@ def _get_backend_name() -> str:
         return "unknown"
 
 
+def _render_metadata_sql(sql: str) -> str:
+    """Render only profile-validated identifier mappings into fixed SQL templates."""
+    replacements = {
+        "dwp.p_para_table_lists": table_name("para_tables"),
+        "dwp.p_job_outfile": table_name("job_outfiles"),
+        "dwp.p_recv_ops_mapping": table_name("recv_mapping"),
+        "dwp.p_field_mapping_table": table_name("field_mapping"),
+        "dwp.p_upstream_system": table_name("upstream_system"),
+        "dwp.p_recv_dwf": table_name("recv_dwf"),
+    }
+    for source, target in replacements.items():
+        sql = sql.replace(source, target)
+    return sql
+
+
 def _safe_row_value(row: Any, index: int = 0, field_names: tuple[str, ...] = ()) -> Any:
     if row is None:
         return None
@@ -155,7 +171,7 @@ def _run_metadata_query(sql: str, function_name: str) -> list[Any]:
     profile = _get_metadata_profile_name()
     backend = _get_backend_name()
     try:
-        rows = db_router.select_sql_with_profile(profile, sql)
+        rows = db_router.select_sql_with_profile(profile, _render_metadata_sql(sql))
         return rows or []
     except Exception as exc:
         logger.warning(
