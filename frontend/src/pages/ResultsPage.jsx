@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
-import { PyScriptAuditSection, scriptAudit } from "./ScriptAudit";
+import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
+import { PyScriptAuditSection } from "./ScriptAudit";
 import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
 
 export const STATUS_META = {
@@ -904,28 +905,40 @@ export function mergeAuditResults(baseData, apiRows) {
 }
 
 export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
-  const [openScriptIds, setOpenScriptIds] = useState(() => new Set(
-    (Array.isArray(d.pyScripts) ? d.pyScripts : [])
-      .filter((script) => {
-        const audit = scriptAudit(script);
-        return audit.err || audit.warn;
-      })
-      .map((script) => script.script),
+  const dismissedScriptIds = useRef(new Set());
+  const [openScriptIds, setOpenScriptIds] = useState(() => (
+    syncAutoOpenScriptIds(new Set(), d.pyScripts, dismissedScriptIds.current)
   ));
   const mergedData = useMemo(() => mergeAuditResults(d, apiState?.data), [d, apiState?.data]);
 
   const toggleScript = (scriptId) => {
     setOpenScriptIds((current) => {
       const next = new Set(current);
-      if (next.has(scriptId)) next.delete(scriptId);
-      else next.add(scriptId);
+      if (next.has(scriptId)) {
+        next.delete(scriptId);
+        dismissedScriptIds.current.add(scriptId);
+      } else {
+        next.add(scriptId);
+        dismissedScriptIds.current.delete(scriptId);
+      }
       return next;
     });
   };
 
   useEffect(() => {
+    setOpenScriptIds((current) => (
+      syncAutoOpenScriptIds(current, mergedData.pyScripts, dismissedScriptIds.current)
+    ));
+  }, [mergedData.pyScripts]);
+
+  useEffect(() => {
     const closeAll = (event) => {
-      if (event.key === "Escape") setOpenScriptIds(new Set());
+      if (event.key === "Escape") {
+        setOpenScriptIds((current) => {
+          current.forEach((scriptId) => dismissedScriptIds.current.add(scriptId));
+          return new Set();
+        });
+      }
     };
     window.addEventListener("keydown", closeAll);
     return () => window.removeEventListener("keydown", closeAll);

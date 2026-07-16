@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation.js";
+import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation.js";
 
 const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8");
 const nupsSource = readFileSync(new URL("./NupsPage.jsx", import.meta.url), "utf8");
@@ -47,14 +48,33 @@ test("execution logs can be resized vertically while retaining scroll boundaries
 
 test("Python script details use independently expanded inline accordions", () => {
   const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
-  assert.match(source, /const \[openScriptIds, setOpenScriptIds\] = useState\(\(\) => new Set\(/);
-  assert.match(source, /filter\(\(script\) => \{[\s\S]*return audit\.err \|\| audit\.warn/);
-  assert.match(source, /map\(\(script\) => script\.script\)/);
+  assert.match(source, /syncAutoOpenScriptIds\(new Set\(\), d\.pyScripts, dismissedScriptIds\.current\)/);
+  assert.match(source, /syncAutoOpenScriptIds\(current, mergedData\.pyScripts, dismissedScriptIds\.current\)/);
+  assert.match(source, /dismissedScriptIds\.current\.add\(scriptId\)/);
+  assert.match(source, /dismissedScriptIds\.current\.delete\(scriptId\)/);
   assert.match(source, /<PyScriptAuditSection d=\{mergedData\} reg=\{reg\} openScriptIds=\{openScriptIds\} onToggle=\{toggleScript\}/);
   assert.doesNotMatch(source, /ScriptDetailDrawer/);
   assert.match(scriptSource, /aria-expanded=\{isOpen\}/);
   assert.match(scriptSource, /ScriptDetailAccordion script=\{script\} detailId=\{detailId\}/);
   assert.doesNotMatch(scriptSource, /sd-overlay|sd-drawer/);
+});
+
+test("Python script findings auto-open after progressive results arrive without overriding manual dismissal", () => {
+  const cleanScript = { script: "clean.py", lint: [], result: [] };
+  const errorScript = { script: "error.py", lint: [{ level: "err" }], result: [] };
+  const warningScript = { script: "warning.py", lint: [{ level: "warn" }], result: [] };
+
+  const initiallyOpen = syncAutoOpenScriptIds(new Set(), [], new Set());
+  assert.deepEqual([...initiallyOpen], []);
+
+  const autoOpened = syncAutoOpenScriptIds(initiallyOpen, [cleanScript, errorScript, warningScript], new Set());
+  assert.deepEqual([...autoOpened], ["error.py", "warning.py"]);
+
+  const dismissed = new Set(["error.py"]);
+  const manuallyClosed = new Set(["warning.py"]);
+  const refreshed = syncAutoOpenScriptIds(manuallyClosed, [cleanScript, errorScript, warningScript], dismissed);
+  assert.deepEqual([...refreshed], ["warning.py"]);
+  assert.equal(syncAutoOpenScriptIds(refreshed, [errorScript, warningScript], dismissed), refreshed);
 });
 
 test("inline detail accordion uses distinct light and dark card surfaces", () => {

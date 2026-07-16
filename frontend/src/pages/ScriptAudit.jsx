@@ -1,24 +1,13 @@
 import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { formatSqlReference } from "../utils/resultTablePresentation";
+import { scriptAudit } from "../utils/scriptAuditPresentation";
 
 const SD_STATE = {
   same: { cls: "ok", label: "相同", icon: "check" },
   missing: { cls: "err", label: "缺失", icon: "x" },
   extra: { cls: "warn", label: "多余", icon: "alert" },
 };
-
-export function scriptAudit(script) {
-  const result = Array.isArray(script?.result) ? script.result : [];
-  const miss = result.filter((item) => item.state === "missing").length;
-  const extra = result.filter((item) => item.state === "extra").length;
-  const lint = Array.isArray(script?.lint) ? script.lint : [];
-  const lintErr = lint.filter((item) => item.level === "err").length;
-  const lintWarn = lint.filter((item) => item.level === "warn").length;
-  const err = miss + lintErr;
-  const warn = extra + lintWarn;
-  return { miss, extra, lintErr, lintWarn, err, warn, bad: miss + extra, level: err ? "err" : warn ? "warn" : "ok" };
-}
 
 export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle }) {
   const scripts = Array.isArray(d.pyScripts) ? d.pyScripts : [];
