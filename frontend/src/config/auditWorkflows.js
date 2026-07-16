@@ -14,7 +14,8 @@ export const AUDIT_WORKFLOWS = [
     icon: "db",
     type: "hcyt",
     color: "var(--accent)",
-    matchKeywords: ["/hcyt", "hcyt", "湖仓"],
+    // 匹配条件由后端 /api/audit-configuration/workflows 注入；前端只负责预检与展示。
+    matchKeywords: [],
   },
   {
     id: "fine-report",
@@ -27,7 +28,7 @@ export const AUDIT_WORKFLOWS = [
     icon: "grid",
     type: "fine-report",
     color: "var(--ok)",
-    matchKeywords: ["/fine-report", "fine_report", "finereport", "report", "报表"],
+    matchKeywords: [],
   },
   {
     id: "nups",
@@ -40,7 +41,7 @@ export const AUDIT_WORKFLOWS = [
     icon: "layers",
     type: "nups",
     color: "var(--warn)",
-    matchKeywords: ["/nups", "统一报送", "pay/nups", "nups"],
+    matchKeywords: [],
   },
 ];
 

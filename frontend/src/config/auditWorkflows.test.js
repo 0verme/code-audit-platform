@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  applyBackendWorkflowDefinitions,
   buildAuditSubmitPayload,
   canSubmitAudit,
   detectWorkflow,
@@ -15,6 +16,12 @@ import {
 } from "./auditSources.js";
 
 const homeCss = readFileSync(new URL("../styles/home.css", import.meta.url), "utf8");
+
+applyBackendWorkflowDefinitions([
+  { id: "hcyt", path_keywords: ["/hcyt", "hcyt", "湖仓"] },
+  { id: "fine-report", path_keywords: ["/fine-report", "fine_report", "finereport", "report", "报表"] },
+  { id: "nups", path_keywords: ["/nups", "统一报送", "pay/nups", "nups"] },
+]);
 
 function cssRule(selector) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

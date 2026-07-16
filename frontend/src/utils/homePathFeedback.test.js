@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { detectAuditSource } from "../config/auditSources.js";
-import { detectAuditWorkflow } from "../config/auditWorkflows.js";
+import { applyBackendWorkflowDefinitions, detectAuditWorkflow } from "../config/auditWorkflows.js";
 import { getHomePathFeedbackState } from "./homePathFeedback.js";
+
+applyBackendWorkflowDefinitions([
+  { id: "hcyt", path_keywords: ["/hcyt", "hcyt", "湖仓"] },
+  { id: "fine-report", path_keywords: ["/fine-report", "fine_report", "finereport", "report", "报表"] },
+  { id: "nups", path_keywords: ["/nups", "统一报送", "pay/nups", "nups"] },
+]);
 
 function feedback(path, hasValidated = false, submitError = "") {
   return getHomePathFeedbackState({
