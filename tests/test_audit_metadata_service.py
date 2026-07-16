@@ -260,6 +260,43 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(public_data.all_result_table_sys_names(), [("table_a", "plan_a")])
             self.assertEqual(public_data.all_result_table_recv_details(), [("table_a", "plan_a", "sys_a")])
 
+    def test_partition_counts_use_index_friendly_grouped_catalog_predicates(self):
+        with patch.object(
+            public_data,
+            "select_sql",
+            return_value=[("DWPURR", "TABLE_A", 3), ("DWPURR", "TABLE_B", 1)],
+        ) as select_sql:
+            result = public_data.all_tab_partition_counts([
+                "dwpurr.table_a",
+                "DWPURR.TABLE_B",
+                "DWPURR.TABLE_A",
+                "invalid",
+            ])
+
+        self.assertEqual(result, {"DWPURR.TABLE_A": 3, "DWPURR.TABLE_B": 1})
+        sql = select_sql.call_args.args[0]
+        self.assertIn("SCHEMA IN ('DWPURR', 'dwpurr')", sql)
+        self.assertIn("TABLE_NAME IN ('TABLE_A', 'TABLE_B', 'table_a', 'table_b')", sql)
+        self.assertIn("GROUP BY upper(SCHEMA), upper(TABLE_NAME)", sql)
+        where_clause = sql.split("WHERE", 1)[1].split("GROUP BY", 1)[0]
+        self.assertNotIn("upper(", where_clause.lower())
+
+    def test_partition_counts_keep_zero_for_unreturned_valid_tables(self):
+        with patch.object(public_data, "select_sql", return_value=[]):
+            result = public_data.all_tab_partition_counts(["DWPURR.TABLE_A"])
+
+        self.assertEqual(result, {"DWPURR.TABLE_A": 0})
+
+    def test_catalog_metadata_filters_leave_indexed_columns_unwrapped(self):
+        self.assertIn(
+            "WHERE table_schema NOT IN ('pg_catalog', 'information_schema')",
+            service.VIEW_NAME_SQL,
+        )
+        self.assertIn(
+            "WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')",
+            service.FUNCTION_NAME_SQL,
+        )
+
     def test_degraded_log_excludes_sensitive_exception_text(self):
         sensitive_message = (
             "dsn=jdbc:postgresql://192.0.2.10/demo "

@@ -28,14 +28,14 @@ _term_root_memory_cache: tuple[float, list[tuple[str]]] | None = None
 VIEW_NAME_SQL = """
 SELECT upper(table_schema) || '.' || upper(table_name)
 FROM information_schema.views
-WHERE upper(table_schema) NOT IN ('PG_CATALOG', 'INFORMATION_SCHEMA')
+WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
 """
 
 FUNCTION_NAME_SQL = """
 SELECT upper(n.nspname) || '.' || upper(p.proname)
 FROM pg_proc p
 JOIN pg_namespace n ON n.oid = p.pronamespace
-WHERE upper(n.nspname) NOT IN ('PG_CATALOG', 'INFORMATION_SCHEMA')
+WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
 """
 
 PARA_TABLE_NAME_SQL = """

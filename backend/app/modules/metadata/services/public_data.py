@@ -146,8 +146,8 @@ def all_tab_partitions(tb_name):
     schema_name, table_name = tb_name.upper().split('.', 1)
     sql = f"""SELECT count(*)
 FROM dba_tab_partitions t
-WHERE upper(SCHEMA)='{schema_name}'
-AND upper(TABLE_NAME)='{table_name}'"""
+WHERE SCHEMA IN ('{schema_name}', '{schema_name.lower()}')
+AND TABLE_NAME IN ('{table_name}', '{table_name.lower()}')"""
     partitions_lists = select_sql(sql)
     # partitions_lists_r=[]
     # for i in partitions_lists:
@@ -168,9 +168,13 @@ def all_tab_partition_counts(tb_names):
     if not normalized_names:
         return {}
 
+    tables_by_schema = {}
+    for schema_name, table_name in normalized_names:
+        tables_by_schema.setdefault(schema_name, []).append(table_name)
     conditions = ' OR '.join(
-        f"(upper(SCHEMA)='{schema_name}' AND upper(TABLE_NAME)='{table_name}')"
-        for schema_name, table_name in normalized_names
+        f"(SCHEMA IN ('{schema_name}', '{schema_name.lower()}') AND TABLE_NAME IN ("
+        f"{', '.join(repr(name) for name in table_names + [name.lower() for name in table_names])}))"
+        for schema_name, table_names in tables_by_schema.items()
     )
     sql = f"""
 SELECT upper(SCHEMA), upper(TABLE_NAME), count(*)
