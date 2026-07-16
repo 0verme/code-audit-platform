@@ -86,6 +86,11 @@ def _build_hcyt_program_modules(modules, *, text_to_rows):
             "load_registered_result_tables",
             lambda *, profile: set(),
         ),
+        load_result_table_catalog_snapshot=getattr(
+            modules,
+            "load_result_table_catalog_snapshot",
+            None,
+        ),
         text_to_rows=text_to_rows,
     )
 

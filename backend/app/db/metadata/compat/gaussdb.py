@@ -9,19 +9,20 @@ import atexit
 import os
 import queue
 import threading
-import traceback
+import logging
 
 from app.db.connection import connect_dws
-from app.db.profiles import ProfileConfigError, resolve_profile
+from app.db.profiles import ProfileConfigError, resolve_metadata_profile
 
 
 METADATA_POOL_SIZE_ENV = "CODE_AUDIT_DWS_METADATA_POOL_SIZE"
+logger = logging.getLogger("svn_check.metadata.dws")
 _read_pool_lock = threading.Lock()
 _read_pools: dict[str, queue.LifoQueue] = {}
 
 
 def get_db_profile(profile: str | None = None):
-    resolved = resolve_profile(profile)
+    resolved = resolve_metadata_profile(profile)
     if resolved.type != "dws":
         raise ProfileConfigError(
             f"Invalid database profile '{resolved.name}': expected type dws, got {resolved.type}; "
@@ -127,8 +128,7 @@ def fetch_all(profile: str | None, sql: str):
             return rows
         except Exception as exc:
             if not reused:
-                print(f"select_sql exception [{resolved.name}]: {exc}")
-                print(traceback.format_exc())
+                logger.warning("metadata select failed profile=%s type=%s error=%s", resolved.name, resolved.type, type(exc).__name__)
                 return None
         finally:
             try:
@@ -156,8 +156,7 @@ def execute_sql(profile: str | None, sql: str, autocommit: bool = True):
             conn.commit()
         return True
     except Exception as exc:
-        print(f"run_sql exception [{resolved.name}]: {exc}")
-        print(traceback.format_exc())
+        logger.warning("metadata statement failed profile=%s type=%s error=%s", resolved.name, resolved.type, type(exc).__name__)
         return False
     finally:
         try:

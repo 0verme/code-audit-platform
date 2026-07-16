@@ -5,9 +5,11 @@ from .profiles import (
     DatabaseProfile,
     ProfileConfigError,
     get_active_profile,
+    get_metadata_profile,
     load_database_config,
     resolve_config_path,
     resolve_profile,
+    resolve_metadata_profile,
 )
 from .connection import CompatConnection, CompatCursor, CompatRow, DB_PATH, get_connection
 from .runtime_store import (
@@ -58,6 +60,7 @@ __all__ = [
     "fail_orphan_tasks",
     "finalize_task",
     "get_active_profile",
+    "get_metadata_profile",
     "get_audit_task",
     "get_connection",
     "get_task_report_payload",
@@ -68,6 +71,7 @@ __all__ = [
     "load_runtime_migration_sql",
     "resolve_config_path",
     "resolve_profile",
+    "resolve_metadata_profile",
     "replace_audit_results",
     "persist_task_completion_atomic",
     "runtime_migration_statements",

@@ -190,8 +190,10 @@ class HcytReportContractTests(unittest.TestCase):
                 "assetIssues",
                 "unifiedAssetIssues",
                 "lineageSummary",
+                "metadataProfile",
             ],
         )
+        self.assertEqual(report["metadataProfile"], "local_pg")
         self.assertEqual(
             set(report["task"].keys()),
             {

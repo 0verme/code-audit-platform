@@ -16,11 +16,13 @@ from app.db.profiles import (  # noqa: E402
     DEFAULT_CONFIG_PATH,
     DEPLOYMENT_MODE_ENV,
     LEGACY_CONFIG_PATH_ENV,
+    METADATA_PROFILE_ENV,
     PROFILE_ENV,
     ProfileConfigError,
     load_database_config,
     resolve_config_path,
     resolve_profile,
+    resolve_metadata_profile,
 )
 from app.db.tables import qualified_table_name  # noqa: E402
 
@@ -104,6 +106,51 @@ profiles:
             with patch.dict(os.environ, {PROFILE_ENV: "local_dws"}, clear=False):
                 profile = resolve_profile(config_path=config_path)
         self.assertEqual(profile.name, "local_dws")
+
+    def test_metadata_profile_defaults_to_runtime_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp)
+            with patch.dict(
+                os.environ,
+                {PROFILE_ENV: "local_dws", METADATA_PROFILE_ENV: ""},
+                clear=False,
+            ):
+                profile = resolve_metadata_profile(config_path=config_path)
+        self.assertEqual(profile.name, "local_dws")
+
+    def test_inner_runtime_allows_local_pg_read_only_metadata(self):
+        content = CONFIG_TEXT.replace("local_dws:", "inner_dws:")
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with patch.dict(
+                os.environ,
+                {
+                    DEPLOYMENT_MODE_ENV: "production",
+                    PROFILE_ENV: "inner_dws",
+                    METADATA_PROFILE_ENV: "local_pg",
+                },
+                clear=False,
+            ):
+                runtime = resolve_profile(config_path=config_path)
+                metadata = resolve_metadata_profile(config_path=config_path)
+        self.assertEqual((runtime.name, runtime.type), ("inner_dws", "dws"))
+        self.assertEqual((metadata.name, metadata.type), ("local_pg", "postgresql"))
+
+    def test_metadata_profile_does_not_bypass_runtime_deployment_validation(self):
+        content = CONFIG_TEXT.replace("local_dws:", "inner_dws:")
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with patch.dict(
+                os.environ,
+                {
+                    DEPLOYMENT_MODE_ENV: "inner",
+                    PROFILE_ENV: "local_pg",
+                    METADATA_PROFILE_ENV: "inner_dws",
+                },
+                clear=False,
+            ):
+                with self.assertRaisesRegex(ProfileConfigError, "requires database profile 'inner_dws'"):
+                    resolve_metadata_profile(config_path=config_path)
 
     def test_default_path_is_backend_configs_database_yaml_independent_of_cwd(self):
         expected = BACKEND_DIR / "configs" / "database.yaml"

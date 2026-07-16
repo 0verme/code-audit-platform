@@ -11,7 +11,7 @@ from typing import Any
 from urllib import error, request
 
 from app.db.metadata.compat import router as db_router
-from app.db.profiles import get_active_profile
+from app.db.profiles import get_metadata_profile
 from .metadata_model import table_name
 
 
@@ -63,23 +63,23 @@ LEFT JOIN dwp.p_upstream_system u
 
 
 def _get_metadata_profile_name() -> str:
-    return get_active_profile().name
+    return get_metadata_profile().name
 
 
-def _get_backend_name() -> str:
+def _get_backend_name(profile: str | None = None) -> str:
     try:
-        return str(db_router.get_backend() or "").strip().lower() or "unknown"
+        return str(db_router.get_backend(profile) or "").strip().lower() or "unknown"
     except Exception:
         return "unknown"
 
 
-def _render_metadata_sql(sql: str) -> str:
+def _render_metadata_sql(sql: str, profile: str | None = None) -> str:
     """Render only profile-validated identifier mappings into fixed SQL templates."""
     replacements = {
-        "dwp.p_para_table_lists": table_name("para_tables"),
-        "dwp.p_job_outfile": table_name("job_outfiles"),
-        "dwp.p_field_mapping_table": table_name("field_mapping"),
-        "dwp.p_upstream_system": table_name("upstream_system"),
+        "dwp.p_para_table_lists": table_name("para_tables", profile),
+        "dwp.p_job_outfile": table_name("job_outfiles", profile),
+        "dwp.p_field_mapping_table": table_name("field_mapping", profile),
+        "dwp.p_upstream_system": table_name("upstream_system", profile),
     }
     for source, target in replacements.items():
         sql = sql.replace(source, target)
@@ -150,11 +150,11 @@ def _normalize_multi_column_rows(
     return result
 
 
-def _run_metadata_query(sql: str, function_name: str) -> list[Any]:
-    profile = _get_metadata_profile_name()
-    backend = _get_backend_name()
+def _run_metadata_query(sql: str, function_name: str, profile: str | None = None) -> list[Any]:
+    profile = profile or _get_metadata_profile_name()
+    backend = _get_backend_name(profile)
     try:
-        rows = db_router.select_sql_with_profile(profile, _render_metadata_sql(sql))
+        rows = db_router.select_sql_with_profile(profile, _render_metadata_sql(sql, profile))
         return rows or []
     except Exception as exc:
         logger.warning(
@@ -240,21 +240,21 @@ def list_term_roots() -> list[tuple[str]]:
     return roots
 
 
-def list_view_names() -> list[tuple[str]]:
-    return _normalize_single_column_rows(_run_metadata_query(VIEW_NAME_SQL, "list_view_names"))
+def list_view_names(profile: str | None = None) -> list[tuple[str]]:
+    return _normalize_single_column_rows(_run_metadata_query(VIEW_NAME_SQL, "list_view_names", profile))
 
 
-def list_function_names() -> list[tuple[str]]:
-    return _normalize_single_column_rows(_run_metadata_query(FUNCTION_NAME_SQL, "list_function_names"))
+def list_function_names(profile: str | None = None) -> list[tuple[str]]:
+    return _normalize_single_column_rows(_run_metadata_query(FUNCTION_NAME_SQL, "list_function_names", profile))
 
 
-def list_para_table_names() -> list[tuple[str]]:
-    return _normalize_single_column_rows(_run_metadata_query(PARA_TABLE_NAME_SQL, "list_para_table_names"))
+def list_para_table_names(profile: str | None = None) -> list[tuple[str]]:
+    return _normalize_single_column_rows(_run_metadata_query(PARA_TABLE_NAME_SQL, "list_para_table_names", profile))
 
 
-def list_job_outfiles() -> list[tuple[str, str]]:
+def list_job_outfiles(profile: str | None = None) -> list[tuple[str, str]]:
     return _normalize_multi_column_rows(
-        _run_metadata_query(JOB_OUTFILE_SQL, "list_job_outfiles"),
+        _run_metadata_query(JOB_OUTFILE_SQL, "list_job_outfiles", profile),
         (
             ("job_name", "a", "job"),
             ("outfile", "b", "outfile_value"),
@@ -262,16 +262,16 @@ def list_job_outfiles() -> list[tuple[str, str]]:
     )
 
 
-def list_upstream_system_ids() -> list[tuple[str]]:
+def list_upstream_system_ids(profile: str | None = None) -> list[tuple[str]]:
     return _normalize_single_column_rows(
-        _run_metadata_query(UPSTREAM_SYSTEM_ID_SQL, "list_upstream_system_ids"),
+        _run_metadata_query(UPSTREAM_SYSTEM_ID_SQL, "list_upstream_system_ids", profile),
         field_names=("system_id",),
     )
 
 
-def list_result_table_sys_names() -> list[tuple[str, str]]:
+def list_result_table_sys_names(profile: str | None = None) -> list[tuple[str, str]]:
     return _normalize_multi_column_rows(
-        _run_metadata_query(RESULT_TABLE_SYS_NAME_SQL, "list_result_table_sys_names"),
+        _run_metadata_query(RESULT_TABLE_SYS_NAME_SQL, "list_result_table_sys_names", profile),
         (
             ("target_table_name", "table_name", "result_table"),
             ("system_name", "sys_name", "source_system"),

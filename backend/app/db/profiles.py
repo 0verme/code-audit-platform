@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,7 @@ DEFAULT_CONFIG_PATH = DEFAULT_DATABASE_CONFIG
 CONFIG_PATH_ENV = "AUDIT_DATABASE_CONFIG"
 LEGACY_CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
 PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
+METADATA_PROFILE_ENV = "CODE_AUDIT_METADATA_DB_PROFILE"
 DEPLOYMENT_MODE_ENV = "CODE_AUDIT_DEPLOYMENT_MODE"
 SUPPORTED_TYPES = {"postgresql", "dws"}
 POSTGRES_REQUIRED_PROFILE_FIELDS = ("type", "host", "port", "database", "username", "password", "schema")
@@ -24,6 +26,9 @@ DEFAULT_RUNTIME_SCHEMA = "dwp"
 DEFAULT_TABLE_PREFIX = "p_audit_"
 DEFAULT_DWS_DRIVER = "com.huawei.gauss200.jdbc.Driver"
 DEFAULT_DWS_JAR_PATH = BACKEND_DIR / "resources" / "jars" / "gaussdb200.jar"
+
+logger = logging.getLogger("code_audit.db_profiles")
+_logged_profile_routes: set[tuple[str, str, str, str]] = set()
 
 
 class ProfileConfigError(RuntimeError):
@@ -167,14 +172,16 @@ def load_database_config(config_path: str | os.PathLike[str] | None = None) -> d
     return _expand_environment_values(_normalize_database_config(data))
 
 
-def resolve_profile(
+def _resolve_profile(
     profile_name: str | None = None,
     *,
     config_path: str | os.PathLike[str] | None = None,
+    env_name: str = PROFILE_ENV,
+    validate_deployment: bool = True,
 ) -> DatabaseProfile:
     data = load_database_config(config_path)
     profiles = data["profiles"]
-    env_profile_name = os.getenv(PROFILE_ENV)
+    env_profile_name = os.getenv(env_name)
     selected_name = profile_name or env_profile_name or data.get("default_profile")
     if not selected_name:
         if len(profiles) == 1:
@@ -184,12 +191,12 @@ def resolve_profile(
     selected_name = str(selected_name).strip()
     if selected_name not in profiles:
         available_profiles = ", ".join(sorted(str(name) for name in profiles)) or "<none>"
-        source = "argument" if profile_name else PROFILE_ENV if env_profile_name else "default_profile"
+        source = "argument" if profile_name else env_name if env_profile_name else "default_profile"
         hint = ""
         if selected_name == "profiles":
             hint = (
                 f" Hint: '{selected_name}' is the YAML section name, not a profile name. "
-                f"Set {PROFILE_ENV} to one of: {available_profiles}"
+                f"Set {env_name} to one of: {available_profiles}"
             )
         raise ProfileConfigError(
             f"Database profile not found: {selected_name} (source: {source}; available: {available_profiles}; "
@@ -229,9 +236,55 @@ def resolve_profile(
                 f"supported types are [{SUPPORTED_TYPES_TEXT}]"
             ) from exc
     profile = DatabaseProfile(name=selected_name, type=db_type, config=config)
-    _validate_deployment_profile(profile)
+    if validate_deployment:
+        _validate_deployment_profile(profile)
     return profile
+
+
+def resolve_profile(
+    profile_name: str | None = None,
+    *,
+    config_path: str | os.PathLike[str] | None = None,
+) -> DatabaseProfile:
+    """Resolve the runtime profile and enforce deployment-mode constraints."""
+    return _resolve_profile(profile_name, config_path=config_path)
+
+
+def resolve_metadata_profile(
+    profile_name: str | None = None,
+    *,
+    config_path: str | os.PathLike[str] | None = None,
+) -> DatabaseProfile:
+    """Resolve the read-only audit metadata profile without weakening runtime validation."""
+    runtime_profile = resolve_profile(config_path=config_path)
+    configured_name = profile_name or os.getenv(METADATA_PROFILE_ENV)
+    if configured_name:
+        metadata_profile = _resolve_profile(
+            configured_name,
+            config_path=config_path,
+            env_name=METADATA_PROFILE_ENV,
+            validate_deployment=False,
+        )
+    else:
+        metadata_profile = runtime_profile
+    route = (
+        runtime_profile.name,
+        runtime_profile.type,
+        metadata_profile.name,
+        metadata_profile.type,
+    )
+    if route not in _logged_profile_routes:
+        _logged_profile_routes.add(route)
+        logger.info(
+            "database profile routing runtime_profile=%s runtime_type=%s metadata_profile=%s metadata_type=%s",
+            *route,
+        )
+    return metadata_profile
 
 
 def get_active_profile() -> DatabaseProfile:
     return resolve_profile()
+
+
+def get_metadata_profile() -> DatabaseProfile:
+    return resolve_metadata_profile()

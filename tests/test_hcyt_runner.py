@@ -180,7 +180,7 @@ class HcytRunnerTests(unittest.TestCase):
                 calls.append(("legacy", list(grouped.keys()))),
                 save_category_rows(grouped),
             )[-1],
-            build_hcyt_report=lambda **kwargs: calls.append(("report", kwargs["changes"])) or {"task": {"status": "pass"}},
+            build_hcyt_report=lambda **kwargs: calls.append(("report", kwargs["changes"], kwargs["metadata_profile"])) or {"task": {"status": "pass"}},
             run_hcyt_schedule=lambda *_args, **_kwargs: None,
             run_hcyt_programs=lambda *_args, **_kwargs: None,
             text_to_rows=lambda *_args, **_kwargs: [],
@@ -193,7 +193,7 @@ class HcytRunnerTests(unittest.TestCase):
         self.assertEqual(report, {"task": {"status": "pass"}})
         self.assertIn(("task_running", "classify_files"), calls)
         self.assertIn(("publish", {"changes": [{"path": "demo.sql"}], "conflicts": []}), calls)
-        self.assertIn(("report", [{"path": "demo.sql"}]), calls)
+        self.assertIn(("report", [{"path": "demo.sql"}], "local_pg"), calls)
         self.assertEqual(saved_groups, [])
         user_logs = [
             event[2]

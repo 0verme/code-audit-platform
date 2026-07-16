@@ -5,7 +5,7 @@ import logging
 import re
 from typing import Any
 
-from app.db.profiles import get_active_profile, resolve_profile
+from app.db.profiles import get_metadata_profile, resolve_metadata_profile
 
 LOGGER = logging.getLogger("svn_check.metadata_model")
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -27,10 +27,10 @@ def get_metadata_model(profile=None) -> dict[str, Any]:
     """Return a safe profile mapping; invalid profile overrides retain defaults."""
     if isinstance(profile, str):
         try:
-            profile = resolve_profile(profile)
+            profile = resolve_metadata_profile(profile)
         except Exception:
             profile = None
-    profile = profile or get_active_profile()
+    profile = profile or get_metadata_profile()
     model = dict(DEFAULT_MODEL)
     model["tables"] = dict(DEFAULT_MODEL["tables"])
     model["columns"] = {key: dict(value) for key, value in DEFAULT_MODEL["columns"].items()}
@@ -48,12 +48,14 @@ def get_metadata_model(profile=None) -> dict[str, Any]:
                 raise ValueError(f"metadata.{group} must be a mapping")
             if group == "tables":
                 for key, identifier in value.items():
-                    if key in model[group]: model[group][key] = _identifier(identifier, f"tables.{key}")
+                    if key in model[group]:
+                        model[group][key] = _identifier(identifier, f"tables.{key}")
             else:
                 for table, fields in value.items():
                     if table in model[group] and isinstance(fields, dict):
                         for key, identifier in fields.items():
-                            if key in model[group][table]: model[group][table][key] = _identifier(identifier, f"columns.{table}.{key}")
+                            if key in model[group][table]:
+                                model[group][table][key] = _identifier(identifier, f"columns.{table}.{key}")
         return model
     except ValueError as exc:
         LOGGER.warning("metadata model ignored; using built-in identifiers: %s", exc)

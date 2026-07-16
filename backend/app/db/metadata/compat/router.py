@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from app.db.profiles import DatabaseProfile, resolve_profile
+from app.db.profiles import DatabaseProfile, resolve_metadata_profile
 
 
 def _resolve(profile: str | None = None) -> DatabaseProfile:
-    return resolve_profile(profile)
+    return resolve_metadata_profile(profile)
 
 
 def get_backend(profile: str | None = None) -> str:
@@ -36,7 +36,7 @@ def _resolve_backend(profile: str | None = None) -> tuple[DatabaseProfile, objec
     """Resolve the metadata backend module without changing compat semantics."""
 
     resolved = _resolve(profile)
-    return resolved, _impl(resolved.name)
+    return resolved, _module_for_type(resolved.type)
 
 
 def select_sql_with_profile(profile: str | None, sql_str: str):

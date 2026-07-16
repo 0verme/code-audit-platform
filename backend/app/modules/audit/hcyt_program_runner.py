@@ -48,6 +48,13 @@ def _partition_count(rows):
         return 0
 
 
+def _load_result_table_catalog(modules, profile_name):
+    loader = getattr(modules, "load_result_table_catalog_snapshot", None)
+    if callable(loader):
+        return loader(profile=profile_name)
+    return None
+
+
 def _load_partition_counts(modules, program_tables, *, safe, normalize_table):
     tables = list(dict.fromkeys(
         normalized
@@ -60,22 +67,24 @@ def _load_partition_counts(modules, program_tables, *, safe, normalize_table):
     load_single = getattr(modules.public_data, "all_tab_partitions", None)
     if len(tables) == 1 and callable(load_single):
         table = tables[0]
-        rows = safe("加工程序单表分区元数据", lambda: load_single(table), [])
-        return {table: _partition_count(rows)}
+        rows = safe("加工程序单表分区元数据", lambda: load_single(table), None)
+        return {table: _partition_count(rows) if rows is not None else None}
 
     load_many = getattr(modules.public_data, "all_tab_partition_counts", None)
     if callable(load_many):
-        return safe("加工程序批量分区元数据", lambda: load_many(tables), {})
+        counts = safe("加工程序批量分区元数据", lambda: load_many(tables), None)
+        return counts if counts is not None else {table: None for table in tables}
 
     if callable(load_single):
-        return {
-            table: _partition_count(safe(
+        counts = {}
+        for table in tables:
+            rows = safe(
                 "加工程序单表分区元数据",
                 lambda table=table: load_single(table),
-                [],
-            ))
-            for table in tables
-        }
+                None,
+            )
+            counts[table] = _partition_count(rows) if rows is not None else None
+        return counts
     return {}
 
 
@@ -148,19 +157,32 @@ def run_hcyt_programs(
             ),
         })
 
-    registered = set(_snapshot_value(
+    result_table_catalog = _snapshot_value(
         metadata_snapshot,
-        "registered_tables",
+        "result_table_catalog",
         lambda: _timed(
             "programs.load_registered_tables",
             lambda: safe(
                 "结果表登记库(lineage)",
-                lambda: modules.load_registered_result_tables(profile=profile_name),
-                set(),
+                lambda: _load_result_table_catalog(modules, profile_name),
+                None,
             ),
             log_timing,
         ),
-    ))
+    )
+    registered = set(
+        result_table_catalog.registered
+        if result_table_catalog is not None
+        else _snapshot_value(
+            metadata_snapshot,
+            "registered_tables_compat",
+            lambda: modules.load_registered_result_tables(profile=profile_name),
+        )
+    )
+    catalog_disabled = set(result_table_catalog.disabled) if result_table_catalog is not None else None
+    if lineage_context is not None:
+        lineage_context["registered_result_tables"] = registered
+        lineage_context["disabled_result_tables"] = catalog_disabled
     para_tables = set(_snapshot_value(
         metadata_snapshot,
         "parameter_tables",
@@ -181,9 +203,12 @@ def run_hcyt_programs(
         lambda: _timed(
             "programs.load_annotations",
             (
-                lambda: load_result_table_annotations(sys_name_rows=annotation_rows)
-                if lineage_context is not None
-                else load_result_table_annotations()
+                lambda: load_result_table_annotations(
+                    **(
+                        ({"sys_name_rows": annotation_rows} if lineage_context is not None else {})
+                        | ({"disabled_tables": catalog_disabled} if catalog_disabled is not None else {})
+                    )
+                )
             ),
             log_timing,
         ),

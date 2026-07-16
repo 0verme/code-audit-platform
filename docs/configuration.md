@@ -9,6 +9,7 @@
 - 可选环境变量：
   - `AUDIT_DATABASE_CONFIG`（绝对路径覆盖）
   - `CODE_AUDIT_DB_PROFILE`
+  - `CODE_AUDIT_METADATA_DB_PROFILE`（可选，只读审计元数据；未配置时回退运行库 profile）
 
 ## 统一约束
 
@@ -51,6 +52,9 @@ profiles:
 
 - 默认使用 `default_profile`
 - 如需切换，设置 `CODE_AUDIT_DB_PROFILE=<profile-name>`
+- 运行表和任务持久化始终由 `CODE_AUDIT_DB_PROFILE` 控制；`inner`/`production` 模式仍要求 `inner_dws`。
+- 可设置 `CODE_AUDIT_METADATA_DB_PROFILE=local_pg`，让视图、函数、参数表、JOB outfile、来源系统、结果表目录等只读查询走本地 PostgreSQL 镜像。
+- 镜像缺少 `dba_tab_partitions` 时配置 `metadata.partition_catalog: false`；仅分区目录查询会安全回退运行库 DWS。日志只记录 profile 名称、类型、回退标记、策略和耗时，不记录地址或凭据。
 
 ## 启动失败行为
 

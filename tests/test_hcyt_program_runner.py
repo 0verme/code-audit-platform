@@ -9,6 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.modules.audit.hcyt_program_runner import run_hcyt_programs  # noqa: E402
 from app.modules.audit.result_normalizer import dedupe_tables, normalize_table, text_to_rows  # noqa: E402
+from app.modules.lineage.registered_tables import ResultTableCatalogSnapshot  # noqa: E402
 
 
 class FakeReService:
@@ -313,9 +314,19 @@ class HcytProgramRunnerTests(unittest.TestCase):
         modules = FakeModules()
         lineage_context = {}
         annotation_calls = []
+        catalog_calls = []
 
-        def load_annotations(**_kwargs):
-            annotation_calls.append(True)
+        def load_catalog(*, profile):
+            catalog_calls.append(profile)
+            return ResultTableCatalogSnapshot(
+                registered=frozenset({"DM.TABLE_A"}),
+                disabled=frozenset({"DM.TABLE_A"}),
+            )
+
+        modules.load_result_table_catalog_snapshot = load_catalog
+
+        def load_annotations(**kwargs):
+            annotation_calls.append(kwargs)
             return set(), {}
 
         for _ in range(2):
@@ -336,10 +347,12 @@ class HcytProgramRunnerTests(unittest.TestCase):
                 lineage_context=lineage_context,
             )
 
-        self.assertEqual(modules.profile_calls, ["target_profile"])
+        self.assertEqual(catalog_calls, ["target_profile"])
+        self.assertEqual(modules.profile_calls, [])
         self.assertEqual(modules.public_data.parameter_table_calls, 1)
         self.assertEqual(modules.public_data.single_partition_calls, ["DM.TABLE_A"])
-        self.assertEqual(annotation_calls, [True])
+        self.assertEqual(annotation_calls[0]["disabled_tables"], {"DM.TABLE_A"})
+        self.assertEqual(len(annotation_calls), 1)
 
 
 if __name__ == "__main__":

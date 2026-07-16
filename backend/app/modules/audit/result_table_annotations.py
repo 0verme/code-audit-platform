@@ -16,18 +16,21 @@ def build_result_table_sys_name_map(rows, *, normalize_table):
     return mapping
 
 
-def load_result_table_annotations(*, safe, public_data, normalize_table, sys_name_rows=None):
-    disabled = set(
-        safe(
-            "禁用结果表(all_disabled_result_tables)",
-            lambda: {
-                normalize_table(row[0])
-                for row in (public_data.all_disabled_result_tables() or [])
-                if row and row[0]
-            },
-            set(),
+def load_result_table_annotations(*, safe, public_data, normalize_table, sys_name_rows=None, disabled_tables=None):
+    if disabled_tables is None:
+        disabled = set(
+            safe(
+                "禁用结果表(all_disabled_result_tables)",
+                lambda: {
+                    normalize_table(row[0])
+                    for row in (public_data.all_disabled_result_tables() or [])
+                    if row and row[0]
+                },
+                set(),
+            )
         )
-    )
+    else:
+        disabled = {normalize_table(table) for table in disabled_tables if normalize_table(table)}
 
     if sys_name_rows is None:
         sys_name_map = safe(

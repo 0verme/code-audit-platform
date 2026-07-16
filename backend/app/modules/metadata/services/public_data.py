@@ -1,4 +1,9 @@
 import re
+import logging
+import time
+
+from app.db.profiles import DatabaseProfile, get_active_profile, get_metadata_profile
+from app.modules.lineage.registered_tables import load_result_table_catalog_snapshot
 
 from .audit_metadata_service import (
     list_function_names,
@@ -11,6 +16,8 @@ from .audit_metadata_service import (
 )
 from .db_service import select_sql
 from .metadata_model import column_name, table_name
+
+logger = logging.getLogger("svn_check.partition_metadata")
 
 
 def _table(key):
@@ -105,17 +112,9 @@ def all_para_table_lists():
     return list_para_table_names()
 
 
-def all_disabled_result_tables():
-    sql = """
-select substr(p.k,5) as table_name
-from {jobs} j
-inner join {programs} p
-on j.e = p.b
-where substr(p.k,5) is not null
-  and j.x in (9, '9')
-""".format(jobs=_table('jobs'), programs=_table('programs'))
-    result_tables = select_sql(sql)
-    return result_tables
+def all_disabled_result_tables(profile: str | None = None):
+    snapshot = load_result_table_catalog_snapshot(profile)
+    return [(table,) for table in sorted(snapshot.disabled)]
 
 
 def all_result_table_sys_names():
@@ -137,13 +136,55 @@ def all_function_names():
 def all_term_roots():
     return list_term_roots()
 
+def _supports_partition_catalog(profile: DatabaseProfile) -> bool:
+    metadata_config = profile.config.get("metadata") or {}
+    configured = metadata_config.get("partition_catalog") if isinstance(metadata_config, dict) else None
+    return bool(configured) if configured is not None else profile.is_dws
+
+
+def _partition_query_profile() -> tuple[DatabaseProfile, DatabaseProfile, bool]:
+    metadata_profile = get_metadata_profile()
+    if _supports_partition_catalog(metadata_profile):
+        return metadata_profile, metadata_profile, False
+    runtime_profile = get_active_profile()
+    if runtime_profile.is_dws and _supports_partition_catalog(runtime_profile):
+        return metadata_profile, runtime_profile, True
+    logger.warning(
+        "partition metadata unavailable metadata_profile=%s metadata_type=%s runtime_profile=%s runtime_type=%s",
+        metadata_profile.name,
+        metadata_profile.type,
+        runtime_profile.name,
+        runtime_profile.type,
+    )
+    raise RuntimeError(
+        "partition metadata catalog is unavailable on both metadata and runtime profiles"
+    )
+
+
+def _select_partition_sql(sql: str, *, strategy: str):
+    metadata_profile, query_profile, fallback = _partition_query_profile()
+    started = time.perf_counter()
+    try:
+        return select_sql(sql, profile=query_profile.name)
+    finally:
+        logger.info(
+            "partition metadata query metadata_profile=%s query_profile=%s query_type=%s fallback=%s strategy=%s elapsed_ms=%.1f",
+            metadata_profile.name,
+            query_profile.name,
+            query_profile.type,
+            fallback,
+            strategy,
+            (time.perf_counter() - started) * 1000,
+        )
+
+
 def all_tab_partitions(tb_name):
     schema_name, table_name = tb_name.upper().split('.', 1)
     sql = f"""SELECT count(*)
 FROM dba_tab_partitions t
 WHERE SCHEMA IN ('{schema_name}', '{schema_name.lower()}')
 AND TABLE_NAME IN ('{table_name}', '{table_name.lower()}')"""
-    partitions_lists = select_sql(sql)
+    partitions_lists = _select_partition_sql(sql, strategy="single")
     # partitions_lists_r=[]
     # for i in partitions_lists:
     #     partitions_lists_r.append(i[0])
@@ -178,7 +219,7 @@ WHERE {conditions}
 GROUP BY upper(SCHEMA), upper(TABLE_NAME)
 """
     counts = {f'{schema_name}.{table_name}': 0 for schema_name, table_name in normalized_names}
-    for row in select_sql(sql) or []:
+    for row in _select_partition_sql(sql, strategy="batch") or []:
         if len(row) >= 3 and row[0] and row[1]:
             counts[f'{str(row[0]).upper()}.{str(row[1]).upper()}'] = int(row[2] or 0)
     return counts

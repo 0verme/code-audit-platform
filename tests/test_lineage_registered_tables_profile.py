@@ -55,6 +55,23 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
         self.assertNotIn("WHERE substr(", captured["sql"])
         self.assertEqual(result, {"DM.TABLE_A"})
 
+    def test_result_table_catalog_snapshot_queries_once_and_preserves_disabled_semantics(self):
+        rows = [
+            (" dm.table_a ", 0),
+            ("dm.table_b", 1),
+            ("dm.table_c", "9"),
+            (None, 1),
+        ]
+        with patch.object(mapping_sqlite, "select_sql_with_profile", return_value=rows) as select:
+            snapshot = mapping_sqlite.load_result_table_catalog_snapshot("local_pg")
+
+        self.assertEqual(select.call_count, 1)
+        self.assertEqual(snapshot.registered, frozenset({"DM.TABLE_A", "DM.TABLE_B", "DM.TABLE_C"}))
+        self.assertEqual(snapshot.disabled, frozenset({"DM.TABLE_B", "DM.TABLE_C"}))
+        sql = select.call_args.args[1]
+        self.assertIn("MAX(CASE WHEN", sql)
+        self.assertIn("GROUP BY substr", sql)
+
     def test_hcyt_registered_result_tables_uses_active_profile(self):
         captured = {}
 

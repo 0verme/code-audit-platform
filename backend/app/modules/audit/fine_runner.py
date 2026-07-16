@@ -68,10 +68,19 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         }
 
     context.update(progress=55, step="帆软模板检查")
+    metadata_profile = context.get_active_profile_name()
+    catalog_loader = getattr(mods, "load_result_table_catalog_snapshot", None)
+    catalog = context.safe(
+        "结果表登记库(lineage)",
+        lambda: catalog_loader(profile=metadata_profile) if callable(catalog_loader) else None,
+        None,
+    )
     registered = set(
-        context.safe(
+        catalog.registered
+        if catalog is not None
+        else context.safe(
             "结果表登记库(lineage)",
-            lambda: mods.load_registered_result_tables(profile=context.get_active_profile_name()),
+            lambda: mods.load_registered_result_tables(profile=metadata_profile),
             set(),
         )
     )
@@ -85,7 +94,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
     disabled, sys_name_map = context.safe(
         "结果表标注信息",
         lambda: (
-            {
+            set(catalog.disabled) if catalog is not None else {
                 normalize_table(row[0])
                 for row in mods.public_data.all_disabled_result_tables()
                 if row and row[0]
@@ -197,5 +206,6 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         authority_section=authority_section,
         reports=reports,
         ref_tables=all_ref_tables,
+        metadata_profile=metadata_profile,
         ai=ai,
     )

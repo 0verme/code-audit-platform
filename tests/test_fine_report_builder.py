@@ -49,6 +49,10 @@ class FineReportBuilderTests(unittest.TestCase):
         self.assertEqual(list(report.keys())[-1], "ai")
         self.assertEqual(report["ai"], {"summary": "ok"})
 
+    def test_metadata_profile_reports_actual_read_profile(self):
+        report = build_fine_report(**self._inputs(), metadata_profile="local_pg")
+        self.assertEqual(report["metadataProfile"], "local_pg")
+
     def test_source_payload_is_not_added_to_top_level_or_svn(self):
         report = build_fine_report(**self._inputs())
 

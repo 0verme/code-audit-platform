@@ -21,6 +21,7 @@ profiles:
     # Metadata SQL uses only validated identifiers from this profile mapping.
     metadata:
       schema: dwp
+      partition_catalog: true
       tables:
         jobs: p_job_hjj
         programs: p_program_hjj
@@ -28,6 +29,35 @@ profiles:
         roles: p_role_hjj
         fine: p_fine_hjj
         job_outfiles: p_job_outfile
+      columns:
+        jobs: {plan_name: a, sequence_name: b, job_name: c, program_key: e, status: x, dependencies: ab}
+        programs: {program_key: b, result_table: k}
+
+  # Optional read-only PostgreSQL metadata mirror. Runtime writes remain on inner_dws.
+  local_pg:
+    type: postgresql
+    host: ${AUDIT_METADATA_PG_HOST}
+    port: ${AUDIT_METADATA_PG_PORT}
+    database: ${AUDIT_METADATA_PG_DATABASE}
+    username: ${AUDIT_METADATA_PG_USER}
+    password: ${AUDIT_METADATA_PG_PASSWORD}
+    schema: ${AUDIT_METADATA_PG_SCHEMA}
+    connect_timeout: 5
+    statement_timeout_ms: 30000
+    metadata:
+      schema: dwp
+      # This mirror has no dba_tab_partitions; only partition queries fall back to runtime DWS.
+      partition_catalog: false
+      tables:
+        jobs: p_job_hjj
+        programs: p_program_hjj
+        plans: p_plan_hjj
+        roles: p_role_hjj
+        fine: p_fine_hjj
+        job_outfiles: p_job_outfile
+        para_tables: p_para_table_lists
+        field_mapping: p_field_mapping_table
+        upstream_system: p_upstream_system
       columns:
         jobs: {plan_name: a, sequence_name: b, job_name: c, program_key: e, status: x, dependencies: ab}
         programs: {program_key: b, result_table: k}

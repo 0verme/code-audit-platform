@@ -96,6 +96,7 @@ python app.py
 
 ```bash
 export CODE_AUDIT_DB_PROFILE=prod_pg
+export CODE_AUDIT_METADATA_DB_PROFILE=local_pg  # optional read-only metadata mirror
 python backend/app.py
 ```
 
@@ -103,6 +104,7 @@ python backend/app.py
 
 ```powershell
 $env:CODE_AUDIT_DB_PROFILE = "prod_pg"
+$env:CODE_AUDIT_METADATA_DB_PROFILE = "local_pg" # optional read-only metadata mirror
 python backend\app.py
 ```
 

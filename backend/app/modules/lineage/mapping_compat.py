@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 
 from app.db.metadata.compat.router import select_sql_with_profile
-from app.db.profiles import get_active_profile
+from app.db.profiles import get_metadata_profile
 from . import cache_store as cache_store_helpers
 from . import registered_tables as registered_tables_helpers
 from . import traversal as traversal_helpers
@@ -33,6 +33,9 @@ HEADER_ALIASES = {
     "source_table": {"source_table", "源表", "源表名", "来源表", "上游表", "上游表名"},
     "source_column": {"source_column", "源字段", "源字段名", "来源字段", "上游字段", "上游字段名"},
 }
+
+# Compatibility name retained for callers/tests that patched the former runtime resolver.
+get_active_profile = get_metadata_profile
 
 
 def detect_header_row(ws) -> tuple[int, dict[str, int]]:
@@ -70,6 +73,14 @@ def get_mapping_db_status(db_path: str | Path | None = None, xlsx_path: str | Pa
 def load_registered_result_tables(profile: str | None = None) -> set[str]:
     profile = profile or get_active_profile().name
     return registered_tables_helpers.load_registered_result_tables(profile=profile, select_sql_with_profile=select_sql_with_profile)
+
+
+def load_result_table_catalog_snapshot(profile: str | None = None):
+    profile = profile or get_active_profile().name
+    return registered_tables_helpers.load_result_table_catalog_snapshot(
+        profile=profile,
+        select_sql_with_profile=select_sql_with_profile,
+    )
 
 
 def filter_registered_result_nodes(nodes, result_tables=None, profile: str | None = None):

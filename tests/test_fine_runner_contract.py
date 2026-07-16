@@ -112,8 +112,10 @@ class FineRunnerContractTests(unittest.TestCase):
                 "refTables",
                 "assetIssues",
                 "unifiedAssetIssues",
+                "metadataProfile",
             ],
         )
+        self.assertEqual(report["metadataProfile"], "local_pg")
         self.assertEqual(report["task"]["sourceType"], "svn")
         self.assertEqual(report["task"]["workspaceRoot"], "")
         self.assertNotIn("source", report)

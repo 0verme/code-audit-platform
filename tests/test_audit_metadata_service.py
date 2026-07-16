@@ -16,6 +16,7 @@ from app.modules.metadata.services import audit_metadata_service as service  # n
 from app.modules.metadata.services import db_service as db_service  # noqa: E402
 from app.modules.metadata.services import public_data  # noqa: E402
 from app.db.metadata.compat import router  # noqa: E402
+from app.db.profiles import DatabaseProfile  # noqa: E402
 from scripts import init_pg  # noqa: E402
 
 
@@ -37,6 +38,19 @@ class AuditMetadataServiceTests(unittest.TestCase):
     def test_metadata_path_owns_implementation(self):
         self.assertIs(service.db_router, router)
         self.assertTrue(callable(db_service.select_sql))
+
+    def test_db_service_defaults_to_metadata_profile(self):
+        with patch.object(db_service, "get_metadata_profile", return_value=MagicMock(name="profile", name_attr="ignored")) as resolver:
+            resolver.return_value.name = "local_pg"
+            with patch.object(db_service, "select_sql_with_profile", return_value=[("ok",)]) as select:
+                self.assertEqual(db_service.select_sql("select 1"), [("ok",)])
+        select.assert_called_once_with("local_pg", "select 1")
+
+    def test_audit_metadata_service_routes_explicit_metadata_profile(self):
+        with patch.object(service.db_router, "get_backend", return_value="postgresql"):
+            with patch.object(service.db_router, "select_sql_with_profile", return_value=[]) as select:
+                service.list_job_outfiles("local_pg")
+        self.assertEqual(select.call_args.args[0], "local_pg")
 
     def test_metadata_init_uses_new_sql_path_without_changing_schema(self):
         new_sql_path = BACKEND_DIR / "app" / "modules" / "metadata" / "init" / "postgres_schema.sql"
@@ -263,7 +277,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(public_data.all_result_table_sys_names(), [("table_a", "plan_a")])
 
     def test_partition_counts_use_index_friendly_grouped_catalog_predicates(self):
-        with patch.object(
+        dws_profile = DatabaseProfile("inner_dws", "dws", {"metadata": {"partition_catalog": True}})
+        with patch.object(public_data, "get_metadata_profile", return_value=dws_profile), patch.object(
             public_data,
             "select_sql",
             return_value=[("DWPURR", "TABLE_A", 3), ("DWPURR", "TABLE_B", 1)],
@@ -284,10 +299,35 @@ class AuditMetadataServiceTests(unittest.TestCase):
         self.assertNotIn("upper(", where_clause.lower())
 
     def test_partition_counts_keep_zero_for_unreturned_valid_tables(self):
-        with patch.object(public_data, "select_sql", return_value=[]):
+        dws_profile = DatabaseProfile("inner_dws", "dws", {"metadata": {"partition_catalog": True}})
+        with patch.object(public_data, "get_metadata_profile", return_value=dws_profile), patch.object(public_data, "select_sql", return_value=[]):
             result = public_data.all_tab_partition_counts(["DWPURR.TABLE_A"])
 
         self.assertEqual(result, {"DWPURR.TABLE_A": 0})
+
+    def test_partition_queries_fall_back_from_local_mirror_to_runtime_dws(self):
+        metadata = DatabaseProfile("local_pg", "postgresql", {"metadata": {"partition_catalog": False}})
+        runtime = DatabaseProfile("inner_dws", "dws", {"metadata": {"partition_catalog": True}})
+        with patch.object(public_data, "get_metadata_profile", return_value=metadata), patch.object(
+            public_data, "get_active_profile", return_value=runtime
+        ), patch.object(public_data, "select_sql", return_value=[(2,)]) as select:
+            with self.assertLogs("svn_check.partition_metadata", level=logging.INFO) as logs:
+                result = public_data.all_tab_partitions("DWP.TABLE_A")
+        self.assertEqual(result, [(2,)])
+        self.assertEqual(select.call_args.kwargs["profile"], "inner_dws")
+        log_text = "\n".join(logs.output)
+        self.assertIn("metadata_profile=local_pg", log_text)
+        self.assertIn("query_profile=inner_dws", log_text)
+        self.assertIn("fallback=True", log_text)
+
+    def test_partition_queries_fail_closed_when_no_catalog_is_available(self):
+        local = DatabaseProfile("local_pg", "postgresql", {"metadata": {"partition_catalog": False}})
+        with patch.object(public_data, "get_metadata_profile", return_value=local), patch.object(
+            public_data, "get_active_profile", return_value=local
+        ), patch.object(public_data, "select_sql") as select:
+            with self.assertRaisesRegex(RuntimeError, "partition metadata catalog is unavailable"):
+                public_data.all_tab_partitions("DWP.TABLE_A")
+        select.assert_not_called()
 
     def test_catalog_metadata_filters_leave_indexed_columns_unwrapped(self):
         self.assertIn(

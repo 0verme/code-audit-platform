@@ -9,6 +9,7 @@ def build_fine_report(
     authority_section,
     reports,
     ref_tables,
+    metadata_profile="",
     ai=None,
 ):
     report = {
@@ -21,6 +22,8 @@ def build_fine_report(
         "assetIssues": [],
         "unifiedAssetIssues": [],
     }
+    if metadata_profile:
+        report["metadataProfile"] = metadata_profile
     if ai:
         report["ai"] = ai
     return report

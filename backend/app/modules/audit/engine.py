@@ -78,7 +78,7 @@ from .source_resolver import (
 from .source_download import build_source_download_url, source_relative_paths, source_relative_paths_from_changes
 from .workflow_dispatcher import WorkflowRunContext, run_workflow
 from .workflow_runtime import WorkflowRuntimeContext
-from app.db.profiles import get_active_profile
+from app.db.profiles import get_metadata_profile
 from app.config.audit_rules import get_audit_rules
 from app.db.runtime_store import (
     persist_task_completion_atomic,
@@ -88,6 +88,8 @@ from app.db.runtime_store import (
 )
 
 _empty_lineage_summary = empty_lineage_summary
+# Compatibility name retained while audit callers transition to metadata-profile terminology.
+get_active_profile = get_metadata_profile
 
 try:
     from .run import AuditRunState, AuditTask, AuditTaskStatus
@@ -152,7 +154,10 @@ def _load_real_modules():
             from app.modules.audit.checks.hcyt import ddl_rule as hcyt_ddl_rule
             from app.modules.audit.checks.hcyt import python_rule as hcyt_python_rule
             from app.modules.audit.checks.hcyt import sql_rule as hcyt_sql_rule
-            from app.modules.lineage.mapping_compat import load_registered_result_tables
+            from app.modules.lineage.mapping_compat import (
+                load_registered_result_tables,
+                load_result_table_catalog_snapshot,
+            )
 
             _mods = _types.SimpleNamespace(
                 svn_main=svn_main,
@@ -170,6 +175,7 @@ def _load_real_modules():
                 dedupe_issues=dedupe_issues,
                 asset_issues_to_unified_issues=asset_issues_to_unified_issues,
                 load_registered_result_tables=load_registered_result_tables,
+                load_result_table_catalog_snapshot=load_result_table_catalog_snapshot,
             )
         except Exception:
             _import_error = traceback.format_exc()
@@ -616,12 +622,13 @@ class TaskRun:
     def get_active_profile_name():
         return get_active_profile().name
 
-    def load_result_table_annotations(self, *, sys_name_rows=None):
+    def load_result_table_annotations(self, *, sys_name_rows=None, disabled_tables=None):
         return _load_result_table_annotations(
             safe=self.safe,
             public_data=_mods.public_data,
             normalize_table=normalize_table,
             sys_name_rows=sys_name_rows,
+            disabled_tables=disabled_tables,
         )
 
     def annotate_table(self, name, disabled, sys_name_map):

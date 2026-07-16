@@ -317,9 +317,10 @@ def rule_dws_py(dws_url, *, log_timing=None, file_name=None, metadata_cache=None
     partition_table = f'{schame}.{table_name}'.upper()
     partition_counts = metadata_cache.get('partition_counts')
     if partition_counts is not None:
+        partition_count = partition_counts.get(partition_table)
         r = _timed(
             'programs.file.rule.load_partitions',
-            lambda: [(partition_counts.get(partition_table, 0),)],
+            lambda: [] if partition_count is None else [(partition_count,)],
             log_timing,
             result_fields=lambda rows: {'rows': len(rows or [])},
             table=partition_table,
@@ -337,9 +338,10 @@ def rule_dws_py(dws_url, *, log_timing=None, file_name=None, metadata_cache=None
             table=partition_table,
             **timing_fields,
         )
-    if r and r[0] and r[0][0] > 0:
+    partition_metadata_known = bool(r and r[0] and r[0][0] is not None)
+    if partition_metadata_known and r[0][0] > 0:
         fq_flag2 = True
-    if fq_flag2 != fq_flag:
+    if partition_metadata_known and fq_flag2 != fq_flag:
         result_text += (f'{schame}.{table_name} 分区表应该增加分区步骤 rollback_deal 或者 结果表不是分区表不要加分区步骤\n')
         cnt += 1
     for i in sql_table:

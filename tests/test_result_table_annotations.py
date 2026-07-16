@@ -111,6 +111,18 @@ class ResultTableAnnotationsTests(unittest.TestCase):
             {},
         )
 
+    def test_catalog_disabled_set_skips_duplicate_public_data_query(self):
+        public_data = FakePublicData()
+        public_data.all_disabled_result_tables = lambda: self.fail("duplicate disabled-table query")
+        disabled, _ = load_result_table_annotations(
+            safe=lambda _label, fn, _default: fn(),
+            public_data=public_data,
+            normalize_table=normalize_table,
+            disabled_tables={"dm.table_b"},
+            sys_name_rows=[],
+        )
+        self.assertEqual(disabled, {"DM.TABLE_B"})
+
     def test_asset_platform_system_names_keep_normal_and_highlighted_behavior(self):
         ordinary = annotate_table(
             "dwf.f_evt_comc_holiday",

@@ -253,5 +253,6 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         asset_issues=asset_issues,
         unified_asset_issues=unified_asset_issues,
         lineage_summary=lineage_summary,
+        metadata_profile=context.get_active_profile_name(),
         ai=ai,
     ))
