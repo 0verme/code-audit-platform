@@ -34,6 +34,7 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle }) {
       id="python"
       icon="python"
       title="Python 脚本"
+      accentHeader
       registerRef={reg}
       count={totalCount || "全部通过"}
       countTone={totalCount ? (anyErr ? "err" : "warn") : "ok"}

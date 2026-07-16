@@ -300,6 +300,7 @@ function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
       id={id}
       icon={icon}
       title={title}
+      accentHeader
       registerRef={reg}
       count={rows.length || "通过"}
       countTone={severity || "ok"}
@@ -344,6 +345,7 @@ export function AssetIssuesSection({ d, reg }) {
       id="asset-issues"
       icon="link"
       title="资产问题"
+      accentHeader
       registerRef={reg}
       count={issues.length}
       countTone="warn"
@@ -562,7 +564,7 @@ function ScheduleListTables({ tables }) {
 function ConfigJsonSection({ files, reg }) {
   if (!files?.length) return null;
   return (
-    <Panel id="configjson" icon="cog" title="schema_config 连接信息" registerRef={reg} count={files.length} sub="JSON 内容表格化">
+    <Panel id="configjson" icon="cog" title="schema_config 连接信息" accentHeader registerRef={reg} count={files.length} sub="JSON 内容表格化">
       <div className="panel-body">
         {files.map((file) => (
           <div key={file.name} style={{ marginBottom: 14 }}>
@@ -609,6 +611,7 @@ function ScheduleSection({ d, reg }) {
       id="schedule"
       icon="grid"
       title="调度表检查"
+      accentHeader
       registerRef={reg}
       count={scheduleIssues.length || "通过"}
       countTone={severity || "ok"}

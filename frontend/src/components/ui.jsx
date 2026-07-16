@@ -79,7 +79,7 @@ export function levelOf(rows) {
   return "ok";
 }
 
-export function Panel({ id, icon, title, sub, right, count, countTone, defaultOpen = true, registerRef, children }) {
+export function Panel({ id, icon, title, sub, right, count, countTone, accentHeader = false, defaultOpen = true, registerRef, children }) {
   const [open, setOpen] = useState(defaultOpen);
   const ref = useRef(null);
 
@@ -90,7 +90,7 @@ export function Panel({ id, icon, title, sub, right, count, countTone, defaultOp
   }, [id, registerRef]);
 
   return (
-    <section className={`panel${open ? " open" : ""}`} ref={ref} id={`sec-${id}`}>
+    <section className={`panel${accentHeader ? " accent-header" : ""}${open ? " open" : ""}`} ref={ref} id={`sec-${id}`}>
       <div className="panel-head" onClick={() => setOpen((current) => !current)}>
         <Icon name="chevron" size={15} className="panel-chev" />
         {icon ? <span className="panel-ico"><Icon name={icon} size={16} /></span> : null}

@@ -6,6 +6,8 @@ const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8
 const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/script-audit.css", import.meta.url), "utf8");
 const resultsStyleSource = readFileSync(new URL("../styles/results.css", import.meta.url), "utf8");
+const uiSource = readFileSync(new URL("../components/ui.jsx", import.meta.url), "utf8");
+const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
 
 test("change list and SQL check use the report download URL as a direct link", () => {
   assert.match(source, /href=\{change\.downloadUrl\}[\s\S]*?target="_blank"/);
@@ -49,4 +51,22 @@ test("inline detail accordion uses distinct light and dark card surfaces", () =>
   assert.match(styleSource, /\[data-theme="dark"\] \.detail-accordion-content/);
   assert.match(styleSource, /background: #101a2d/);
   assert.doesNotMatch(styleSource, /\.detail-accordion-content \{[\s\S]*background: var\(--bg\)/);
+});
+
+test("HCYT check panels opt into the shared accent header treatment", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  assert.match(uiSource, /accentHeader = false/);
+  assert.match(uiSource, /accentHeader \? " accent-header" : ""/);
+  assert.match(source, /function CheckSection[\s\S]*?<Panel[\s\S]*?accentHeader/);
+  assert.match(source, /id="asset-issues"[\s\S]*?accentHeader/);
+  assert.match(source, /id="configjson"[\s\S]*?accentHeader/);
+  assert.match(source, /id="schedule"[\s\S]*?accentHeader/);
+  assert.match(scriptSource, /id="python"[\s\S]*?accentHeader/);
+});
+
+test("accent panel headers use theme tokens for light and dark mode compatibility", () => {
+  assert.match(sharedStyleSource, /\.panel\.accent-header \.panel-head \{[\s\S]*background: var\(--accent-weak\);[\s\S]*border-bottom-color: var\(--accent-line\);/);
+  assert.match(sharedStyleSource, /\.panel\.accent-header \.panel-title,[\s\S]*color: var\(--accent\);/);
+  assert.match(sharedStyleSource, /\.panel\.accent-header \.panel-ico \{[\s\S]*var\(--accent\)[\s\S]*var\(--surface\)[\s\S]*var\(--accent-line\)/);
+  assert.match(sharedStyleSource, /\[data-theme="dark"\] \.panel\.accent-header \.panel-title,[\s\S]*color: color-mix\(in oklab, var\(--accent\) 62%, var\(--text\)\);/);
 });

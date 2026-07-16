@@ -298,6 +298,24 @@ body {
 .panel-body { padding: var(--pad-card); }
 .panel-body.flush { padding: 0; }
 
+.panel.accent-header .panel-head {
+  background: var(--accent-weak);
+  border-bottom-color: var(--accent-line);
+}
+.panel.accent-header .panel-head:hover { background: color-mix(in oklab, var(--accent-weak) 82%, var(--surface)); }
+.panel.accent-header .panel-title,
+.panel.accent-header .panel-chev { color: var(--accent); }
+.panel.accent-header .panel-ico {
+  background: color-mix(in oklab, var(--accent) 11%, var(--surface));
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+[data-theme="dark"] .panel.accent-header .panel-title,
+[data-theme="dark"] .panel.accent-header .panel-chev,
+[data-theme="dark"] .panel.accent-header .panel-ico {
+  color: color-mix(in oklab, var(--accent) 62%, var(--text));
+}
+
 /* ============================================================
    Badges / pills / status dots
    ============================================================ */
