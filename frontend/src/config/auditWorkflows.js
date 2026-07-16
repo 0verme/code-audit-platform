@@ -44,6 +44,15 @@ export const AUDIT_WORKFLOWS = [
   },
 ];
 
+export function applyBackendWorkflowDefinitions(definitions) {
+  if (!Array.isArray(definitions)) return;
+  for (const definition of definitions) {
+    if (!definition?.id || !Array.isArray(definition.path_keywords)) continue;
+    const workflow = AUDIT_WORKFLOWS.find((item) => item.id === definition.id);
+    if (workflow) workflow.matchKeywords = definition.path_keywords;
+  }
+}
+
 export function normalizeAuditPath(path) {
   return String(path || "")
     .trim()

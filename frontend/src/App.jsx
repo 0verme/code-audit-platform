@@ -2,6 +2,7 @@
 import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
 import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
+import { applyBackendWorkflowDefinitions } from "./config/auditWorkflows";
 import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
@@ -248,6 +249,16 @@ function AppFooter() {
 }
 
 export default function App() {
+  const [, setWorkflowConfigVersion] = useState(0);
+  useEffect(() => {
+    if (!IS_API_MODE) return;
+    reviewService.getAuditWorkflows()
+      .then((payload) => {
+        applyBackendWorkflowDefinitions(payload?.definitions);
+        setWorkflowConfigVersion((value) => value + 1);
+      })
+      .catch(() => {});
+  }, []);
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
   const [theme, setTheme] = useState(getInitialTheme);
   const [view, setView] = useState("home");

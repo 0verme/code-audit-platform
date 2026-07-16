@@ -14,6 +14,7 @@ export const API_PATHS = {
   auditRuns: "/audit-runs",
   auditResults: "/audit-results",
   fineReportItems: "/fine-report/items",
+  auditWorkflows: "/audit-configuration/workflows",
   auditTask: (id) => `/audit-tasks/${id}`,
   auditTaskReport: (id) => `/audit-tasks/${id}/report`,
   auditRunStatus: (id) => `/audit-runs/${id}/status`,

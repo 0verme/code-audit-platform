@@ -36,4 +36,7 @@ export const reviewService = {
   getFineReportItems() {
     return apiClient.get(API_PATHS.fineReportItems);
   },
+  getAuditWorkflows() {
+    return apiClient.get(API_PATHS.auditWorkflows);
+  },
 };
