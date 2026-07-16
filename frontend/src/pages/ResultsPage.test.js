@@ -5,6 +5,7 @@ import test from "node:test";
 const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/script-audit.css", import.meta.url), "utf8");
+const resultsStyleSource = readFileSync(new URL("../styles/results.css", import.meta.url), "utf8");
 
 test("change list and SQL check use the report download URL as a direct link", () => {
   assert.match(source, /href=\{change\.downloadUrl\}[\s\S]*?target="_blank"/);
@@ -20,6 +21,14 @@ test("execution logs remain the only results-page log entry", () => {
   assert.match(source, /<RunLogs d=\{mergedData\} \/>/);
   assert.doesNotMatch(appSource, /function DebugConsole\(/);
   assert.doesNotMatch(appSource, /svn_check 实时日志/);
+});
+
+test("execution logs can be resized vertically while retaining scroll boundaries", () => {
+  assert.match(resultsStyleSource, /\.run-logs pre \{[\s\S]*height: 280px;/);
+  assert.match(resultsStyleSource, /\.run-logs pre \{[\s\S]*min-height: 120px;/);
+  assert.match(resultsStyleSource, /\.run-logs pre \{[\s\S]*max-height: min\(70vh, 720px\);/);
+  assert.match(resultsStyleSource, /\.run-logs pre \{[\s\S]*overflow: auto;/);
+  assert.match(resultsStyleSource, /\.run-logs pre \{[\s\S]*resize: vertical;/);
 });
 
 test("Python script details use independently expanded inline accordions", () => {
