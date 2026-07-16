@@ -124,6 +124,13 @@ def get_cpt_yuan(fine_name):
 def rule_menu(authority_name):
     print('===========rule_menu==========')
     try:
+        menu_rules = get_audit_rules()["fine_report"]["menu_normalization"]
+        required_root_prefix = menu_rules["required_root_prefix"]
+        replacement_sources = {
+            source
+            for rule in menu_rules["replacements"]
+            for source in rule.get("sources", [])
+        }
         data = read_data_from_file(authority_name)
         relsut = []
         cnt=0
@@ -132,7 +139,7 @@ def rule_menu(authority_name):
             i.replace('，', ',').replace('\r\n', '\n')
             finememu = i.split(',')[1]
             cpturl = i.split(',')[0]
-            if '数据仓库/' not in cpturl:
+            if required_root_prefix not in cpturl:
                 relsut_test+=f"{cpturl} 第一段路径不对 需要在开头加上 数据仓库/ "
                 cnt += 1
             if '.cpt' not in cpturl and '.frm' not in cpturl:
@@ -147,10 +154,10 @@ def rule_menu(authority_name):
             if ' ' in cpturl:
                 relsut_test+=f"{cpturl} 里面有空格"
                 cnt += 1
-            if '数据仓库/' in finememu:
+            if required_root_prefix in finememu:
                 relsut_test+=f"{finememu} 第二段路径不对 数据仓库/ 不需要写"
                 cnt += 1
-            if '会计结算部' in finememu or '会计部报表' in finememu:
+            if any(source in finememu for source in replacement_sources):
                 relsut_test+=f"{finememu} 第二段路径不对 会计结算部/会计部报表 改为 运营管理部"
                 cnt += 1
             if '互联网金融部' in finememu:
