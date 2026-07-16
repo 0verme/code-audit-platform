@@ -225,7 +225,7 @@ def _build_lineage_summary_payload(
     }
     metadata_service = getattr(m, "audit_metadata_service", None)
 
-    if lineage_context is not None:
+    if lineage_context:
         merge_df = lineage_context.get("merge_df")
         dependency_lookup = lineage_context.get("dependency_lookup")
         job_outfile_lookup = lineage_context.get("job_outfile_lookup") or {}
@@ -276,7 +276,7 @@ def _build_lineage_summary_payload(
                 recv_mapping_plan_rows=metadata_rows["recv_mapping_plan_rows"],
                 dependency_lookup=dependency_lookup,
                 matched_rows=matched_rows,
-                metadata_service=metadata_service if lineage_context is None else None,
+                metadata_service=metadata_service if not lineage_context else None,
                 log_timing=log_timing,
             ),
         )
@@ -543,7 +543,9 @@ class TaskRun:
             failure = build_failure_result(exc, source_type=self.source_type)
             message = failure["error"]
             self.log(f"任务异常: {message}", "ERR")
-            self.log(traceback.format_exc(), "ERR", detail=True)
+            # Keep the failure path compatible with lightweight test/runtime
+            # log adapters that only accept message and level.
+            self.log(traceback.format_exc(), "ERR")
             self.finish(failure["status"], error=message)
 
     # ---- 公共构建 ----

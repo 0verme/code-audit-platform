@@ -40,8 +40,9 @@ def build_hcyt_final_report(
         "assetIssues": asset_issues,
         "unifiedAssetIssues": unified_asset_issues,
         "lineageSummary": lineage_summary,
-        "metadataProfile": metadata_profile,
     }
+    if metadata_profile:
+        report["metadataProfile"] = metadata_profile
     if ai:
         report["ai"] = ai
     return report
