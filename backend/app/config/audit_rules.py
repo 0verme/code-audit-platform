@@ -63,7 +63,7 @@ DEFAULT_RULES: dict[str, Any] = {
     }},
     "dws": {"naming": {"schema_prefixes": {}, "temporary_table_prefixes": [], "comment_required_schemas": [], "root_check_required_schemas": []}},
     "nups": {"file_rules": {"sql_filenames": [], "program_path_patterns": ["**/NUPS_DATA/**/*.py"], "program_table_name": {"directory_schema_prefix": "DWS_"}}},
-    "fine_report": {"file_conventions": {"menu_filename": "menu.txt", "authority_filename": "authority.txt", "template_extensions": [".cpt", ".frm"]}, "menu_normalization": {"required_root_prefix": "数据仓库/", "replacements": [{"sources": ["会计结算部", "会计部报表"], "replacement": "运营管理部"}]}, "sensitive_field_rules": {}},
+    "fine_report": {"file_conventions": {"menu_filename": "menu.txt", "authority_filename": "authority.txt", "template_extensions": [".cpt", ".frm"]}, "menu_normalization": {"required_root_prefix": "数据仓库/", "replacements": [{"sources": ["会计结算部", "会计部报表"], "replacement": "运营管理部"}, {"sources": ["互联网金融部"], "replacement": "互联网金融部"}]}, "sensitive_field_rules": {}},
     "audit_input": {"included_extensions": [".cpt", ".frm", ".txt", ".xls", ".sql", ".sh", ".py", ".json"], "file_categories": [
         {"contains": "dws.sql", "category": "DWS SQL"}, {"contains": "hive.sql", "category": "Hive SQL"},
         {"suffixes": [".sql"], "category": "SQL"}, {"suffixes": [".py"], "category": "Python"},

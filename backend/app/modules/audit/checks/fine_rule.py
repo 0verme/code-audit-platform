@@ -148,7 +148,7 @@ def rule_menu(authority_name):
             if '(村镇银行发展部)' in cpturl:
                 relsut_test+=f"{cpturl} 第一段路径不对 (村镇银行发展部) 改为 中文括号（村镇银行发展部） "
                 cnt += 1
-            if '会计结算部' in cpturl or '会计部报表' in cpturl:
+            if any(source in cpturl for source in replacement_sources):
                 relsut_test+=f"{cpturl} 第一段路径不对 会计结算部/会计部报表 改为 运营管理部"
                 cnt += 1
             if ' ' in cpturl:
@@ -160,7 +160,7 @@ def rule_menu(authority_name):
             if any(source in finememu for source in replacement_sources):
                 relsut_test+=f"{finememu} 第二段路径不对 会计结算部/会计部报表 改为 运营管理部"
                 cnt += 1
-            if '互联网金融部' in finememu:
+            if any(source in finememu for source in replacement_sources):
                 relsut_test+=f"{finememu} 第二段路径不对 互联网金融部 改为 互联网金融"
                 cnt += 1
             if '（村镇银行发展部）' in finememu:
