@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
-import { PyScriptAuditSection, ScriptDetailDrawer } from "./ScriptAudit";
+import { PyScriptAuditSection } from "./ScriptAudit";
 import { getCycleDependencyFindings, getPythonIssueRows, getScheduleIssueRows, hasScheduleTables } from "../utils/hcytResultPresentation";
 
 export const STATUS_META = {
@@ -816,8 +816,25 @@ export function mergeAuditResults(baseData, apiRows) {
 }
 
 export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
-  const [openScript, setOpenScript] = useState(null);
+  const [openScriptIds, setOpenScriptIds] = useState(() => new Set());
   const mergedData = useMemo(() => mergeAuditResults(d, apiState?.data), [d, apiState?.data]);
+
+  const toggleScript = (scriptId) => {
+    setOpenScriptIds((current) => {
+      const next = new Set(current);
+      if (next.has(scriptId)) next.delete(scriptId);
+      else next.add(scriptId);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const closeAll = (event) => {
+      if (event.key === "Escape") setOpenScriptIds(new Set());
+    };
+    window.addEventListener("keydown", closeAll);
+    return () => window.removeEventListener("keydown", closeAll);
+  }, []);
 
   return (
     <div className="results-page fade-in">
@@ -843,10 +860,9 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState }) {
       <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
       <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" />
       <ScheduleSection d={mergedData} reg={reg} />
-      <PyScriptAuditSection d={mergedData} reg={reg} onOpen={setOpenScript} />
+      <PyScriptAuditSection d={mergedData} reg={reg} openScriptIds={openScriptIds} onToggle={toggleScript} />
       <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
-      {openScript ? <ScriptDetailDrawer script={openScript} onClose={() => setOpenScript(null)} /> : null}
     </div>
   );
 }

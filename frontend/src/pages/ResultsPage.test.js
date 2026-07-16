@@ -20,3 +20,13 @@ test("execution logs remain the only results-page log entry", () => {
   assert.doesNotMatch(appSource, /function DebugConsole\(/);
   assert.doesNotMatch(appSource, /svn_check 实时日志/);
 });
+
+test("Python script details use independently expanded inline accordions", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  assert.match(source, /const \[openScriptIds, setOpenScriptIds\] = useState\(\(\) => new Set\(\)\)/);
+  assert.match(source, /<PyScriptAuditSection d=\{mergedData\} reg=\{reg\} openScriptIds=\{openScriptIds\} onToggle=\{toggleScript\}/);
+  assert.doesNotMatch(source, /ScriptDetailDrawer/);
+  assert.match(scriptSource, /aria-expanded=\{isOpen\}/);
+  assert.match(scriptSource, /ScriptDetailAccordion script=\{script\} detailId=\{detailId\}/);
+  assert.doesNotMatch(scriptSource, /sd-overlay|sd-drawer/);
+});

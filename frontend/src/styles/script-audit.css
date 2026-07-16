@@ -27,24 +27,28 @@
 .pas-chev { color: var(--text-3); flex: none; }
 .pas-row:hover .pas-chev { color: var(--text-2); }
 
-/* ---- overlay + drawer ---- */
-.sd-overlay {
-  position: fixed; inset: 0; z-index: 60; display: flex; justify-content: flex-end;
-  background: rgba(14, 20, 30, 0); transition: background .22s ease;
-}
-.sd-overlay.shown { background: rgba(14, 20, 30, .38); }
-[data-theme="dark"] .sd-overlay.shown { background: rgba(0, 0, 0, .55); }
+/* ---- inline detail accordion ---- */
+.accordion-item { border-bottom: 1px solid var(--border); }
+.accordion-item:last-child { border-bottom: none; }
+.accordion-item .pas-row { border-bottom: none; }
+.accordion-item.open .pas-row { background: var(--surface-2); }
+.accordion-item.open .pas-chev { color: var(--accent); transform: rotate(90deg); }
+.pas-chev { transition: transform .18s ease, color .18s ease; }
 
-.sd-drawer {
-  width: min(640px, 94vw); height: 100%; background: var(--bg);
-  border-left: 1px solid var(--border-strong); box-shadow: var(--shadow-pop);
-  display: flex; flex-direction: column; overflow: hidden;
-  transform: translateX(100%); transition: transform .24s cubic-bezier(.22,.61,.36,1);
+.detail-accordion {
+  display: grid; grid-template-rows: 0fr; overflow: hidden; opacity: 0; visibility: hidden;
+  transition: grid-template-rows .22s ease, opacity .18s ease, visibility 0s linear .22s;
 }
-.sd-overlay.shown .sd-drawer { transform: none; }
+.detail-accordion-content {
+  min-height: 0; background: var(--bg); border-top: 1px solid var(--border-strong);
+  border-bottom: 1px solid var(--border-strong); box-shadow: inset 0 8px 18px rgba(14, 20, 30, .035); overflow: hidden;
+}
+.detail-accordion.open {
+  grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s;
+}
 
 /* header */
-.sd-head { flex: none; padding: 16px 22px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.sd-head { padding: 16px 22px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
 .sd-head-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .sd-kicker { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); }
 .sd-head-actions { display: flex; align-items: center; gap: 8px; }
@@ -56,7 +60,7 @@
 .sd-meta dd { margin: 0; font-size: var(--fs-sm); color: var(--text); word-break: break-all; }
 
 /* body */
-.sd-body { flex: 1; overflow-y: auto; padding: 18px 22px 40px; }
+.sd-body { padding: 18px 22px 40px; }
 
 /* 审核重点 callout */
 .sd-focus {
@@ -99,7 +103,5 @@
 }
 
 @media (max-width: 400px) {
-  /* Near full-width drawer on very small phones */
-  .sd-drawer { width: 98vw; }
   .pas-grp-label { display: none; }
 }

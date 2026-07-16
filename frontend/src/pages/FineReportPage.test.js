@@ -33,6 +33,14 @@ test("FineReport keeps referenced tables inside CPT drilldown", () => {
   assert.match(pageSource, /引[^\n]*表/);
 });
 
+test("FineReport details use independently expanded inline accordions", () => {
+  assert.match(pageSource, /const \[openReportIds, setOpenReportIds\] = useState\(\(\) => new Set\(\)\)/);
+  assert.match(pageSource, /<ReportListSection d=\{mergedData\} reg=\{reg\} openReportIds=\{openReportIds\} onToggle=\{toggleReport\}/);
+  assert.match(pageSource, /aria-expanded=\{isOpen\}/);
+  assert.match(pageSource, /ReportDetailAccordion report=\{report\} detailId=\{detailId\}/);
+  assert.doesNotMatch(pageSource, /ReportDetailDrawer|sd-overlay|sd-drawer/);
+});
+
 test("shared referenced table list renders FineReport table metadata", () => {
   const source = readFileSync(new URL("../components/ReferenceTableList.jsx", import.meta.url), "utf8");
   assert.match(source, /item\.disabled/);

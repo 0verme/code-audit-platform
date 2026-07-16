@@ -73,7 +73,7 @@ function FrStatusHeader({ d }) {
   );
 }
 
-function ReportListSection({ d, reg, onOpen }) {
+function ReportListSection({ d, reg, openReportIds, onToggle }) {
   const reports = d.reports || [];
   const flagged = reports.filter((report) => reportAudit(report).total).length;
   const anyErr = reports.some((report) => reportAudit(report).err);
@@ -93,8 +93,11 @@ function ReportListSection({ d, reg, onOpen }) {
           {reports.map((report) => {
             const audit = reportAudit(report);
             const type = reportType(report);
+            const detailId = `report-detail-${encodeURIComponent(report.file)}`;
+            const isOpen = openReportIds.has(report.file);
             return (
-              <button key={report.file} className="fr-row" onClick={() => onOpen(report)}>
+              <div key={report.file} className={`accordion-item${isOpen ? " open" : ""}`}>
+                <button className="fr-row" onClick={() => onToggle(report.file)} aria-expanded={isOpen} aria-controls={detailId}>
                 <span className={`fr-ico ${report.type}`}>
                   <Icon name={type.icon} size={16} />
                 </span>
@@ -119,7 +122,9 @@ function ReportListSection({ d, reg, onOpen }) {
                   {!audit.total ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} />通过</span> : null}
                 </span>
                 <Icon name="chevron" size={16} className="pas-chev" />
-              </button>
+                </button>
+                <ReportDetailAccordion report={report} detailId={detailId} open={isOpen} onClose={() => onToggle(report.file)} />
+              </div>
             );
           })}
         </div>
@@ -194,22 +199,7 @@ function DatasetSqlCard({ dataset, index }) {
   );
 }
 
-function ReportDetailDrawer({ report, onClose }) {
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const handle = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(handle);
-  }, []);
-
-  useEffect(() => {
-    const handler = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
+function ReportDetailAccordion({ report, detailId, open, onClose }) {
   const audit = reportAudit(report);
   const type = reportType(report);
   const refTables = Array.isArray(report.refTables) ? report.refTables : [];
@@ -218,8 +208,8 @@ function ReportDetailDrawer({ report, onClose }) {
   );
 
   return (
-    <div className={`sd-overlay${shown ? " shown" : ""}`} onClick={onClose}>
-      <div className="sd-drawer" onClick={(event) => event.stopPropagation()}>
+    <section id={detailId} className={`detail-accordion${open ? " open" : ""}`} role="region" aria-label={`${report.title} 详情`} aria-hidden={!open} inert={open ? undefined : ""}>
+      <div className="detail-accordion-content">
         <div className="sd-head">
           <div className="sd-head-top">
             <span className="sd-kicker"><Icon name={type.icon} size={13} /> {type.label}</span>
@@ -234,7 +224,7 @@ function ReportDetailDrawer({ report, onClose }) {
               {report.downloadUrl ? (
                 <a className="btn ghost sm" href={report.downloadUrl} target="_blank" rel="noreferrer"><Icon name="download" size={13} /> 下载代码</a>
               ) : null}
-              <button className="iconbtn" style={{ width: 28, height: 28 }} onClick={onClose}><Icon name="x" size={15} /></button>
+              <button className="iconbtn" style={{ width: 28, height: 28 }} onClick={onClose} aria-label="收起详情"><Icon name="x" size={15} /></button>
             </span>
           </div>
           <div className="sd-script">{report.title}</div>
@@ -309,7 +299,7 @@ function ReportDetailDrawer({ report, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -345,8 +335,25 @@ function mergeFineReportItems(baseData, items) {
 }
 
 export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
-  const [openReport, setOpenReport] = useState(null);
+  const [openReportIds, setOpenReportIds] = useState(() => new Set());
   const mergedData = useMemo(() => mergeFineReportItems(d, apiState?.data), [d, apiState?.data]);
+
+  const toggleReport = (reportId) => {
+    setOpenReportIds((current) => {
+      const next = new Set(current);
+      if (next.has(reportId)) next.delete(reportId);
+      else next.add(reportId);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const closeAll = (event) => {
+      if (event.key === "Escape") setOpenReportIds(new Set());
+    };
+    window.addEventListener("keydown", closeAll);
+    return () => window.removeEventListener("keydown", closeAll);
+  }, []);
 
   return (
     <div className="results-page fade-in">
@@ -355,10 +362,9 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
       <FrStatusHeader d={mergedData} />
       <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
-      <ReportListSection d={mergedData} reg={reg} onOpen={setOpenReport} />
+      <ReportListSection d={mergedData} reg={reg} openReportIds={openReportIds} onToggle={toggleReport} />
       <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
-      {openReport ? <ReportDetailDrawer report={openReport} onClose={() => setOpenReport(null)} /> : null}
     </div>
   );
 }

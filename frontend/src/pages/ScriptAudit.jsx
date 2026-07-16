@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
 import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { formatSqlReference } from "../utils/resultTablePresentation";
@@ -21,7 +20,7 @@ export function scriptAudit(script) {
   return { miss, extra, lintErr, lintWarn, err, warn, bad: miss + extra, level: err ? "err" : warn ? "warn" : "ok" };
 }
 
-export function PyScriptAuditSection({ d, reg, onOpen }) {
+export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle }) {
   const scripts = Array.isArray(d.pyScripts) ? d.pyScripts : [];
   const flagged = scripts.filter((script) => {
     const audit = scriptAudit(script);
@@ -43,8 +42,11 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
         <div className="pas-list">
           {scripts.map((script) => {
             const audit = scriptAudit(script);
+            const detailId = `script-detail-${encodeURIComponent(script.script)}`;
+            const isOpen = openScriptIds.has(script.script);
             return (
-              <button key={script.script} className="pas-row" onClick={() => onOpen(script)}>
+              <div key={script.script} className={`accordion-item${isOpen ? " open" : ""}`}>
+                <button className="pas-row" onClick={() => onToggle(script.script)} aria-expanded={isOpen} aria-controls={detailId}>
                 <span className="pas-ico"><Icon name="python" size={16} /></span>
                 <span className="pas-main">
                   <span className="pas-name mono">{script.script}</span>
@@ -66,7 +68,9 @@ export function PyScriptAuditSection({ d, reg, onOpen }) {
                   </span>
                 </span>
                 <Icon name="chevron" size={16} className="pas-chev" />
-              </button>
+                </button>
+                <ScriptDetailAccordion script={script} detailId={detailId} open={isOpen} onClose={() => onToggle(script.script)} />
+              </div>
             );
           })}
         </div>
@@ -101,35 +105,15 @@ function ListBlock({ title, items = [], icon }) {
   );
 }
 
-export function ScriptDetailDrawer({ script, onClose }) {
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const handle = requestAnimationFrame(() => setShown(true));
-    return () => cancelAnimationFrame(handle);
-  }, []);
-
-  const close = useCallback(() => {
-    setShown(false);
-    setTimeout(onClose, 220);
-  }, [onClose]);
-
-  useEffect(() => {
-    const handler = (event) => {
-      if (event.key === "Escape") close();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [close]);
-
+export function ScriptDetailAccordion({ script, detailId, open, onClose }) {
   const audit = scriptAudit(script);
   const result = Array.isArray(script?.result) ? script.result : [];
   const same = result.filter((item) => item.state === "same").length;
   const lint = Array.isArray(script?.lint) ? script.lint : [];
 
   return (
-    <div className={`sd-overlay${shown ? " shown" : ""}`} onClick={close}>
-      <div className="sd-drawer" onClick={(event) => event.stopPropagation()}>
+    <section id={detailId} className={`detail-accordion${open ? " open" : ""}`} role="region" aria-label={`${script.script} 详情`} aria-hidden={!open} inert={open ? undefined : ""}>
+      <div className="detail-accordion-content">
         <div className="sd-head">
           <div className="sd-head-top">
             <span className="sd-kicker"><Icon name="python" size={13} /> 检查脚本</span>
@@ -139,7 +123,7 @@ export function ScriptDetailDrawer({ script, onClose }) {
               ) : (
                 <button className="btn ghost sm" disabled><Icon name="download" size={13} /> 下载代码</button>
               )}
-              <button className="iconbtn" style={{ width: 28, height: 28 }} onClick={close}><Icon name="x" size={15} /></button>
+              <button className="iconbtn" style={{ width: 28, height: 28 }} onClick={onClose} aria-label="收起详情"><Icon name="x" size={15} /></button>
             </span>
           </div>
           <div className="sd-script mono">{script.script}</div>
@@ -227,6 +211,6 @@ export function ScriptDetailDrawer({ script, onClose }) {
           <ListBlock title="中间临时表" items={script.temp} icon="layers" />
         </div>
       </div>
-    </div>
+    </section>
   );
 }
