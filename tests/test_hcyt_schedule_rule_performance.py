@@ -46,7 +46,7 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
         self.assertEqual(warning_text, "")
         self.assertEqual(count, 0)
 
-    def test_plan_rule_warns_with_new_system_metadata_location(self):
+    def test_plan_rule_warns_when_upstream_system_is_not_maintained(self):
         plan_name = "PLAN_SA_RECV_CMS_CMS_VLOAN_DAY"
         plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
 
@@ -56,8 +56,11 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
         ):
             _result_text, warning_text, _count, _plans = schedule_rule.rule_excle_plan(plan_df)
 
-        self.assertIn("dwp.p_upstream_system 表的 system_id 字段", warning_text)
-        self.assertNotIn("p_recv_ops_mapping", warning_text)
+        self.assertIn(
+            f"计划名 {plan_name} 未在数据资产系统维护上游系统",
+            warning_text,
+        )
+        self.assertNotIn("dwp.p_upstream_system", warning_text)
 
     def test_job_rule_reuses_rules_and_job_records_without_iterrows(self):
         rows = [job_row(job="JOB_A"), job_row(job="JOB_B", dependency="33:JOB_A")]

@@ -118,7 +118,7 @@ def rule_excle_plan(df):
             cnt += 1
 
         if plan_name.startswith(rules["recv_mapping_plan_prefix"]) and plan_name.upper() not in upstream_system_id_set:
-            warn_result_text += f'计划名 {plan_name} 未在 dwp.p_upstream_system 表的 system_id 字段配置，请联系王婷添加\n'
+            warn_result_text += f'计划名 {plan_name} 未在数据资产系统维护上游系统\n'
 
         if plan_name not in planname_lists:
             if plan_name.startswith(rules["missing_plan_warning_patterns"][0]["prefix"]) and plan_name.endswith(rules["missing_plan_warning_patterns"][0]["suffix"]):
