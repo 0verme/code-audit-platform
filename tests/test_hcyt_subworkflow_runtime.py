@@ -65,7 +65,7 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
             "job.xlsx",
             safe=lambda _label, fn, _default: fn(),
             modules=modules,
-            build_job_table=lambda _job_source, _db_job_rows: (
+            build_job_table=lambda _job_source, _db_job_rows, **_kwargs: (
                 {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
                 [{"job": "JOB_A", "state": "new"}],
             ),

@@ -664,10 +664,10 @@ class TaskRun:
             log_timing=log_timing,
         )
 
-    def build_job_table(self, job_source, db_job_rows):
+    def build_job_table(self, job_source, db_job_rows, timing_log=None):
         """JOB ??4 ?????+ ??????new=????????/ disabled=??????????????
         ??? hcyt_stream.build_job_display_df ??????????"""
-        return _build_job_table(job_source, db_job_rows)
+        return _build_job_table(job_source, db_job_rows, timing_log=timing_log)
 
     def run_hcyt_programs(self, py_lists, job_df, program_xls, db_job_rows, log_timing=None, lineage_context=None):
         return _run_hcyt_programs(

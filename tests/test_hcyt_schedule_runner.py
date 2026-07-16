@@ -84,7 +84,7 @@ class HcytScheduleRunnerTests(unittest.TestCase):
             "job.xlsx",
             safe=lambda _label, fn, _default: fn(),
             modules=modules,
-            build_job_table=lambda job_source, db_job_rows: (
+            build_job_table=lambda job_source, db_job_rows, **_kwargs: (
                 {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
                 [{"job": "JOB_A", "state": "new"}],
             ),
@@ -118,7 +118,7 @@ class HcytScheduleRunnerTests(unittest.TestCase):
             "job.xlsx",
             safe=lambda _label, fn, _default: fn(),
             modules=modules,
-            build_job_table=lambda _job_source, _db_job_rows: (
+            build_job_table=lambda _job_source, _db_job_rows, **_kwargs: (
                 {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
                 ["new"],
             ),
@@ -139,6 +139,19 @@ class HcytScheduleRunnerTests(unittest.TestCase):
             ),
             timing_events,
         )
+        self.assertTrue(any(
+            label == "schedule.job.load_excel"
+            and phase == "end"
+            and fields["rows"] == 1
+            and fields["columns"] == 2
+            for label, phase, fields in timing_events
+        ))
+        self.assertTrue(any(
+            label == "schedule.job.build_messages"
+            and phase == "end"
+            and fields["rows"] == 3
+            for label, phase, fields in timing_events
+        ))
 
 
 if __name__ == "__main__":

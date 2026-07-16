@@ -61,7 +61,12 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
         ])
         db_rows = [job_row(job="JOB_A", status="9"), job_row(job="JOB_B", status="1")]
 
-        table, states = build_job_table(source, db_rows)
+        timing_events = []
+        table, states = build_job_table(
+            source,
+            db_rows,
+            timing_log=lambda label, phase, **fields: timing_events.append((label, phase, fields)),
+        )
 
         self.assertEqual(table["columns"], ["计划名", "作业流名", "作业名", "作业描述"])
         self.assertEqual(
@@ -73,6 +78,15 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
             ],
         )
         self.assertEqual(states, ["disabled", "", "new"])
+        self.assertEqual(
+            [label for label, phase, _fields in timing_events if phase == "end"],
+            [
+                "schedule.job.table.prepare_display",
+                "schedule.job.table.build_prod_lookup",
+                "schedule.job.table.serialize_rows",
+                "schedule.job.table.classify_states",
+            ],
+        )
 
 
 if __name__ == "__main__":

@@ -111,27 +111,67 @@ def build_config_files(config_paths):
     return files
 
 
-def build_job_table(job_source, db_job_rows):
-    display = job_source.iloc[:, :4].fillna("")
-    display.columns = ["计划名", "作业流名", "作业名", "作业描述"]
+def build_job_table(job_source, db_job_rows, timing_log=None):
+    def timed(label, fn, **fields):
+        started = time.perf_counter()
+        if timing_log is not None:
+            timing_log(label, "start", **fields)
+        try:
+            return fn()
+        finally:
+            if timing_log is not None:
+                timing_log(
+                    label,
+                    "end",
+                    elapsed_ms=round((time.perf_counter() - started) * 1000, 1),
+                    **fields,
+                )
+
+    def prepare_display():
+        prepared = job_source.iloc[:, :4].fillna("")
+        prepared.columns = ["计划名", "作业流名", "作业名", "作业描述"]
+        return prepared
+
+    display = timed("schedule.job.table.prepare_display", prepare_display, rows=len(job_source))
 
     def norm(value):
         return "" if value is None else str(value).strip().upper()
 
-    prod = {}
-    for row in (db_job_rows or []):
-        if len(row) > 23 and norm(row[2]):
-            prod[norm(row[2])] = row
+    def build_prod_lookup():
+        lookup = {}
+        for row in (db_job_rows or []):
+            if len(row) > 23 and norm(row[2]):
+                lookup[norm(row[2])] = row
+        return lookup
 
-    display_rows = display.astype(str).values.tolist()
-    row_states = []
-    for row in display_rows:
-        prod_row = prod.get(norm(row[2]))
-        if prod_row is None:
-            row_states.append("new" if db_job_rows else "")
-        elif str(prod_row[23]).strip() in ("9", "9.0"):
-            row_states.append("disabled")
-        else:
-            row_states.append("")
+    prod = timed(
+        "schedule.job.table.build_prod_lookup",
+        build_prod_lookup,
+        rows=len(db_job_rows or []),
+    )
+
+    display_rows = timed(
+        "schedule.job.table.serialize_rows",
+        lambda: display.astype(str).values.tolist(),
+        rows=len(display),
+    )
+
+    def classify_states():
+        states = []
+        for row in display_rows:
+            prod_row = prod.get(norm(row[2]))
+            if prod_row is None:
+                states.append("new" if db_job_rows else "")
+            elif str(prod_row[23]).strip() in ("9", "9.0"):
+                states.append("disabled")
+            else:
+                states.append("")
+        return states
+
+    row_states = timed(
+        "schedule.job.table.classify_states",
+        classify_states,
+        rows=len(display_rows),
+    )
 
     return {"columns": list(display.columns), "rows": display_rows}, row_states
