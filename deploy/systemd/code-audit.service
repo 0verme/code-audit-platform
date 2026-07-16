@@ -1,0 +1,19 @@
+[Unit]
+Description=Code Audit Platform Backend
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/code-audit-platform/backend
+EnvironmentFile=/opt/code-audit-platform/backend/.env
+ExecStart=/opt/code-audit-platform/backend/.venv/bin/waitress-serve --host=127.0.0.1 --port=5088 run:app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

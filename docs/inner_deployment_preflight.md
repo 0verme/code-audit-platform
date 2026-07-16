@@ -5,7 +5,7 @@
 ## 结论与阻断项
 
 - 推荐数据库 Profile：`inner_dws`（`type: dws`）。当 `CODE_AUDIT_DEPLOYMENT_MODE=inner` 或 `production` 时，应用拒绝以任何其他 Profile 启动。
-- 正式后端入口：Linux/Kylin 使用 `waitress-serve --host=0.0.0.0 --port=5088 app:app`，由 Nginx 代理 `/api/`；不要使用 Flask debug server。
+- 正式后端入口：Linux/Kylin 使用项目内 `.venv/bin/waitress-serve --host=127.0.0.1 --port=5088 run:app`，由 Nginx 代理 `/api/`；不要使用 Flask debug server，也不要用多 worker Gunicorn 运行当前进程内任务模型。
 - 前端生产地址使用相对路径 `/api`。不要把 `localhost`、开发端口或内网 IP 编译进生产包。
 - 必须在部署机创建未跟踪的 `backend/configs/database.yaml` 和 `backend/configs/svn.yaml`。仓库只保留脱敏模板。
 - 内网 DWS 与 SVN 未在当前环境连接；以下检查 SQL/命令必须在内网执行，不能视为已验证通过。
@@ -89,27 +89,68 @@ ORDER BY table_name, privilege_type;
 4. 构建前端：`cd frontend && npm ci && npm run build`。
 5. 用 systemd 启动后端，用 Nginx 托管 `frontend/dist` 并反向代理 `/api/`。
 
-`/etc/systemd/system/code-audit.service` 示例：
+仓库提供 `deploy/systemd/code-audit.service`。该配置适用于项目位于
+`/opt/code-audit-platform`、虚拟环境位于 `backend/.venv`、服务以 `root` 运行的场景：
 
 ```ini
 [Unit]
-Description=Code Audit API
-After=network.target
+Description=Code Audit Platform Backend
+Wants=network-online.target
+After=network-online.target
 
 [Service]
-User=codeaudit
-Group=codeaudit
-WorkingDirectory=/opt/code-audit/backend
-EnvironmentFile=/etc/code-audit/backend.env
-ExecStart=/opt/code-audit/venv/bin/waitress-serve --host=0.0.0.0 --port=5088 app:app
+Type=simple
+User=root
+WorkingDirectory=/opt/code-audit-platform/backend
+EnvironmentFile=/opt/code-audit-platform/backend/.env
+ExecStart=/opt/code-audit-platform/backend/.venv/bin/waitress-serve --host=127.0.0.1 --port=5088 run:app
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=30
 NoNewPrivileges=true
 PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+部署前确认虚拟环境和配置文件可用：
+
+```bash
+test -x /opt/code-audit-platform/backend/.venv/bin/waitress-serve
+/opt/code-audit-platform/backend/.venv/bin/python -c "import flask, waitress"
+chmod 600 /opt/code-audit-platform/backend/.env
+```
+
+安装、校验并启动服务：
+
+```bash
+cp /opt/code-audit-platform/deploy/systemd/code-audit.service /etc/systemd/system/code-audit.service
+systemd-analyze verify /etc/systemd/system/code-audit.service
+systemctl daemon-reload
+systemctl enable --now code-audit.service
+systemctl status code-audit.service --no-pager
+```
+
+启动后确认健康接口和监听地址。后端仅监听回环地址，必须通过同机 Nginx 访问：
+
+```bash
+curl -fsS http://127.0.0.1:5088/api/health
+ss -lntp | grep 5088
+journalctl -u code-audit -n 100 --no-pager
+```
+
+日常管理命令：
+
+```bash
+systemctl restart code-audit
+systemctl stop code-audit
+systemctl start code-audit
+journalctl -u code-audit -f
+```
+
+如果实际部署目录、虚拟环境路径或运行账户不同，先同步修改仓库中的 service 文件，
+再复制到 `/etc/systemd/system`。不要把真实密码、Token 或连接串写入 service 文件。
 
 Nginx 示例：
 
