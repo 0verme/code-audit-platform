@@ -30,18 +30,14 @@ def validate_supported_source_type(source_type: str) -> str:
 
 
 def resolve_workflow(source_ref: str, fallback: str = "hcyt") -> str:
-    if "/hcyt/" in source_ref:
-        return "hcyt"
-    if (
-        "/NUPS/" in source_ref
-        or "/nups/" in source_ref
-        or "\\NUPS\\" in source_ref
-        or "\\nups\\" in source_ref
-    ):
-        return "nups"
-    if "fine-report" in source_ref:
-        return "fine-report"
-    return fallback or "hcyt"
+    normalized = str(source_ref or "").replace("\\", "/").lower()
+    workflows = get_audit_rules()["workflows"]
+    for definition in workflows["definitions"]:
+        if not isinstance(definition, dict) or not isinstance(definition.get("id"), str):
+            continue
+        if any(str(keyword).lower() in normalized for keyword in definition.get("path_keywords", [])):
+            return definition["id"]
+    return fallback or workflows["default"]
 
 
 def validate_source_workflow(source_type: str, workflow: str) -> None:

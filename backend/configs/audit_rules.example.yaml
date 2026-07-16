@@ -27,3 +27,9 @@ fine_report:
 audit_input:
   included_extensions: [.cpt, .frm, .txt, .xls, .sql, .sh, .py, .json]
   file_categories: [] # Empty uses the built-in business classification map.
+workflows:
+  default: hcyt
+  definitions:
+    - id: hcyt
+      path_keywords: ["/hcyt/", hcyt, "湖仓"]
+source_display_rules: []

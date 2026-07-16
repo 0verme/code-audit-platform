@@ -66,6 +66,12 @@ DEFAULT_RULES: dict[str, Any] = {
         {"suffixes": [".xls", ".xlsx"], "category": "调度表"}, {"suffixes": [".json"], "category": "配置文件"},
         {"suffixes": [".cpt", ".frm"], "category": "报表模板"}, {"suffixes": [".txt"], "category": "目录/权限"},
     ]},
+    "workflows": {"default": "hcyt", "definitions": [
+        {"id": "hcyt", "path_keywords": ["/hcyt/", "hcyt", "湖仓"]},
+        {"id": "nups", "path_keywords": ["/nups/", "nups", "统一报送"]},
+        {"id": "fine-report", "path_keywords": ["/fine-report/", "fine_report", "finereport", "report", "报表"]},
+    ]},
+    "source_display_rules": [],
 }
 
 def _config_path() -> Path:

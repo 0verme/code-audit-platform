@@ -21,7 +21,7 @@ test("normalizePathForMatch normalizes slash style for matching", () => {
   );
 });
 
-test("formatAuditSourceDisplay compacts local paths when prefix matches", () => {
+test("formatAuditSourceDisplay keeps local paths when no runtime rule is supplied", () => {
   const result = formatAuditSourceDisplay(
     "C:\\workspace\\code-audit-platform\\hcyt",
     "Local",
@@ -29,34 +29,34 @@ test("formatAuditSourceDisplay compacts local paths when prefix matches", () => 
   );
 
   assert.deepEqual(result, {
-    displayText: "…\\hcyt",
+    displayText: "C:\\workspace\\code-audit-platform\\hcyt",
     fullText: "C:\\workspace\\code-audit-platform\\hcyt",
-    matched: true,
+    matched: false,
   });
 });
 
-test("formatAuditSourceDisplay compacts svn urls when prefix matches", () => {
+test("formatAuditSourceDisplay keeps svn urls when no runtime rule is supplied", () => {
   const result = formatAuditSourceDisplay(
     "svn://example.com/repos/branches/demo-hcyt",
     "SVN",
     auditSourceDisplayRules,
   );
 
-  assert.equal(result.displayText, "…/demo-hcyt");
+  assert.equal(result.displayText, "svn://example.com/repos/branches/demo-hcyt");
   assert.equal(result.fullText, "svn://example.com/repos/branches/demo-hcyt");
-  assert.equal(result.matched, true);
+  assert.equal(result.matched, false);
 });
 
-test("formatAuditSourceDisplay compacts git urls when prefix matches", () => {
+test("formatAuditSourceDisplay keeps git urls when no runtime rule is supplied", () => {
   const result = formatAuditSourceDisplay(
     "https://git.example.com/group/project/repo.git",
     "Git",
     auditSourceDisplayRules,
   );
 
-  assert.equal(result.displayText, "…/repo.git");
+  assert.equal(result.displayText, "https://git.example.com/group/project/repo.git");
   assert.equal(result.fullText, "https://git.example.com/group/project/repo.git");
-  assert.equal(result.matched, true);
+  assert.equal(result.matched, false);
 });
 
 test("formatAuditSourceDisplay keeps the original value when no rule matches", () => {
@@ -71,15 +71,14 @@ test("formatAuditSourceDisplay keeps the original value when no rule matches", (
   assert.equal(result.matched, false);
 });
 
-test("findMatchedDisplayRule prefers the longest matching prefix", () => {
+test("findMatchedDisplayRule returns no deployment-specific rule by default", () => {
   const result = findMatchedDisplayRule(
     "C:/workspace/code-audit-platform/hcyt",
     "local",
     auditSourceDisplayRules,
   );
 
-  assert.equal(result?.prefix, "C:\\workspace\\code-audit-platform\\");
-  assert.equal(result?.replacement, "…\\");
+  assert.equal(result, null);
 });
 
 test("formatAuditSourceDisplay preserves raw suffix separator style for default replacements", () => {
