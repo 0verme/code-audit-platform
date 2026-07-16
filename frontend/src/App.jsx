@@ -56,6 +56,7 @@ const SECTION_NAV = [
     },
     neutral: true,
   },
+  { id: "asset-issues", label: "资产问题", icon: "link", get: (data) => data.assetIssues || [] },
 ];
 const FR_NAV = [
   { id: "overview", label: "概览", icon: "layers" },

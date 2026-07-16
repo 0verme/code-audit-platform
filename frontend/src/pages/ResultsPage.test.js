@@ -96,6 +96,11 @@ test("HCYT check panels opt into the shared accent header treatment", () => {
   assert.match(scriptSource, /id="python"[\s\S]*?accentHeader/);
 });
 
+test("asset issues are available from the HCYT result navigation", () => {
+  assert.match(appSource, /id: "asset-issues", label: "资产问题", icon: "link", get: \(data\) => data\.assetIssues \|\| \[\]/);
+  assert.match(source, /id="asset-issues"/);
+});
+
 test("SCHEMA_CONFIG details expand inline instead of using a separate panel", () => {
   assert.match(source, /<ConfigCheckSection rows=\{mergedData\.config\} files=\{mergedData\.configFiles\} reg=\{reg\} \/>/);
   assert.doesNotMatch(source, /id="configjson"|function ConfigJsonSection/);
