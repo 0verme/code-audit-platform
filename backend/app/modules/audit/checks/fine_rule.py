@@ -126,9 +126,12 @@ def rule_menu(authority_name):
     try:
         menu_rules = get_audit_rules()["fine_report"]["menu_normalization"]
         required_root_prefix = menu_rules["required_root_prefix"]
-        replacement_sources = {
-            source
-            for rule in menu_rules["replacements"]
+        backend_replacement_sources = {
+            source for rule in menu_rules["replacements"] if "backend" in rule.get("locations", [])
+            for source in rule.get("sources", [])
+        }
+        menu_replacement_sources = {
+            source for rule in menu_rules["replacements"] if "menu" in rule.get("locations", [])
             for source in rule.get("sources", [])
         }
         data = read_data_from_file(authority_name)
@@ -148,7 +151,7 @@ def rule_menu(authority_name):
             if '(村镇银行发展部)' in cpturl:
                 relsut_test+=f"{cpturl} 第一段路径不对 (村镇银行发展部) 改为 中文括号（村镇银行发展部） "
                 cnt += 1
-            if any(source in cpturl for source in replacement_sources):
+            if any(source in cpturl for source in backend_replacement_sources):
                 relsut_test+=f"{cpturl} 第一段路径不对 会计结算部/会计部报表 改为 运营管理部"
                 cnt += 1
             if ' ' in cpturl:
@@ -157,10 +160,10 @@ def rule_menu(authority_name):
             if required_root_prefix in finememu:
                 relsut_test+=f"{finememu} 第二段路径不对 数据仓库/ 不需要写"
                 cnt += 1
-            if any(source in finememu for source in replacement_sources):
+            if any(source in finememu for source in menu_replacement_sources):
                 relsut_test+=f"{finememu} 第二段路径不对 会计结算部/会计部报表 改为 运营管理部"
                 cnt += 1
-            if any(source in finememu for source in replacement_sources):
+            if '互联网金融部' in menu_replacement_sources and '互联网金融部' in finememu:
                 relsut_test+=f"{finememu} 第二段路径不对 互联网金融部 改为 互联网金融"
                 cnt += 1
             if '（村镇银行发展部）' in finememu:
