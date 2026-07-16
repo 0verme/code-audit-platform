@@ -1,0 +1,12 @@
+# Non-secret audit business rules. Copy to audit_rules.yaml to override defaults.
+# Do not put SQL, passwords, tokens, connection strings, or arbitrary paths here.
+display:
+  highlight_result_source_systems: []
+  calendar_labels:
+    SYS_MONTH_END_CALENDAR: 每月末
+    SYS_EVERYDAY_CALENDAR: 每日
+hcyt:
+  schedule:
+    real_job_plan_names: []
+    allowed_domains: []
+    realtime_priority_values: ["99", "99.0"]

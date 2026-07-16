@@ -17,16 +17,10 @@ from app.modules.metadata.services.public_data import (
 )
 from app.modules.audit.checks.re_service import extract_values, ifmiaoshu
 from app.modules.audit.checks.dependency import build_dependency_graph, find_cycles
+from app.config.audit_rules import get_audit_rules
 
-REAL_JOB_PLAN_NAMES = {
-    'PLAN_CBS_CBSRUN_REAL_DWS_DAY',
-    'PLAN_DWS_CBS_CBSRUN_DH_XQDATA_REAL',
-    'PLAN_REAL_CBS_CBSRUN_LDXJC_HOUR',
-    'PLAN_REAL_CBS_CBSRUN_LDXJC_REAL',
-    'PLAN_REAL_DWS_DWD_IJEP_REAL',
-    'PLAN_REAL_KUANYE_KUANYENEW_REAL',
-    'PLAN_REAL_TA_LCXSQK_HALF_HOUR',
-}
+def _schedule_rules():
+    return get_audit_rules()["hcyt"]["schedule"]
 
 
 def _normalize_job_value(value):
@@ -234,7 +228,7 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         real_seq = list({
             j[1]
             for j in job_rows
-            if len(j) > 1 and j[0] in REAL_JOB_PLAN_NAMES and not pd.isna(j[1])
+            if len(j) > 1 and j[0] in _schedule_rules()["real_job_plan_names"] and not pd.isna(j[1])
         })
     log_timing(f"JOB规则 all_real_seq 查询/整理完成：{len(real_seq)} 行，{time.time() - stage_start:.2f}s")
 
@@ -253,7 +247,8 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         for i in job_rows:
             job_name = '' if len(i) <= 2 or pd.isna(i[2]) else str(i[2]).strip()
             job_status_value = '' if len(i) <= 23 or pd.isna(i[23]) else str(i[23]).strip()
-            job_status = '禁用' if job_status_value in ('9', '9.0') else '启用' if job_status_value in ('1', '1.0') else job_status_value
+            rules = _schedule_rules()
+            job_status = '禁用' if job_status_value in rules["disabled_status_values"] else '启用' if job_status_value in rules["enabled_status_values"] else job_status_value
             if job_name:
                 r_job.append(job_name)
                 r_job_status[job_name] = job_status

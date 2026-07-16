@@ -79,6 +79,7 @@ from .source_download import build_source_download_url, source_relative_paths, s
 from .workflow_dispatcher import WorkflowRunContext, run_workflow
 from .workflow_runtime import WorkflowRuntimeContext
 from app.db.profiles import get_active_profile
+from app.config.audit_rules import get_audit_rules
 from app.db.runtime_store import (
     persist_task_completion_atomic,
     persist_task_run_completion,
@@ -96,16 +97,8 @@ except ImportError:  # pragma: no cover - direct module execution fallback
 # 把拷贝进来的真实项目加入模块搜索路径，保持其内部 `from core...`、
 # `from services...`、`from shared...` 等绝对导入原样可用。
 
-CALE_MAP = {
-    "SYS_MONTH_END_CALENDAR": "每月末",
-    "SYS_EVERYDAY_CALENDAR": "每日",
-}
-
-# 与 svn_check/ui/public_stream.py 中保持一致的重点源系统（结果表标红用）。
-HIGHLIGHT_RESULT_SOURCE_SYSTEMS = {
-    "二代评分卡", "IPC系统", "统一授信", "押品系统",
-    "信用风险预警", "回检系统", "移动贷后", "老信贷系统",
-}
+def _display_rules():
+    return get_audit_rules().get("display", {})
 
 WORKFLOW_NAMES = {
     "hcyt": "HCYT 湖仓审查",
@@ -640,7 +633,7 @@ class TaskRun:
             disabled,
             sys_name_map,
             normalize_table=normalize_table,
-            highlight_result_source_systems=HIGHLIGHT_RESULT_SOURCE_SYSTEMS,
+            highlight_result_source_systems=set(_display_rules().get("highlight_result_source_systems", [])),
         )
 
     # ===================================================================
@@ -688,7 +681,7 @@ class TaskRun:
             profile_name=self.get_active_profile_name(),
             normalize_table=normalize_table,
             dedupe_tables=dedupe_tables,
-            cale_map=CALE_MAP,
+            cale_map=_display_rules().get("calendar_labels", {}),
             text_to_rows=text_to_rows,
             log_timing=log_timing,
             lineage_context=lineage_context,
