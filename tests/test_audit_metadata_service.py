@@ -169,6 +169,34 @@ class AuditMetadataServiceTests(unittest.TestCase):
                 [("table_a", "value_a", "sys_a"), ("table_b", "", "")],
             )
 
+    def test_result_table_source_system_query_uses_active_asset_mappings(self):
+        self.assertIn("dwp.p_field_mapping_table", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertIn("dwp.p_upstream_system", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertIn("u.system_pk = t.upstream_system_id", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertIn("t.is_deleted = 'N'", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertIn("u.is_deleted = 'N'", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertIn("UPPER(TRIM(t.target_table_name))", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertNotIn("p_recv_dwf", service.RESULT_TABLE_SYS_NAME_SQL)
+
+        with patch.object(
+            service.db_router,
+            "select_sql_with_profile",
+            return_value=[
+                ("DWF.F_EVT_COMC_HOLIDAY", "核心系统"),
+                ("DWF.F_PTY_COM_INFO", "老信贷系统"),
+                ("DWF.F_PTY_COM_INFO", "核心系统"),
+                ("DWF.F_PTY_COM_INFO", "老信贷系统"),
+            ],
+        ):
+            self.assertEqual(
+                service.list_result_table_sys_names(),
+                [
+                    ("DWF.F_EVT_COMC_HOLIDAY", "核心系统"),
+                    ("DWF.F_PTY_COM_INFO", "老信贷系统"),
+                    ("DWF.F_PTY_COM_INFO", "核心系统"),
+                ],
+            )
+
     def test_p0_5c_queries_parse_dict_rows_by_field_name(self):
         sample_rows = [
             {

@@ -111,6 +111,27 @@ class ResultTableAnnotationsTests(unittest.TestCase):
             {},
         )
 
+    def test_asset_platform_system_names_keep_normal_and_highlighted_behavior(self):
+        ordinary = annotate_table(
+            "dwf.f_evt_comc_holiday",
+            set(),
+            {"DWF.F_EVT_COMC_HOLIDAY": ["核心系统"]},
+            normalize_table=normalize_table,
+            highlight_result_source_systems={"老信贷系统"},
+        )
+        highlighted = annotate_table(
+            "dwf.f_pty_com_info",
+            set(),
+            {"DWF.F_PTY_COM_INFO": ["老信贷系统", "核心系统"]},
+            normalize_table=normalize_table,
+            highlight_result_source_systems={"老信贷系统"},
+        )
+
+        self.assertFalse(ordinary["highlight"])
+        self.assertEqual(ordinary["sysNames"], ["核心系统"])
+        self.assertTrue(highlighted["highlight"])
+        self.assertEqual(highlighted["sysNames"], ["老信贷系统", "核心系统"])
+
 
 if __name__ == "__main__":
     unittest.main()

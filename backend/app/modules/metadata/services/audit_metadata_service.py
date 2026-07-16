@@ -54,11 +54,17 @@ where recv_plan is not null
 """
 
 RESULT_TABLE_SYS_NAME_SQL = """
-select d.table_name as table_name, m.sys_name as sys_name
-from dwp.p_recv_dwf d
-left join dwp.p_recv_ops_mapping m
-  on d.recv_plan = m.recv_plan
-where d.table_name is not null
+SELECT DISTINCT
+    UPPER(TRIM(t.target_table_name)) AS table_name,
+    TRIM(u.system_name) AS sys_name
+FROM dwp.p_field_mapping_table t
+JOIN dwp.p_upstream_system u
+  ON u.system_pk = t.upstream_system_id
+WHERE t.is_deleted = 'N'
+  AND u.is_deleted = 'N'
+  AND NULLIF(TRIM(t.target_table_name), '') IS NOT NULL
+  AND NULLIF(TRIM(u.system_name), '') IS NOT NULL
+ORDER BY table_name, sys_name
 """
 
 RESULT_TABLE_RECV_DETAIL_SQL = """
@@ -268,8 +274,8 @@ def list_result_table_sys_names() -> list[tuple[str, str]]:
     return _normalize_multi_column_rows(
         _run_metadata_query(RESULT_TABLE_SYS_NAME_SQL, "list_result_table_sys_names"),
         (
-            ("table_name", "result_table", "d.table_name"),
-            ("sys_name", "source_system", "m.sys_name"),
+            ("table_name", "result_table", "target_table_name"),
+            ("sys_name", "source_system", "system_name"),
         ),
     )
 
