@@ -16,20 +16,26 @@ class TaskRunLoggingTests(unittest.TestCase):
 
         run.log("当前步骤：分析文件")
         run.log("[timing] hcyt.rules start")
+        run.log("JOB 调度分析完成：4.66s")
         run.log("Traceback (most recent call last):\n  internal detail", "ERR", detail=True)
 
-        self.assertEqual([entry["msg"] for entry in run.logs], ["当前步骤：分析文件"])
+        self.assertEqual(
+            [entry["msg"] for entry in run.logs],
+            ["当前步骤：分析文件", "JOB 调度分析完成：4.66s"],
+        )
 
     def test_debug_run_keeps_internal_details(self):
         run = TaskRun(2, "svn://repo", "hcyt", debug_enabled=True)
 
         run.log("当前步骤：分析文件")
         run.log("[timing] hcyt.rules start")
+        run.log("JOB 调度分析完成：4.66s")
         run.log("Traceback (most recent call last):\n  internal detail", "ERR", detail=True)
 
-        self.assertEqual(len(run.logs), 3)
+        self.assertEqual(len(run.logs), 4)
         self.assertIn("[timing]", run.logs[1]["msg"])
-        self.assertIn("Traceback", run.logs[2]["msg"])
+        self.assertEqual(run.logs[2]["msg"], "JOB 调度分析完成：4.66s")
+        self.assertIn("Traceback", run.logs[3]["msg"])
 
 
 if __name__ == "__main__":

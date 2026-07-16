@@ -5,6 +5,51 @@ import time
 from .workflow_runtime import WorkflowRuntimeContext
 
 
+def build_sql_analysis_message(*, dws_url, hive_url):
+    sql_types = []
+    if hive_url:
+        sql_types.append("hive")
+    if dws_url:
+        sql_types.append("dws")
+    if not sql_types:
+        return None
+    return f"分析 SQL 执行语句 {'/'.join(sql_types)}"
+
+
+def build_hcyt_timing_milestone(
+    label,
+    phase,
+    *,
+    has_schedule=False,
+    has_programs=False,
+    **fields,
+):
+    if phase == "start":
+        if label == "inspections.programs" and has_programs:
+            return "分析加工脚本代码规范"
+        return None
+
+    if phase != "end":
+        return None
+
+    try:
+        elapsed = f"{float(fields['elapsed_ms']) / 1000:.2f}s"
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    if label == "schedule.job.load_db_jobs" and "rows" in fields:
+        return f"JOB 线上作业查询完成：{fields['rows']} 行，{elapsed}"
+    if label == "schedule.job.rules":
+        return f"JOB 调度分析完成：{elapsed}"
+    if label == "inspections.schedule" and has_schedule:
+        return f"分析调度规范完成：{elapsed}"
+    if label == "programs.file.rules" and has_programs and fields.get("file"):
+        return f"加工程序规则检查完成：{fields['file']}，{elapsed}"
+    if label == "inspections.programs" and has_programs:
+        return f"加工程序检查完成：{elapsed}"
+    return None
+
+
 def run_hcyt(context: WorkflowRuntimeContext) -> dict:
     mods = context.mods
     svn_result = context.source_payload
@@ -46,6 +91,22 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         changes,
         conflicts,
     ) = input_files.as_run_inputs()
+    has_schedule = any((plan_xls, seq_xls, cale_xls, job_xls))
+    has_programs = bool(py_lists)
+
+    def log_timing(label, phase, **fields):
+        suffix = " ".join(f"{key}={value}" for key, value in fields.items())
+        context.log(f"[timing] {label} {phase}" + (f" {suffix}" if suffix else ""), "INFO")
+        milestone = build_hcyt_timing_milestone(
+            label,
+            phase,
+            has_schedule=has_schedule,
+            has_programs=has_programs,
+            **fields,
+        )
+        if milestone:
+            context.log(milestone, "INFO")
+
     context.publish_hcyt_progress(
         context.set_partial,
         context.build_source_classified_progress(changes=changes, conflicts=conflicts),
@@ -54,6 +115,9 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
     context.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
 
     context.update(progress=35, step="SQL 与配置规则检查")
+    sql_analysis_message = build_sql_analysis_message(dws_url=dws_url, hive_url=hive_url)
+    if sql_analysis_message:
+        context.log(sql_analysis_message, "INFO")
     sql_checks, asset_issues, config_files = timed("hcyt.rules", lambda: context.run_hcyt_rules(
         dws_url,
         hive_url,
@@ -97,13 +161,13 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         set_partial=context.set_partial,
         download_url=context.download_url,
         build_config_files=context.build_config_files,
-        log_timing=lambda label, phase, **fields: context.log(
-            f"[timing] {label} {phase} " + " ".join(f"{key}={value}" for key, value in fields.items()),
-            "INFO",
-        ),
+        log_timing=log_timing,
     ))
 
     context.update(progress=50, step="调度规范检查")
+    if has_schedule:
+        context.log("打印待上线调度信息", "INFO")
+        context.log("分析调度规范", "INFO")
     context.task_running("schedule")
     inspections = timed("hcyt.inspections", lambda: context.run_hcyt_inspections(
         plan_xls=plan_xls,
@@ -124,10 +188,7 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         task_success=context.task_success,
         set_partial=context.set_partial,
         grouped=grouped,
-        log_timing=lambda label, phase, **fields: context.log(
-            f"[timing] {label} {phase} " + " ".join(f"{key}={value}" for key, value in fields.items()),
-            "INFO",
-        ),
+        log_timing=log_timing,
     ))
     schedule = inspections.schedule
     py_scripts = inspections.py_scripts
