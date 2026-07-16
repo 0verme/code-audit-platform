@@ -6,6 +6,7 @@ import { PyScriptAuditSection } from "./ScriptAudit";
 import {
   getCycleDependencyFindings,
   getPythonIssueRows,
+  getScheduleIssuesByTable,
   getScheduleIssueRows,
   getScheduleTableRows,
   hasScheduleTables,
@@ -647,33 +648,99 @@ export function LineageSummarySection({ d, reg }) {
 }
 
 const SCHED_TABLE_ORDER = ["plan", "seq", "cale", "job"];
+const SCHED_TABLE_TITLES = {
+  plan: "PLAN 计划清单",
+  seq: "SEQ 作业流清单",
+  cale: "CALE 日历清单",
+  job: "JOB 作业清单",
+};
 
-function ScheduleListTables({ tables }) {
-  const present = SCHED_TABLE_ORDER.filter((key) => tables[key]?.rows?.length);
+function ScheduleIssueTable({ rows, columns }) {
+  if (!rows.length) return null;
+  return (
+    <>
+      <div className="subhead" style={{ margin: "12px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div>
+      <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  className={column.cls || ""}
+                  style={column.width || column.minWidth ? { width: column.width, minWidth: column.minWidth } : undefined}
+                >
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index} className={row.level === "err" ? "err-row" : row.level === "warn" ? "warn-row" : ""}>
+                <td><Badge mono tone={row.table === "PLAN" ? "accent" : row.table === "SEQ" ? "info" : ""}>{row.table}</Badge></td>
+                <td className="rule-cell mono" style={{ fontSize: "var(--fs-xs)" }}>{row.item}</td>
+                <td>{row.rule}</td>
+                <td className="severity-cell"><Sev level={row.level} /></td>
+                <td>{row.msg}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function CycleDependencyList({ findings }) {
+  if (!findings.length) return null;
+  return (
+    <div className="dep-graph" style={{ marginTop: 14 }}>
+      <div className="subhead" style={{ marginBottom: 7 }}><Icon name="flow" size={12} /> 循环依赖</div>
+      {findings.map((finding, index) => (
+        <div key={`${finding.path || finding.msg}-${index}`} className="dep-lane">
+          {finding.path ? <div className="dep-nodes"><span className="dep-node focus">{finding.path}</span></div> : null}
+          {finding.msg ? <div className="dep-lane-label">{finding.msg}</div> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScheduleListTables({ tables, issuesByTable, cycleFindings, columns }) {
+  const present = SCHED_TABLE_ORDER.filter((key) => (
+    tables[key]?.rows?.length
+    || issuesByTable[key]?.length
+    || (key === "job" && cycleFindings.length)
+  ));
   if (!present.length) return null;
   return (
     <div className="sched-tables">
       {present.map((key) => {
-        const table = tables[key];
+        const table = tables[key] || { columns: [], rows: [] };
         const entries = getScheduleTableRows(key, table);
         return (
           <div key={key} className="sched-table-block">
-            <div className="subhead" style={{ marginBottom: 7 }}>{table.title || key.toUpperCase()}</div>
-            <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-              <table className="tbl">
-                <thead><tr>{table.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
-                <tbody>
-                  {entries.map(({ row, state, originalIndex }) => {
-                    const cls = state === "new" ? "row-new" : state === "disabled" ? "row-disabled" : "";
-                    return (
-                      <tr key={originalIndex} className={cls}>
-                        {row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+            <div className="subhead" style={{ marginBottom: 7 }}>{table.title || SCHED_TABLE_TITLES[key]}</div>
+            {entries.length ? (
+              <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+                <table className="tbl">
+                  <thead><tr>{table.columns.map((col) => <th key={col}>{col}</th>)}</tr></thead>
+                  <tbody>
+                    {entries.map(({ row, state, originalIndex }) => {
+                      const cls = state === "new" ? "row-new" : state === "disabled" ? "row-disabled" : "";
+                      return (
+                        <tr key={originalIndex} className={cls}>
+                          {row.map((cell, cellIndex) => <td key={cellIndex} className="mono" style={{ fontSize: "var(--fs-xs)" }}>{cell}</td>)}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+            {key !== "cale" ? <ScheduleIssueTable rows={issuesByTable[key]} columns={columns} /> : null}
+            {key === "job" ? <CycleDependencyList findings={cycleFindings} /> : null}
           </div>
         );
       })}
@@ -685,6 +752,7 @@ function ScheduleSection({ d, reg }) {
   const schedule = d.schedule || {};
   const summary = schedule.summary || {};
   const scheduleIssues = getScheduleIssueRows(d);
+  const issuesByTable = getScheduleIssuesByTable(d);
   const cycleFindings = getCycleDependencyFindings(d);
   if (!hasScheduleTables(d) && !scheduleIssues.length && !cycleFindings.length) return null;
 
@@ -716,45 +784,12 @@ function ScheduleSection({ d, reg }) {
           <Metric label="循环依赖" value={summary.cycles || 0} tone={summary.cycles ? "err" : "ok"} />
           <Metric label="缺失映射" value={summary.missing || 0} tone={summary.missing ? "warn" : "ok"} />
         </div>
-        {schedule.tables ? <ScheduleListTables tables={schedule.tables} /> : null}
-        {scheduleIssues.length ? <div className="subhead" style={{ margin: "6px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div> : null}
-        {scheduleIssues.length ? <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-          <table className="tbl">
-            <thead>
-              <tr>
-                {columns.map((column) => (
-                  <th
-                    key={column.key}
-                    className={column.cls || ""}
-                    style={column.width || column.minWidth ? { width: column.width, minWidth: column.minWidth } : undefined}
-                  >
-                    {column.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {scheduleIssues.map((row, index) => (
-                <tr key={index} className={row.level === "err" ? "err-row" : row.level === "warn" ? "warn-row" : ""}>
-                  <td><Badge mono tone={row.table === "PLAN" ? "accent" : row.table === "SEQ" ? "info" : ""}>{row.table}</Badge></td>
-                  <td className="rule-cell mono" style={{ fontSize: "var(--fs-xs)" }}>{row.item}</td>
-                  <td>{row.rule}</td>
-                  <td className="severity-cell"><Sev level={row.level} /></td>
-                  <td>{row.msg}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div> : null}
-        {cycleFindings.length ? <div className="dep-graph" style={{ marginTop: 14 }}>
-          <div className="subhead" style={{ marginBottom: 7 }}><Icon name="flow" size={12} /> 循环依赖</div>
-          {cycleFindings.map((finding, index) => (
-            <div key={`${finding.path || finding.msg}-${index}`} className="dep-lane">
-              {finding.path ? <div className="dep-nodes"><span className="dep-node focus">{finding.path}</span></div> : null}
-              {finding.msg ? <div className="dep-lane-label">{finding.msg}</div> : null}
-            </div>
-          ))}
-        </div> : null}
+        <ScheduleListTables
+          tables={schedule.tables || {}}
+          issuesByTable={issuesByTable}
+          cycleFindings={cycleFindings}
+          columns={columns}
+        />
       </div>
     </Panel>
   );

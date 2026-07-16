@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   getCycleDependencyFindings,
   getPythonIssueRows,
+  getScheduleIssuesByTable,
   getScheduleIssueRows,
   getScheduleTableRows,
   hasScheduleTables,
@@ -15,6 +16,36 @@ test("normal dependencies do not create a cycle dependency finding", () => {
 
   assert.deepEqual(getCycleDependencyFindings(data), []);
   assert.equal(getScheduleIssueRows(data).length, 1);
+});
+
+test("schedule findings are grouped below their PLAN, SEQ, and JOB tables", () => {
+  const data = {
+    schedule: {
+      rows: [
+        { table: "plan", level: "err", msg: "plan error" },
+        { table: " SEQ ", level: "warn", msg: "seq warning" },
+        { table: "JOB", level: "err", msg: "job error" },
+        { table: "SCHEDULE", level: "warn", msg: "legacy warning" },
+        { level: "err", msg: "unclassified error" },
+        { table: "PLAN", level: "ok", msg: "passed" },
+      ],
+    },
+  };
+
+  const grouped = getScheduleIssuesByTable(data);
+
+  assert.deepEqual(grouped.plan.map((row) => row.msg), ["plan error"]);
+  assert.deepEqual(grouped.seq.map((row) => row.msg), ["seq warning"]);
+  assert.deepEqual(grouped.job.map((row) => row.msg), [
+    "job error",
+    "legacy warning",
+    "unclassified error",
+  ]);
+});
+
+test("schedule finding groups are safe when report rows are missing", () => {
+  assert.deepEqual(getScheduleIssuesByTable({}), { plan: [], seq: [], job: [] });
+  assert.deepEqual(getScheduleIssuesByTable({ schedule: { rows: null } }), { plan: [], seq: [], job: [] });
 });
 
 test("cycle detail renders a normalized cycle path", () => {

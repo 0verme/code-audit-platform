@@ -96,6 +96,14 @@ test("HCYT check panels opt into the shared accent header treatment", () => {
   assert.match(scriptSource, /id="python"[\s\S]*?accentHeader/);
 });
 
+test("schedule findings render inside their PLAN, SEQ, and JOB table blocks", () => {
+  assert.match(source, /getScheduleIssuesByTable/);
+  assert.match(source, /function ScheduleIssueTable\(\{ rows, columns \}\)/);
+  assert.match(source, /key !== "cale" \? <ScheduleIssueTable rows=\{issuesByTable\[key\]\} columns=\{columns\} \/>/);
+  assert.match(source, /key === "job" \? <CycleDependencyList findings=\{cycleFindings\} \/>/);
+  assert.doesNotMatch(source, /scheduleIssues\.map\(/);
+});
+
 test("asset issues are available from the HCYT result navigation", () => {
   assert.match(appSource, /id: "asset-issues", label: "资产问题", icon: "link", get: \(data\) => data\.assetIssues \|\| \[\]/);
   assert.match(source, /id="asset-issues"/);

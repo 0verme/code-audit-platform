@@ -28,6 +28,18 @@ export function getScheduleIssueRows(data) {
   return Array.isArray(rows) ? rows.filter((row) => row?.level !== "ok") : [];
 }
 
+export function getScheduleIssuesByTable(data) {
+  const grouped = { plan: [], seq: [], job: [] };
+
+  for (const row of getScheduleIssueRows(data)) {
+    const table = String(row?.table ?? "").trim().toUpperCase();
+    const key = table === "PLAN" ? "plan" : table === "SEQ" ? "seq" : "job";
+    grouped[key].push(row);
+  }
+
+  return grouped;
+}
+
 export function hasScheduleTables(data) {
   const tables = data?.schedule?.tables;
   return ["plan", "job", "seq", "cale"].some((key) => Array.isArray(tables?.[key]?.rows) && tables[key].rows.length > 0);
