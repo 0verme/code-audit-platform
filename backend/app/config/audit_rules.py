@@ -31,6 +31,8 @@ DEFAULT_RULES: dict[str, Any] = {
             "PLAN_REAL_TA_LCXSQK_HALF_HOUR",
         ],
         "invalid_plan_names": ["PLAN_PROV_LOCAL_SEND_DAY"],
+        "recv_mapping_plan_prefix": "PLAN_SA_RECV_",
+        "missing_plan_warning_patterns": [{"prefix": "PLAN_DWS_", "suffix": "_DWS_DWUPRR_DAY"}, {"prefix": "PLAN_PROV_", "suffix": "_SEND_DAY"}],
         "plan_name_rules": [
             {"contains": "DWD", "allowed": ["PLAN_PROV_DWD_LOCAL_DAY", "PLAN_DWS_DWD_DAY"]},
             {"contains": "DWP", "allowed": ["PLAN_PROV_DWP_LOCAL_DAY", "PLAN_DWS_DWP_DAY"]},
@@ -39,10 +41,13 @@ DEFAULT_RULES: dict[str, Any] = {
         "allowed_domains": ["EDWS_DOMAIN", "CMS_DOMAIN", "NOVA_DOMAIN", "CBSRUN_DOMAIN", "IS_DOMAIN", "EXPORT_DOMAIN"],
         "disabled_status_values": ["9", "9.0"], "enabled_status_values": ["1", "1.0"],
         "realtime_priority_values": ["99", "99.0"],
+        "realtime_sequence_keyword": "REAL", "realtime_plan_suffix": "REAL",
         "realtime_calendar_plans": ["PLAN_DWS_DWM_MODEL", "PLAN_DWS_DWM_DWS_DWM_DAY"],
         "realtime_calendar_value": "SYS_EVERYDAY_CALENDAR",
         "forbidden_domain_plan_keywords": ["PLAN_SA_RECV", "PLAN_SA_MIDD", "PLAN_DWS_RDS"],
         "forbidden_domain": "EDWS_DOMAIN",
+        "recv_plan_keyword": "PLAN_SA_RECV",
+        "provision_job_keyword": "JOB_PROV_",
         "sequence_name_rules": [
             {"contains": "DWD", "allowed": ["SEQ_DWS_DWD_DAY", "SEQ_PROV_DWD_LOCAL_DAY", "0.0"]},
             {"contains": "DWP", "allowed": ["SEQ_DWS_DWP_DAY", "SEQ_PROV_DWP_LOCAL_DAY", "0.0"]},
