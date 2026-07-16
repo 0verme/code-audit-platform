@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS dwp.p_audit_run (
     finished_at TIMESTAMP,
     error TEXT,
     logs_json TEXT NOT NULL DEFAULT '[]',
-    source_type TEXT NOT NULL DEFAULT 'svn'
+    source_type TEXT NOT NULL DEFAULT 'svn',
+    idempotency_key TEXT UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS dwp.p_audit_run_report (

@@ -8,6 +8,15 @@
         "postgresql": "postgresql/0001_audit_schema_baseline.sql",
         "dws": "dws/0001_audit_schema_baseline.sql"
       }
+    },
+    {
+      "version": "0002",
+      "name": "audit_task_idempotency",
+      "files": {
+        "sqlite": "sqlite/0002_audit_task_idempotency.sql",
+        "postgresql": "postgresql/0002_audit_task_idempotency.sql",
+        "dws": "dws/0002_audit_task_idempotency.sql"
+      }
     }
   ]
 }

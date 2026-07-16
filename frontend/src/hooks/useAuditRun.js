@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reviewService } from "../services/reviewService.js";
+import { createSingleFlight } from "../utils/singleFlight.js";
 
 export const POLL_INTERVAL_MS = 1500;
+
+export function createIdempotencyKey() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 const TERMINAL_RUN_STATUSES = new Set(["success", "failed"]);
 const TERMINAL_TASK_STATUSES = new Set(["pass", "warn", "fail"]);
@@ -91,6 +97,8 @@ function getCurrentModule(tasks, progress) {
 export function useAuditRun(runId) {
   const timerRef = useRef(null);
   const stoppedRef = useRef(false);
+  const startFlightRef = useRef(null);
+  if (!startFlightRef.current) startFlightRef.current = createSingleFlight();
   const [activeRunId, setActiveRunId] = useState(runId || null);
   const [statusPayload, setStatusPayload] = useState(null);
   const [partialResult, setPartialResult] = useState(null);
@@ -138,30 +146,34 @@ export function useAuditRun(runId) {
     }, POLL_INTERVAL_MS);
   }, [loadPartialResult, pollAuditRunStatus, stopPolling]);
 
-  const startAuditRun = useCallback(async (payload) => {
-    stopPolling();
-    stoppedRef.current = false;
-    setStarting(true);
-    setError(null);
-    setStatusPayload(null);
-    setPartialResult(null);
-    try {
-      const created = await reviewService.startAuditRun(payload);
-      const nextRunId = created?.runId ?? created?.run_id ?? created?.id;
-      setActiveRunId(nextRunId || null);
-      setStarting(false);
-      if (nextRunId) {
-        await pollAuditRunStatus(nextRunId);
-        await loadPartialResult(nextRunId);
-        schedulePoll(nextRunId);
+  const startAuditRun = useCallback((payload) => (
+    startFlightRef.current.run(async () => {
+      stopPolling();
+      stoppedRef.current = false;
+      setStarting(true);
+      setError(null);
+      setStatusPayload(null);
+      setPartialResult(null);
+      try {
+        const created = await reviewService.startAuditRun(payload, {
+          idempotencyKey: createIdempotencyKey(),
+        });
+        const nextRunId = created?.runId ?? created?.run_id ?? created?.id;
+        setActiveRunId(nextRunId || null);
+        setStarting(false);
+        if (nextRunId) {
+          await pollAuditRunStatus(nextRunId);
+          await loadPartialResult(nextRunId);
+          schedulePoll(nextRunId);
+        }
+        return created;
+      } catch (startError) {
+        setStarting(false);
+        setError(new Error(getErrorMessage(startError)));
+        throw startError;
       }
-      return created;
-    } catch (startError) {
-      setStarting(false);
-      setError(new Error(getErrorMessage(startError)));
-      throw startError;
-    }
-  }, [loadPartialResult, pollAuditRunStatus, schedulePoll, stopPolling]);
+    })
+  ), [loadPartialResult, pollAuditRunStatus, schedulePoll, stopPolling]);
 
   useEffect(() => {
     stopPolling();

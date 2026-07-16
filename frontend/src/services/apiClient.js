@@ -2,11 +2,11 @@ import { API_BASE_URL } from "../config/api.js";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
-    ...options,
   });
 
   if (!response.ok) {
@@ -29,9 +29,10 @@ async function request(path, options = {}) {
 
 export const apiClient = {
   get: (path) => request(path),
-  post: (path, body) =>
+  post: (path, body, options = {}) =>
     request(path, {
       method: "POST",
       body: JSON.stringify(body),
+      ...options,
     }),
 };

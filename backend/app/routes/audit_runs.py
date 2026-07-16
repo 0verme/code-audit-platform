@@ -34,6 +34,11 @@ def partial_result(run_id: int):
 @require_permission("audit.run.create")
 def create():
     try:
-        return jsonify(create_task(request.get_json(silent=True) or {}, client_ip=_client_ip())), 201
+        result = create_task(
+            request.get_json(silent=True) or {},
+            client_ip=_client_ip(),
+            idempotency_key=request.headers.get("Idempotency-Key"),
+        )
+        return jsonify(result), 200 if result["deduplicated"] else 201
     except ServiceError as exc:
         return service_error_response(exc)

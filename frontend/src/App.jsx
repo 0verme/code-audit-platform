@@ -389,6 +389,7 @@ export default function App() {
             tasksState={tasksState}
             onCreateTask={handleCreateTask}
             dataMode={AUDIT_DATA_MODE}
+            submitting={run.starting}
           />
         </Suspense>
       );

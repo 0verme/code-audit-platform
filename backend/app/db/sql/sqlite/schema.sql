@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS {{table:audit_tasks}} (
     finished_at TEXT,
     error TEXT,
     logs_json TEXT NOT NULL DEFAULT '[]',
-    source_type TEXT NOT NULL DEFAULT 'svn'
+    source_type TEXT NOT NULL DEFAULT 'svn',
+    idempotency_key TEXT UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS {{table:task_reports}} (

@@ -14,8 +14,10 @@ export const reviewService = {
   createAuditTask(payload) {
     return apiClient.post(API_PATHS.auditTasks, payload);
   },
-  startAuditRun(payload) {
-    return apiClient.post(API_PATHS.auditRuns, payload);
+  startAuditRun(payload, { idempotencyKey } = {}) {
+    return apiClient.post(API_PATHS.auditRuns, payload, {
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
+    });
   },
   getAuditTask(taskId) {
     return apiClient.get(API_PATHS.auditTask(taskId));

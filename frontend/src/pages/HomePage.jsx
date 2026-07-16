@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { AdvancedSettingsPanel } from "../components/advancedSettingsPanel";
 import { RecentAuditHistoryPanel } from "../components/RecentAuditHistoryPanel";
 import { Dot, Icon } from "../components/ui";
@@ -40,6 +40,7 @@ export default function HomePage({
   tasksState,
   onCreateTask,
   dataMode,
+  submitting = false,
 }) {
   const [path, setPath] = useState(
     "",
@@ -48,6 +49,8 @@ export default function HomePage({
   const [dbg, setDbg] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [hasValidatedPath, setHasValidatedPath] = useState(false);
+  const [submitPending, setSubmitPending] = useState(false);
+  const submitLockRef = useRef(false);
   const isApiMode = dataMode === "api";
   const localSourceEnabled = isLocalSourceEnabled();
   const detectedSource = detectAuditSource(path, {
@@ -74,6 +77,7 @@ export default function HomePage({
   }, [isApiMode, tasksState.data]);
 
   async function submit() {
+    if (submitLockRef.current) return;
     setSubmitError("");
     setHasValidatedPath(true);
     if (!detectedSource.valid) {
@@ -94,21 +98,28 @@ export default function HomePage({
       onSubmit({ ...payload, taskId: null });
       return;
     }
-    const created = await onCreateTask(payload);
-    if (created?.errorCode === "local_source_disabled") {
-      setSubmitError("后端未启用本地目录审计，请联系部署管理员配置后端授权。");
-      return;
+    submitLockRef.current = true;
+    setSubmitPending(true);
+    try {
+      const created = await onCreateTask(payload);
+      if (created?.errorCode === "local_source_disabled") {
+        setSubmitError("后端未启用本地目录审计，请联系部署管理员配置后端授权。");
+        return;
+      }
+      if (created?.error) {
+        setSubmitError(`API 模式提交失败：${created.error}`);
+        return;
+      }
+      onSubmit({
+        ...payload,
+        path: created?.source_ref || created?.sourceRef || payload.path,
+        taskId: created?.id ?? null,
+        workflow: created?.workflow || payload.workflow,
+      });
+    } finally {
+      submitLockRef.current = false;
+      setSubmitPending(false);
     }
-    if (created?.error) {
-      setSubmitError(`API 模式提交失败：${created.error}`);
-      return;
-    }
-    onSubmit({
-      ...payload,
-      path: created?.source_ref || created?.sourceRef || payload.path,
-      taskId: created?.id ?? null,
-      workflow: created?.workflow || payload.workflow,
-    });
   }
 
   function handleRecentSelect(item) {
@@ -241,9 +252,9 @@ export default function HomePage({
           <button
             className="btn primary lg"
             onClick={submit}
-            disabled={!canSubmit}
+            disabled={!canSubmit || submitting || submitPending}
           >
-            <Icon name="play" size={15} stroke={2.2} /> 提交审查
+            <Icon name="play" size={15} stroke={2.2} /> {submitting || submitPending ? "提交中..." : "提交审查"}
           </button>
         </div>
       </div>
