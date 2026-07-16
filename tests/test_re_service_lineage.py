@@ -25,13 +25,7 @@ class FailingMetadataService:
             "dsn=jdbc:postgresql://192.0.2.10/demo password=secret token=abc"
         )
 
-    def list_result_table_recv_details(self):
-        raise RuntimeError("boom")
-
     def list_result_table_sys_names(self):
-        raise RuntimeError("boom")
-
-    def list_recv_mapping_plans(self):
         raise RuntimeError("boom")
 
 
@@ -111,16 +105,15 @@ class ReServiceLineageTests(unittest.TestCase):
                 ("job_a", "outfile_a"),
                 {"job_name": "JOB_B", "outfile": "outfile_b"},
             ],
-            result_table_recv_detail_rows=[
-                ("dm.table_a", "plan_a", "sys_a"),
-                {"table_name": "dm.table_b", "recv_plan": "plan_b", "sys_name": "sys_b"},
+            result_table_sys_name_rows=[
+                ("dm.table_a", "sys_a"),
+                {"target_table_name": "dm.table_b", "system_name": "sys_b"},
             ],
-            recv_mapping_plan_rows=[("plan_c",)],
         )
 
         self.assertEqual(summary["resultTables"], ["DM.TABLE_A", "DM.TABLE_B"])
         self.assertEqual(summary["jobs"], ["JOB_A", "JOB_B"])
-        self.assertEqual(summary["recvPlans"], ["PLAN_C", "PLAN_A", "PLAN_B"])
+        self.assertEqual(summary["recvPlans"], [])
         self.assertEqual(summary["sysNames"], ["sys_a", "sys_b"])
         self.assertEqual(summary["outfiles"], ["outfile_a", "outfile_b"])
         self.assertEqual(summary["stats"]["resultTableCount"], 2)
@@ -128,16 +121,15 @@ class ReServiceLineageTests(unittest.TestCase):
     def test_build_wide_table_lineage_summary_dedupes_records(self):
         summary = re_service.build_wide_table_lineage_summary(
             job_outfile_rows=[("job_a", "outfile_a"), ("JOB_A", "outfile_a")],
-            result_table_recv_detail_rows=[
-                ("dm.table_a", "plan_a", "sys_a"),
-                ("DM.TABLE_A", "PLAN_A", "sys_a"),
+            result_table_sys_name_rows=[
+                ("dm.table_a", "sys_a"),
+                ("DM.TABLE_A", "sys_a"),
             ],
-            result_table_sys_name_rows=[("dm.table_a", "sys_a")],
         )
 
         self.assertEqual(summary["resultTables"], ["DM.TABLE_A"])
         self.assertEqual(summary["jobs"], ["JOB_A"])
-        self.assertEqual(summary["recvPlans"], ["PLAN_A"])
+        self.assertEqual(summary["recvPlans"], [])
         self.assertEqual(summary["sysNames"], ["sys_a"])
         self.assertEqual(summary["outfiles"], ["outfile_a"])
 
@@ -164,9 +156,9 @@ class ReServiceLineageTests(unittest.TestCase):
                 job_outfile_rows=[
                     ("job_a", "dsn=jdbc:postgresql://192.0.2.10/demo password=secret token=abc")
                 ],
-                result_table_recv_detail_rows=[
-                    ("dm.table_a", "plan_a", "jdbc:postgresql://192.0.2.10/demo"),
-                    ("dm.table_b", "plan_b", "sys_b"),
+                result_table_sys_name_rows=[
+                    ("dm.table_a", "jdbc:postgresql://192.0.2.10/demo"),
+                    ("dm.table_b", "sys_b"),
                 ],
             )
 
@@ -181,14 +173,8 @@ class ReServiceLineageTests(unittest.TestCase):
             def list_job_outfiles(self):
                 return [("job_a", "outfile_a")]
 
-            def list_result_table_recv_details(self):
-                return [("dm.table_a", "plan_a", "sys_a")]
-
             def list_result_table_sys_names(self):
-                return []
-
-            def list_recv_mapping_plans(self):
-                return []
+                return [("dm.table_a", "sys_a")]
 
         summary = re_service.build_wide_table_lineage_summary(
             metadata_service=MetadataService()
@@ -196,7 +182,7 @@ class ReServiceLineageTests(unittest.TestCase):
 
         self.assertEqual(summary["jobs"], ["JOB_A"])
         self.assertEqual(summary["resultTables"], ["DM.TABLE_A"])
-        self.assertEqual(summary["recvPlans"], ["PLAN_A"])
+        self.assertEqual(summary["recvPlans"], [])
         self.assertEqual(summary["sysNames"], ["sys_a"])
         self.assertEqual(summary["outfiles"], ["outfile_a"])
 

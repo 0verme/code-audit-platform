@@ -22,7 +22,6 @@ EXPECTED_TABLES = [
     "p_job_outfile",
     "p_para_table_lists",
     "p_recv_dwf",
-    "p_recv_ops_mapping",
     "p_term_root",
 ]
 

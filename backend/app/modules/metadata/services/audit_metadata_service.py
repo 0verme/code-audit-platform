@@ -48,32 +48,17 @@ select a as job_name, b as outfile
 from dwp.p_job_outfile
 """
 
-RECV_MAPPING_PLAN_SQL = """
-select distinct recv_plan as recv_plan
-from dwp.p_recv_ops_mapping
-where recv_plan is not null
+UPSTREAM_SYSTEM_ID_SQL = """
+SELECT system_id
+FROM dwp.p_upstream_system
+WHERE is_deleted = 'N'
 """
 
 RESULT_TABLE_SYS_NAME_SQL = """
-SELECT DISTINCT
-    UPPER(TRIM(t.target_table_name)) AS table_name,
-    TRIM(u.system_name) AS sys_name
+SELECT t.target_table_name, u.system_name
 FROM dwp.p_field_mapping_table t
-JOIN dwp.p_upstream_system u
+LEFT JOIN dwp.p_upstream_system u
   ON u.system_pk = t.upstream_system_id
-WHERE t.is_deleted = 'N'
-  AND u.is_deleted = 'N'
-  AND NULLIF(TRIM(t.target_table_name), '') IS NOT NULL
-  AND NULLIF(TRIM(u.system_name), '') IS NOT NULL
-ORDER BY table_name, sys_name
-"""
-
-RESULT_TABLE_RECV_DETAIL_SQL = """
-select d.table_name as table_name, d.recv_plan as recv_plan, m.sys_name as sys_name
-from dwp.p_recv_dwf d
-left join dwp.p_recv_ops_mapping m
-  on d.recv_plan = m.recv_plan
-where d.table_name is not null
 """
 
 
@@ -93,10 +78,8 @@ def _render_metadata_sql(sql: str) -> str:
     replacements = {
         "dwp.p_para_table_lists": table_name("para_tables"),
         "dwp.p_job_outfile": table_name("job_outfiles"),
-        "dwp.p_recv_ops_mapping": table_name("recv_mapping"),
         "dwp.p_field_mapping_table": table_name("field_mapping"),
         "dwp.p_upstream_system": table_name("upstream_system"),
-        "dwp.p_recv_dwf": table_name("recv_dwf"),
     }
     for source, target in replacements.items():
         sql = sql.replace(source, target)
@@ -279,10 +262,10 @@ def list_job_outfiles() -> list[tuple[str, str]]:
     )
 
 
-def list_recv_mapping_plans() -> list[tuple[str]]:
+def list_upstream_system_ids() -> list[tuple[str]]:
     return _normalize_single_column_rows(
-        _run_metadata_query(RECV_MAPPING_PLAN_SQL, "list_recv_mapping_plans"),
-        field_names=("recv_plan", "plan"),
+        _run_metadata_query(UPSTREAM_SYSTEM_ID_SQL, "list_upstream_system_ids"),
+        field_names=("system_id",),
     )
 
 
@@ -290,18 +273,7 @@ def list_result_table_sys_names() -> list[tuple[str, str]]:
     return _normalize_multi_column_rows(
         _run_metadata_query(RESULT_TABLE_SYS_NAME_SQL, "list_result_table_sys_names"),
         (
-            ("table_name", "result_table", "target_table_name"),
-            ("sys_name", "source_system", "system_name"),
-        ),
-    )
-
-
-def list_result_table_recv_details() -> list[tuple[str, str, str]]:
-    return _normalize_multi_column_rows(
-        _run_metadata_query(RESULT_TABLE_RECV_DETAIL_SQL, "list_result_table_recv_details"),
-        (
-            ("table_name", "result_table", "d.table_name"),
-            ("recv_plan", "plan", "d.recv_plan"),
-            ("sys_name", "source_system", "m.sys_name"),
+            ("target_table_name", "table_name", "result_table"),
+            ("system_name", "sys_name", "source_system"),
         ),
     )

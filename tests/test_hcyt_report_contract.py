@@ -74,14 +74,8 @@ class FakeMetadataService:
     def list_job_outfiles(self):
         return [("JOB_A", "OUTFILE_A")]
 
-    def list_result_table_recv_details(self):
-        return [("DM.TABLE_A", "PLAN_A", "SYS_A")]
-
     def list_result_table_sys_names(self):
         return [("DM.TABLE_A", "SYS_B")]
-
-    def list_recv_mapping_plans(self):
-        return []
 
 
 class FakeModules:

@@ -18,17 +18,14 @@ def _load_lineage_metadata(modules, log_timing):
     """Load lineage metadata once and retain the raw rows for this audit run."""
     metadata_service = getattr(modules, "audit_metadata_service", None)
     context = {
-        "job_outfile_rows": [], "result_table_recv_detail_rows": [],
-        "result_table_sys_name_rows": [], "recv_mapping_plan_rows": [], "warnings": [],
+        "job_outfile_rows": [], "result_table_sys_name_rows": [], "warnings": [],
     }
     if metadata_service is None:
         context["warnings"].append("lineage metadata unavailable")
         return context
     queries = (
         ("job_outfile_rows", "programs.metadata.job_outfiles", "job outfile metadata", metadata_service.list_job_outfiles),
-        ("result_table_recv_detail_rows", "programs.metadata.recv_details", "result table recv detail metadata", metadata_service.list_result_table_recv_details),
         ("result_table_sys_name_rows", "programs.metadata.sys_names", "result table sys name metadata", metadata_service.list_result_table_sys_names),
-        ("recv_mapping_plan_rows", "programs.metadata.mapping_plans", "recv mapping plan metadata", metadata_service.list_recv_mapping_plans),
     )
     for key, label, description, query in queries:
         try:

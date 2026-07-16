@@ -94,9 +94,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
             service.list_function_names,
             service.list_para_table_names,
             service.list_job_outfiles,
-            service.list_recv_mapping_plans,
+            service.list_upstream_system_ids,
             service.list_result_table_sys_names,
-            service.list_result_table_recv_details,
         ]
 
         with patch.object(service.db_router, "select_sql_with_profile", side_effect=RuntimeError("boom")):
@@ -110,7 +109,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(service.list_function_names(), [])
             self.assertEqual(service.list_para_table_names(), [])
             self.assertEqual(service.list_job_outfiles(), [])
-            self.assertEqual(service.list_result_table_recv_details(), [])
+            self.assertEqual(service.list_upstream_system_ids(), [])
+            self.assertEqual(service.list_result_table_sys_names(), [])
 
     def test_lightweight_metadata_queries_parse_tuple_rows(self):
         sample_rows = [(" table_a ",), (None,), ("",), ("TABLE_A",), ("table_b",)]
@@ -142,12 +142,12 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(service.list_function_names(), [("ITEM_A",), ("ITEM_B",)])
             self.assertEqual(service.list_para_table_names(), [("ITEM_A",), ("ITEM_B",)])
 
-    def test_other_metadata_list_functions_keep_legacy_compatible_tuple_shapes(self):
-        sample_rows = [("table_a", "plan_a", "sys_a")]
+    def test_other_metadata_list_functions_keep_compatible_tuple_shapes(self):
+        sample_rows = [("table_a", "system_a")]
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
-            self.assertEqual(service.list_job_outfiles(), [("table_a", "plan_a")])
-            self.assertEqual(service.list_result_table_recv_details(), [("table_a", "plan_a", "sys_a")])
+            self.assertEqual(service.list_job_outfiles(), [("table_a", "system_a")])
+            self.assertEqual(service.list_result_table_sys_names(), [("table_a", "system_a")])
 
     def test_p0_5c_queries_parse_tuple_rows_and_clean_values(self):
         sample_rows = [
@@ -159,24 +159,21 @@ class AuditMetadataServiceTests(unittest.TestCase):
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
             self.assertEqual(service.list_job_outfiles(), [("table_a", "value_a"), ("table_b", "")])
-            self.assertEqual(service.list_recv_mapping_plans(), [("TABLE_A",), ("TABLE_B",)])
+            self.assertEqual(service.list_upstream_system_ids(), [("TABLE_A",), ("TABLE_B",)])
             self.assertEqual(
                 service.list_result_table_sys_names(),
                 [("table_a", "value_a"), ("table_b", "")],
             )
-            self.assertEqual(
-                service.list_result_table_recv_details(),
-                [("table_a", "value_a", "sys_a"), ("table_b", "", "")],
-            )
 
-    def test_result_table_source_system_query_uses_active_asset_mappings(self):
+    def test_result_table_source_system_query_uses_exact_left_join(self):
         self.assertIn("dwp.p_field_mapping_table", service.RESULT_TABLE_SYS_NAME_SQL)
         self.assertIn("dwp.p_upstream_system", service.RESULT_TABLE_SYS_NAME_SQL)
         self.assertIn("u.system_pk = t.upstream_system_id", service.RESULT_TABLE_SYS_NAME_SQL)
-        self.assertIn("t.is_deleted = 'N'", service.RESULT_TABLE_SYS_NAME_SQL)
-        self.assertIn("u.is_deleted = 'N'", service.RESULT_TABLE_SYS_NAME_SQL)
-        self.assertIn("UPPER(TRIM(t.target_table_name))", service.RESULT_TABLE_SYS_NAME_SQL)
-        self.assertNotIn("p_recv_dwf", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertIn("LEFT JOIN", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertNotIn("is_deleted", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertNotIn("DISTINCT", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertNotIn("ORDER BY", service.RESULT_TABLE_SYS_NAME_SQL)
+        self.assertNotIn("TRIM", service.RESULT_TABLE_SYS_NAME_SQL)
 
         with patch.object(
             service.db_router,
@@ -197,6 +194,18 @@ class AuditMetadataServiceTests(unittest.TestCase):
                 ],
             )
 
+    def test_upstream_system_id_query_uses_only_active_records(self):
+        self.assertIn("SELECT system_id", service.UPSTREAM_SYSTEM_ID_SQL)
+        self.assertIn("FROM dwp.p_upstream_system", service.UPSTREAM_SYSTEM_ID_SQL)
+        self.assertIn("WHERE is_deleted = 'N'", service.UPSTREAM_SYSTEM_ID_SQL)
+
+        with patch.object(
+            service.db_router,
+            "select_sql_with_profile",
+            return_value=[(" plan_a ",), {"system_id": "PLAN_A"}, RowLike(system_id="plan_b")],
+        ):
+            self.assertEqual(service.list_upstream_system_ids(), [("PLAN_A",), ("PLAN_B",)])
+
     def test_p0_5c_queries_parse_dict_rows_by_field_name(self):
         sample_rows = [
             {
@@ -204,6 +213,7 @@ class AuditMetadataServiceTests(unittest.TestCase):
                 "job_name": " job_a ",
                 "outfile": " outfile_a ",
                 "recv_plan": " plan_a ",
+                "system_id": " plan_a ",
                 "table_name": " table_a ",
                 "sys_name": " sys_a ",
             },
@@ -214,32 +224,25 @@ class AuditMetadataServiceTests(unittest.TestCase):
                 "result_table": "table_b",
                 "source_system": "sys_b",
                 "plan": "plan_b",
+                "system_id": "plan_b",
             },
         ]
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
             self.assertEqual(service.list_job_outfiles(), [("job_a", "outfile_a"), ("job_b", "outfile_b")])
-            self.assertEqual(service.list_recv_mapping_plans(), [("PLAN_A",), ("PLAN_B",)])
+            self.assertEqual(service.list_upstream_system_ids(), [("PLAN_A",), ("PLAN_B",)])
             self.assertEqual(service.list_result_table_sys_names(), [("table_a", "sys_a"), ("table_b", "sys_b")])
-            self.assertEqual(
-                service.list_result_table_recv_details(),
-                [("table_a", "plan_a", "sys_a"), ("table_b", "plan_b", "sys_b")],
-            )
 
     def test_p0_5c_queries_parse_row_like_and_attr_rows(self):
         sample_rows = [
-            RowLike(job_name=" job_a ", outfile=" outfile_a ", table_name=" table_a ", recv_plan=" plan_a ", sys_name=" sys_a "),
-            AttrRow(job_name="job_b", outfile="outfile_b", table_name="table_b", recv_plan="plan_b", sys_name="sys_b"),
+            RowLike(job_name=" job_a ", outfile=" outfile_a ", table_name=" table_a ", recv_plan=" plan_a ", system_id=" plan_a ", sys_name=" sys_a "),
+            AttrRow(job_name="job_b", outfile="outfile_b", table_name="table_b", recv_plan="plan_b", system_id="plan_b", sys_name="sys_b"),
         ]
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
             self.assertEqual(service.list_job_outfiles(), [("job_a", "outfile_a"), ("job_b", "outfile_b")])
-            self.assertEqual(service.list_recv_mapping_plans(), [("PLAN_A",), ("PLAN_B",)])
+            self.assertEqual(service.list_upstream_system_ids(), [("PLAN_A",), ("PLAN_B",)])
             self.assertEqual(service.list_result_table_sys_names(), [("table_a", "sys_a"), ("table_b", "sys_b")])
-            self.assertEqual(
-                service.list_result_table_recv_details(),
-                [("table_a", "plan_a", "sys_a"), ("table_b", "plan_b", "sys_b")],
-            )
 
     def test_public_data_lightweight_wrappers_remain_callable(self):
         sample_rows = [("table_a",), ("TABLE_A",), ("table_b",)]
@@ -256,9 +259,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
 
         with patch.object(service.db_router, "select_sql_with_profile", return_value=sample_rows):
             self.assertEqual(public_data.all_job_outfile(), [("table_a", "plan_a")])
-            self.assertEqual(public_data.all_recv_mapping_plans(), [("TABLE_A",)])
+            self.assertEqual(public_data.all_upstream_system_ids(), [("TABLE_A",)])
             self.assertEqual(public_data.all_result_table_sys_names(), [("table_a", "plan_a")])
-            self.assertEqual(public_data.all_result_table_recv_details(), [("table_a", "plan_a", "sys_a")])
 
     def test_partition_counts_use_index_friendly_grouped_catalog_predicates(self):
         with patch.object(

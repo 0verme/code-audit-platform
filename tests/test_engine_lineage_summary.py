@@ -33,14 +33,8 @@ class MetadataService:
     def list_job_outfiles(self):
         return [("job_a", "outfile_a")]
 
-    def list_result_table_recv_details(self):
-        return [("dm.table_a", "plan_a", "sys_a")]
-
     def list_result_table_sys_names(self):
-        return []
-
-    def list_recv_mapping_plans(self):
-        return []
+        return [("dm.table_a", "sys_a")]
 
 
 class FailingMetadataService:
@@ -57,14 +51,8 @@ class FailingMetadataService:
             f"{self.bad_c}={self.bad_e} {self.bad_d}=abc"
         )
 
-    def list_result_table_recv_details(self):
-        raise RuntimeError(f"{self.bad_d}=abc")
-
     def list_result_table_sys_names(self):
         raise RuntimeError(f"{self.bad_c}={self.bad_e}")
-
-    def list_recv_mapping_plans(self):
-        raise RuntimeError(f"{self.bad_b}:postgresql://{self.bad_ip}/demo")
 
 
 class FakeModules:
@@ -122,7 +110,7 @@ class EngineLineageSummaryTests(unittest.TestCase):
         self.assertIn("lineageSummary", report)
         self.assertEqual(report["lineageSummary"]["resultTables"], ["DM.TABLE_A"])
         self.assertEqual(report["lineageSummary"]["jobs"], ["JOB_A"])
-        self.assertEqual(report["lineageSummary"]["recvPlans"], ["PLAN_A"])
+        self.assertEqual(report["lineageSummary"]["recvPlans"], [])
         self.assertEqual(report["lineageSummary"]["sysNames"], ["sys_a"])
         self.assertEqual(report["lineageSummary"]["outfiles"], ["outfile_a"])
         self.assertIn("stats", report["lineageSummary"])

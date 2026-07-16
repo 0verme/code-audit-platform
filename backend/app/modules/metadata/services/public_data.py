@@ -4,10 +4,9 @@ from .audit_metadata_service import (
     list_function_names,
     list_job_outfiles,
     list_para_table_names,
-    list_recv_mapping_plans,
-    list_result_table_recv_details,
     list_result_table_sys_names,
     list_term_roots,
+    list_upstream_system_ids,
     list_view_names,
 )
 from .db_service import select_sql
@@ -123,12 +122,8 @@ def all_result_table_sys_names():
     return list_result_table_sys_names()
 
 
-def all_result_table_recv_details():
-    return list_result_table_recv_details()
-
-
-def all_recv_mapping_plans():
-    return list_recv_mapping_plans()
+def all_upstream_system_ids():
+    return list_upstream_system_ids()
 
 
 def all_view_names():

@@ -64,11 +64,6 @@ CREATE TABLE IF NOT EXISTS dwp.p_recv_dwf (
     table_name text, recv_plan text
 );
 
--- 卸数计划与来源系统映射
-CREATE TABLE IF NOT EXISTS dwp.p_recv_ops_mapping (
-    recv_plan text, sys_name text
-);
-
 -- 词根表
 CREATE TABLE IF NOT EXISTS dwp.p_term_root (
     root_code text

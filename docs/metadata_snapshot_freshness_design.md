@@ -17,15 +17,14 @@
 | 依赖能力 | 所在模块 | 当前用途 | snapshot_name |
 | --- | --- | --- | --- |
 | `list_term_roots` | `audit_metadata_service.py` | 词根或统一资产表命名相关检查，用于判断 SQL 中识别到的表是否命中已有词根。 | `term_roots` |
-| `list_recv_mapping_plans` | `audit_metadata_service.py` | 上游卸数计划元数据，供调度、接入计划、宽表血缘增强判断使用。 | `recv_mapping_plans` |
+| `list_upstream_system_ids` | `audit_metadata_service.py` | 有效上游系统 ID，供调度接入计划判断使用。 | `upstream_system_ids` |
 | `list_job_outfiles` | `audit_metadata_service.py` | 作业到下游 outfile 的映射，供宽表链路和结果表输出补充使用。 | `job_outfiles` |
 | `list_result_table_sys_names` | `audit_metadata_service.py` | 结果表到来源系统名称的映射，用于报告中标注结果表来源系统。 | `result_table_sys_names` |
 | `build_wide_table_lineage_summary` | `re_service.py` | 聚合结果表、作业、recv plan、来源系统、outfile、统计信息和 warnings，形成宽表血缘摘要。 | `wide_table_lineage` |
 
 补充说明：
 
-- `build_wide_table_lineage_summary` 本身是聚合能力，依赖 `job_outfiles`、`recv_mapping_plans`、`result_table_sys_names` 以及结果表 recv 明细等底层元数据。报告展示时可以保留 `wide_table_lineage` 作为聚合快照项，同时在 `items` 中列出其底层依赖项状态。
-- 如果后续将 `list_result_table_recv_details` 也纳入统一快照控制，建议使用 `result_table_recv_details` 作为 `snapshot_name`。本轮目标要求的最小范围先以上表为准。
+- `build_wide_table_lineage_summary` 本身是聚合能力，依赖 `job_outfiles` 和 `result_table_sys_names` 等底层元数据。报告展示时可以保留 `wide_table_lineage` 作为聚合快照项，同时在 `items` 中列出其底层依赖项状态。
 
 ## 3. 字段定义
 
@@ -184,7 +183,7 @@
 
 - 词根快照缺失时，词根缺失类检查结果可能大量误报或漏报。
 - `job_outfiles` 缺失或过期时，下游 outfile 和宽表血缘补充可能不完整。
-- `recv_mapping_plans` 缺失或过期时，上游卸数计划相关判断可能不可信。
+- `upstream_system_ids` 缺失或过期时，上游系统计划相关判断可能不可信。
 - `result_table_sys_names` 缺失或过期时，结果表来源系统标注可能不完整。
 - `wide_table_lineage` 聚合依赖项异常时，血缘摘要应保留基础扫描结果，但必须附带强 warning 或 error。
 

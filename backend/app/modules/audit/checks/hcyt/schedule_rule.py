@@ -10,7 +10,7 @@ from app.modules.metadata.services.public_data import (
     all_planjob,
     all_planseq,
     all_real_seq,
-    all_recv_mapping_plans,
+    all_upstream_system_ids,
     all_seq,
     all_seqjob,
     get_job2,
@@ -83,13 +83,13 @@ def rule_excle_plan(df):
     warn_result_text = ''
     cnt = 0
     planname_lists = []
-    recv_mapping_plan_lists = []
+    upstream_system_ids = []
     for i in all_plan():
         planname_lists.append(i[0])
-    for i in all_recv_mapping_plans():
+    for i in all_upstream_system_ids():
         if i and i[0]:
-            recv_mapping_plan_lists.append(str(i[0]).strip())
-    recv_mapping_plan_set = set(recv_mapping_plan_lists)
+            upstream_system_ids.append(str(i[0]).strip().upper())
+    upstream_system_id_set = set(upstream_system_ids)
     rr_plan = []
     rules = _schedule_rules()
     for _, row in df.iterrows():
@@ -117,8 +117,8 @@ def rule_excle_plan(df):
             result_text += f'计划名: {plan_name} 存在前置依赖 {plan_depand}，请检查\n'
             cnt += 1
 
-        if plan_name.startswith(rules["recv_mapping_plan_prefix"]) and plan_name not in recv_mapping_plan_set:
-            warn_result_text += f'计划名 {plan_name} 未在 dwp.p_recv_ops_mapping 表的 recv_plan 字段配置，请联系王婷添加\n'
+        if plan_name.startswith(rules["recv_mapping_plan_prefix"]) and plan_name.upper() not in upstream_system_id_set:
+            warn_result_text += f'计划名 {plan_name} 未在 dwp.p_upstream_system 表的 system_id 字段配置，请联系王婷添加\n'
 
         if plan_name not in planname_lists:
             if plan_name.startswith(rules["missing_plan_warning_patterns"][0]["prefix"]) and plan_name.endswith(rules["missing_plan_warning_patterns"][0]["suffix"]):

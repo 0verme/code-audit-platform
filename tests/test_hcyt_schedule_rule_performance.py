@@ -28,6 +28,37 @@ def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", status="1", dependency="
 
 
 class HcytScheduleRulePerformanceTests(unittest.TestCase):
+    def test_plan_rule_matches_full_name_against_upstream_system_ids(self):
+        plan_name = "PLAN_SA_RECV_CMS_CMS_VLOAN_DAY"
+        plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
+
+        with (
+            patch.object(schedule_rule, "all_plan", return_value=[(plan_name,)]),
+            patch.object(
+                schedule_rule,
+                "all_upstream_system_ids",
+                return_value=[(" plan_sa_recv_cms_cms_vloan_day ",)],
+            ),
+        ):
+            result_text, warning_text, count, _plans = schedule_rule.rule_excle_plan(plan_df)
+
+        self.assertEqual(result_text, "")
+        self.assertEqual(warning_text, "")
+        self.assertEqual(count, 0)
+
+    def test_plan_rule_warns_with_new_system_metadata_location(self):
+        plan_name = "PLAN_SA_RECV_CMS_CMS_VLOAN_DAY"
+        plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
+
+        with (
+            patch.object(schedule_rule, "all_plan", return_value=[(plan_name,)]),
+            patch.object(schedule_rule, "all_upstream_system_ids", return_value=[]),
+        ):
+            _result_text, warning_text, _count, _plans = schedule_rule.rule_excle_plan(plan_df)
+
+        self.assertIn("dwp.p_upstream_system 表的 system_id 字段", warning_text)
+        self.assertNotIn("p_recv_ops_mapping", warning_text)
+
     def test_job_rule_reuses_rules_and_job_records_without_iterrows(self):
         rows = [job_row(job="JOB_A"), job_row(job="JOB_B", dependency="33:JOB_A")]
         job_df = pd.DataFrame(rows)

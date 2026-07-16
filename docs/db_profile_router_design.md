@@ -22,7 +22,7 @@
 |---|---|
 | `services/db_profile.py` | `load_audit_datasource_config()`, `get_active_audit_profile_name()`, `get_active_audit_profile()`, `get_active_backend()`, `is_postgres_profile()`, `is_gauss_jdbc_profile()` |
 | `services/db_service.py` | `select_sql(sql, profile='czcb')` |
-| `services/audit_metadata_service.py` | `_get_gauss_profile_name()`, `_normalize_single_column_rows()`, `list_term_roots()`, `list_view_names()`, `list_function_names()`, `list_para_table_names()`, `list_recv_mapping_plans()`, `list_job_outfiles()`, `list_result_table_sys_names()`, `list_result_table_recv_details()` |
+| `services/audit_metadata_service.py` | `_get_gauss_profile_name()`, `_normalize_single_column_rows()`, `list_term_roots()`, `list_view_names()`, `list_function_names()`, `list_para_table_names()`, `list_upstream_system_ids()`, `list_job_outfiles()`, `list_result_table_sys_names()` |
 
 配置项类型：
 

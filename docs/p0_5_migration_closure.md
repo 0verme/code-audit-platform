@@ -47,9 +47,8 @@ P0-5 的目标是把审计元数据读取、outfile、recv plan、结果表来�
 | `list_function_names` | 已闭环 | 轻量元数据查询，兼容多种 DB row 形态。 |
 | `list_para_table_names` | 已闭环 | 轻量元数据查询，兼容 public_data 包装入口。 |
 | `list_job_outfiles` | 已闭环 | 中等风险元数据查询，提供 job/outfile 二列结构，支持字段别名解析。 |
-| `list_recv_mapping_plans` | 已闭环 | 中等风险元数据查询，提供 recv plan 单列结构。 |
+| `list_upstream_system_ids` | 已闭环 | 中等风险元数据查询，提供有效上游系统 ID 单列结构。 |
 | `list_result_table_sys_names` | 已闭环 | 中等风险元数据查询，提供结果表到来源系统映射。 |
-| `list_result_table_recv_details` | 已闭环 | 中等风险元数据查询，提供结果表、recv plan、来源系统三列结构。 |
 | `build_job_outfile_lookup` | 已闭环 | 将 job/outfile rows 归一化为查找表，处理空值、重复和敏感值。 |
 | `build_wide_table_lineage_summary` | 已闭环 | 汇总结果表、作业、recv plan、来源系统、outfile、warnings 和 stats；支持 metadata service 异常降级。 |
 | `engine.py` 报告字段 `lineageSummary` | 已闭环 | HCYT 报告已接入稳定字段结构，异常时输出空摘要和 warning。 |

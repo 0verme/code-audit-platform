@@ -219,9 +219,7 @@ def _build_lineage_summary_payload(
     job_outfile_lookup = {}
     metadata_rows = {
         "job_outfile_rows": None,
-        "result_table_recv_detail_rows": None,
         "result_table_sys_name_rows": None,
-        "recv_mapping_plan_rows": None,
     }
     metadata_service = getattr(m, "audit_metadata_service", None)
 
@@ -271,9 +269,7 @@ def _build_lineage_summary_payload(
                 input_path=None,
                 job_outfile_lookup=job_outfile_lookup,
                 job_outfile_rows=metadata_rows["job_outfile_rows"],
-                result_table_recv_detail_rows=metadata_rows["result_table_recv_detail_rows"],
                 result_table_sys_name_rows=metadata_rows["result_table_sys_name_rows"],
-                recv_mapping_plan_rows=metadata_rows["recv_mapping_plan_rows"],
                 dependency_lookup=dependency_lookup,
                 matched_rows=matched_rows,
                 metadata_service=metadata_service if not lineage_context else None,

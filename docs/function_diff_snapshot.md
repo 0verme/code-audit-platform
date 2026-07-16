@@ -45,7 +45,7 @@
 | 文件 | 同名文件存在 | 文件完全一致 | 旧平台有、新平台没有 | 新平台有、旧平台没有 | 两边都有但实现不同 |
 |---|---:|---:|---|---|---|
 | `core/asset_issue.py` | 否 | 否 | `_clean_text`, `AuditAssetIssue`, `build_issue_hash_key`, `build_issue_key`, `create_audit_asset_issue`, `dedupe_issues` | 无 | 不适用 |
-| `core/public_data.py` | 是 | 否 | `all_result_table_recv_details` | 无 | `all_fine`, `all_function_names`, `all_job_outfile`, `all_para_table_lists`, `all_recv_mapping_plans`, `all_result_table_sys_names`, `all_role`, `all_tab_partitions`, `all_term_roots`, `all_view_names`, `get_job2` |
+| `core/public_data.py` | 是 | 否 | 无 | 无 | `all_fine`, `all_function_names`, `all_job_outfile`, `all_para_table_lists`, `all_upstream_system_ids`, `all_result_table_sys_names`, `all_role`, `all_tab_partitions`, `all_term_roots`, `all_view_names`, `get_job2` |
 | `core/hcyt/ddl_rule.py` | 是 | 否 | `_build_root_missing_issue`, `collect_root_missing_issues` | 无 | 未发现顶层同名函数块差异 |
 | `core/hcyt/sql_rule.py` | 是 | 否 | `_build_asset_table_review_issue`, `collect_created_table_review_issues` | 无 | 未发现顶层同名函数块差异 |
 | `core/hcyt/python_rule.py` | 是 | 否 | `build_asset_table_review_issues` | 无 | 未发现顶层同名函数块差异 |
@@ -55,7 +55,7 @@
 | `services/portal_link_builder.py` | 否 | 否 | `_build_url`, `build_data_warehouse_link`, `build_portal_link`, `build_root_management_link`, `get_portal_base_url` | 无 | 不适用 |
 | `services/workspace_service.py` | 否 | 否 | `_build_workspace_info`, `load_local_workspace`, `load_svn_workspace`, `WorkspaceInfo` | 无 | 不适用 |
 | `services/db_profile.py` | 否 | 否 | `get_active_audit_profile`, `get_active_audit_profile_name`, `get_active_backend`, `is_gauss_jdbc_profile`, `is_postgres_profile`, `load_audit_datasource_config` | 无 | 不适用 |
-| `services/audit_metadata_service.py` | 否 | 否 | `_get_gauss_profile_name`, `_normalize_single_column_rows`, `list_function_names`, `list_job_outfiles`, `list_para_table_names`, `list_recv_mapping_plans`, `list_result_table_recv_details`, `list_result_table_sys_names`, `list_term_roots`, `list_view_names` | 无 | 不适用 |
+| `services/audit_metadata_service.py` | 否 | 否 | `_get_gauss_profile_name`, `_normalize_single_column_rows`, `list_function_names`, `list_job_outfiles`, `list_para_table_names`, `list_upstream_system_ids`, `list_result_table_sys_names`, `list_term_roots`, `list_view_names` | 无 | 不适用 |
 | `services/re_service.py` | 是 | 否 | `build_job_outfile_lookup`, `build_wide_table_lineage_summary` | 无 | 未发现顶层同名函数块差异 |
 | `services/svn_service.py` | 是 | 否 | 无 | 无 | 未发现顶层同名函数块差异 |
 
