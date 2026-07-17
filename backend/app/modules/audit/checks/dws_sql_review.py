@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.config.audit_rules import get_audit_rules
+from app.modules.audit.findings import Finding
 
 
 def _configured_matches(sql_text: str) -> tuple[list[str], list[str]]:
@@ -30,31 +31,55 @@ def _configured_matches(sql_text: str) -> tuple[list[str], list[str]]:
     return matched_markers, matched_tables
 
 
-def run_configured_dws_sql_reviews(sql_text: str, *, message_style: str) -> list[str]:
-    """Return configured warning messages while preserving each workflow's wording."""
+def run_configured_dws_sql_reviews(sql_text: str, *, message_style: str) -> list[Finding]:
+    """Return configured findings while preserving each workflow's wording."""
     markers, tables = _configured_matches(sql_text)
-    messages = []
+    findings = []
 
     if message_style == "hcyt":
-        messages.extend(
-            f"建表脚本带{marker},请确认是不是取数单的表名没改"
+        findings.extend(
+            Finding(
+                "hcyt.sql.legacy_marker",
+                "遗留取数标记",
+                "err",
+                f"建表脚本带{marker},请确认是不是取数单的表名没改",
+                evidence={"marker": marker},
+            )
             for marker in markers
         )
-        messages.extend(
-            f"存在码值表{table.rsplit('.', 1)[-1]}修改,请审核重点检查"
+        findings.extend(
+            Finding(
+                "hcyt.sql.protected_code_table",
+                "码值表修改",
+                "err",
+                f"存在码值表{table.rsplit('.', 1)[-1]}修改,请审核重点检查",
+                evidence={"table": table},
+            )
             for table in tables
         )
-        return messages
+        return findings
 
     if message_style == "nups":
-        messages.extend(
-            f"建表脚本带 {marker}，请确认是不是取数单的表名没改"
+        findings.extend(
+            Finding(
+                "nups.sql.legacy_marker",
+                "遗留取数标记",
+                "err",
+                f"建表脚本带 {marker}，请确认是不是取数单的表名没改",
+                evidence={"marker": marker},
+            )
             for marker in markers
         )
-        messages.extend(
-            f"存在码值表 {table.rsplit('.', 1)[-1]} 修改，请审核重点检查"
+        findings.extend(
+            Finding(
+                "nups.sql.protected_code_table",
+                "码值表修改",
+                "err",
+                f"存在码值表 {table.rsplit('.', 1)[-1]} 修改，请审核重点检查",
+                evidence={"table": table},
+            )
             for table in tables
         )
-        return messages
+        return findings
 
     raise ValueError(f"Unsupported DWS SQL review message style: {message_style}")

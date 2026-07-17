@@ -28,6 +28,7 @@ from app.modules.audit.checks.re_service import (
 )
 from app.config.audit_rules import get_audit_rules
 from app.modules.audit.checks.dws_sql_review import run_configured_dws_sql_reviews
+from app.modules.audit.findings import CheckResult, Finding
 
 
 NUPS_SQL_NAMES = {
@@ -81,30 +82,30 @@ def check_table_name_rule(full_table_name, is_temp=False):
     schema_name, table_name = split_schema_table(full_table_name)
     if is_temp or schema_name == 'TMP':
         if not any(table_name.startswith(prefix) for prefix in DWS_TEMP_TABLE_PREFIXES):
-            return f'临时表 {full_table_name} 命名不符合规范，应以 {"/".join(DWS_TEMP_TABLE_PREFIXES)} 开头'
-        return ''
+            return Finding('nups.ddl.temp_table_name', '临时表命名', 'err', f'临时表 {full_table_name} 命名不符合规范，应以 {"/".join(DWS_TEMP_TABLE_PREFIXES)} 开头')
+        return None
 
     allowed_prefixes = DWS_TABLE_PREFIX_RULES.get(schema_name)
     if allowed_prefixes and not any(table_name.startswith(prefix) for prefix in allowed_prefixes):
-        return f'表 {full_table_name} 命名不符合规范，{schema_name} 层表名应以 {"/".join(allowed_prefixes)} 开头'
-    return ''
+        return Finding('nups.ddl.table_name', '分层表命名', 'err', f'表 {full_table_name} 命名不符合规范，{schema_name} 层表名应以 {"/".join(allowed_prefixes)} 开头')
+    return None
 
 
 def check_column_comment_rule(column_item, comment_map):
     table_name = column_item['table_name']
     schema_name, _ = split_schema_table(table_name)
     if schema_name not in COLUMN_COMMENT_REQUIRED_SCHEMAS:
-        return ''
+        return None
 
     full_column_name = f"{table_name}.{column_item['column_name']}"
     comment_text = column_item['inline_comment'] or comment_map.get(full_column_name, '')
     if not comment_text:
-        return f'字段 {full_column_name} 缺少注释，请在建表字段后补 COMMENT 或增加 COMMENT ON COLUMN'
-    return ''
+        return Finding('nups.ddl.column_comment', '字段注释', 'err', f'字段 {full_column_name} 缺少注释，请在建表字段后补 COMMENT 或增加 COMMENT ON COLUMN')
+    return None
 
 
 def run_dws_ddl_rules(sql_text):
-    warnings = []
+    findings = []
     created_tables = extract_create_table_objects(sql_text)
     altered_tables = extract_alter_table_targets(sql_text)
     comment_map = extract_comment_on_column_map(sql_text)
@@ -113,26 +114,25 @@ def run_dws_ddl_rules(sql_text):
     for item in created_tables:
         message = check_table_name_rule(item['table_name'], is_temp=item['is_temp'])
         if message:
-            warnings.append(message)
+            findings.append(message)
 
     for table_name in altered_tables:
         message = check_table_name_rule(table_name)
         if message:
-            warnings.append(f'{message}（ALTER TABLE 对象）')
+            findings.append(Finding(message.rule_code, message.rule, message.level, f'{message.msg}（ALTER TABLE 对象）'))
 
     for column_item in column_items:
         comment_message = check_column_comment_rule(column_item, comment_map)
         if comment_message:
-            warnings.append(comment_message)
+            findings.append(comment_message)
 
-    return warnings
+    return findings
 
 
 def _legacy_rule_dws(dws_url):
     print('===================================nups_rule_dws=================================')
     data = read_data_from_file(dws_url)
-    result_text = ''
-    cnt = 0
+    result = CheckResult()
     view_names = load_metadata_name_set(all_view_names())
     function_names = load_metadata_name_set(all_function_names())
     created_views = detect_created_views(data)
@@ -140,56 +140,41 @@ def _legacy_rule_dws(dws_url):
     used_views = sorted({item for item in find_dot_strings(data.upper()) if item.upper() in view_names})
     used_functions = detect_used_functions(data, function_names)
     if created_views:
-        result_text += f'检测到创建视图，请重点审核: {",".join(created_views)}\n'
-        cnt += 1
+        result.add('nups.sql.create_view', '创建视图', 'err', f'检测到创建视图，请重点审核: {",".join(created_views)}')
     if created_functions:
-        result_text += f'检测到创建函数，请重点审核: {",".join(created_functions)}\n'
-        cnt += 1
+        result.add('nups.sql.create_function', '创建函数', 'err', f'检测到创建函数，请重点审核: {",".join(created_functions)}')
     if used_views:
-        result_text += f'检测到使用视图，请重点审核: {",".join(used_views)}\n'
-        cnt += 1
+        result.add('nups.sql.use_view', '使用视图', 'err', f'检测到使用视图，请重点审核: {",".join(used_views)}')
     if used_functions:
-        result_text += f'检测到使用函数，请重点审核: {",".join(used_functions)}\n'
-        cnt += 1
+        result.add('nups.sql.use_function', '使用函数', 'err', f'检测到使用函数，请重点审核: {",".join(used_functions)}')
     if len(data.split('\n')) > 20000:
-        result_text += '行数过多，大批量 sql 请上线人员操作\n'
-        cnt += 1
+        result.add('nups.sql.too_many_lines', 'SQL 行数过多', 'err', '行数过多，大批量 sql 请上线人员操作')
     if 'ALTER' in data.upper():
-        result_text += '存在 alter 命令，请审核重点检查\n'
-        cnt += 1
+        result.add('nups.sql.alter_statement', 'ALTER 命令', 'err', '存在 alter 命令，请审核重点检查')
     if 'DWM.' in data.upper():
-        result_text += '存在对 dwm 模型层的操作，请审核重点检查\n'
-        cnt += 1
+        result.add('nups.sql.dwm_operation', 'DWM 模型层操作', 'err', '存在对 dwm 模型层的操作，请审核重点检查')
     if 'TO GROUP GROUP_VERSION1' in data.upper():
-        result_text += '建表脚本不允许带 TO GROUP GROUP_VERSION1\n'
-        cnt += 1
-    configured_messages = run_configured_dws_sql_reviews(data, message_style="nups")
-    if configured_messages:
-        result_text += '\n'.join(configured_messages) + '\n'
-        cnt += len(configured_messages)
-    return result_text, cnt
+        result.add('nups.sql.legacy_group_clause', '旧版 GROUP 子句', 'err', '建表脚本不允许带 TO GROUP GROUP_VERSION1')
+    result.findings.extend(run_configured_dws_sql_reviews(data, message_style="nups"))
+    return result
 
 
 def rule_dws(dws_url):
-    result_text, cnt = _legacy_rule_dws(dws_url)
+    result = _legacy_rule_dws(dws_url)
     data = read_data_from_file(dws_url)
-    ddl_rule_messages = []
-    for message in run_dws_ddl_rules(data):
-        if message not in ddl_rule_messages:
-            ddl_rule_messages.append(message)
-    if ddl_rule_messages:
-        if result_text and not result_text.endswith('\n'):
-            result_text += '\n'
-        result_text += '\n'.join(ddl_rule_messages) + '\n'
-        cnt += len(ddl_rule_messages)
-    return result_text, cnt
+    seen = {(item.rule_code, item.msg) for item in result.findings}
+    for finding in run_dws_ddl_rules(data):
+        key = (finding.rule_code, finding.msg)
+        if key not in seen:
+            result.findings.append(finding)
+            seen.add(key)
+    return result
 
 
 def rule_dws_py(dws_url):
     print('===================================nups_rule_dws_py=================================')
     kk = all_sstb()
-    result_text = ''
-    cnt = 0
+    result = CheckResult()
     data = read_data_from_file(dws_url)
     view_names = load_metadata_name_set(all_view_names())
     function_names = load_metadata_name_set(all_function_names())
@@ -197,61 +182,47 @@ def rule_dws_py(dws_url):
     if result_table_name:
         result_table_name_message = check_table_name_rule(result_table_name)
         if result_table_name_message:
-            result_text += f'{result_table_name_message}\n'
-            cnt += 1
+            result.findings.append(result_table_name_message)
 
     created_views = detect_created_views(data)
     created_functions = detect_created_functions(data)
     used_functions = detect_used_functions(data, function_names)
     if created_views:
-        result_text += f'检测到创建视图，请重点审核: {",".join(created_views)}\n'
-        cnt += 1
+        result.add('nups.program.create_view', '创建视图', 'err', f'检测到创建视图，请重点审核: {",".join(created_views)}')
     if created_functions:
-        result_text += f'检测到创建函数，请重点审核: {",".join(created_functions)}\n'
-        cnt += 1
+        result.add('nups.program.create_function', '创建函数', 'err', f'检测到创建函数，请重点审核: {",".join(created_functions)}')
     if 'FOR I IN' in data.upper():
-        result_text += '存在 for 循环 for i in，脚本不允许出现循环，如特殊情况需说明\n'
-        cnt += 1
+        result.add('nups.program.for_loop', 'FOR 循环', 'err', '存在 for 循环 for i in，脚本不允许出现循环，如特殊情况需说明')
     if 'CHARACTER VARYING(' in data.upper():
-        result_text += '在程序里建表不要写死字段长度 CHARACTER VARYING(\n'
-        cnt += 1
+        result.add('nups.program.character_varying_length', '字段长度写死', 'err', '在程序里建表不要写死字段长度 CHARACTER VARYING(')
     if 'VARCHAR2(' in data.upper():
-        result_text += '在程序里建表不要写死字段长度 VARCHAR2(\n'
-        cnt += 1
+        result.add('nups.program.varchar2_length', '字段长度写死', 'err', '在程序里建表不要写死字段长度 VARCHAR2(')
     if 'NVL(NVL(' in data.upper():
-        result_text += '多个 NVL(NVL( 的写法请用一个 COALESCE 函数替代\n'
-        cnt += 1
+        result.add('nups.program.nested_nvl', '嵌套 NVL', 'err', '多个 NVL(NVL( 的写法请用一个 COALESCE 函数替代')
     if 'COALESCE(COALESCE(' in data.upper():
-        result_text += 'COALESCE(COALESCE( 请直接替换，避免卡 bug\n'
-        cnt += 1
+        result.add('nups.program.nested_coalesce', '嵌套 COALESCE', 'err', 'COALESCE(COALESCE( 请直接替换，避免卡 bug')
     if 'DISTINCT' in data.upper():
-        result_text += '请审核重点检查脚本中的 distinct 是否必须添加，有无关联出重复数据\n'
-        cnt += 1
+        result.add('nups.program.distinct_review', 'DISTINCT 审查', 'err', '请审核重点检查脚本中的 distinct 是否必须添加，有无关联出重复数据')
     if '(+)' in data.upper():
-        result_text += '脚本中存在 (+)，这种写法维护性较差，请修改\n'
-        cnt += 1
+        result.add('nups.program.legacy_outer_join', '旧式外连接', 'err', '脚本中存在 (+)，这种写法维护性较差，请修改')
     if '影响条数' not in data:
-        result_text += "模板太旧，请增加影响条数 LOG.info('影响条数:' + str(rownum))\n"
-        cnt += 1
+        result.add('nups.program.affected_rows_log', '影响条数日志', 'err', "模板太旧，请增加影响条数 LOG.info('影响条数:' + str(rownum))")
     if 'TO GROUP GROUP_VERSION1' in data.upper():
-        result_text += '建表脚本中不允许出现 TO GROUP GROUP_VERSION1，请删除\n'
-        cnt += 1
+        result.add('nups.program.legacy_group_clause', '旧版 GROUP 子句', 'err', '建表脚本中不允许出现 TO GROUP GROUP_VERSION1，请删除')
 
-    py_ddl_rule_messages = []
-    for message in run_dws_ddl_rules(data):
-        if message not in py_ddl_rule_messages:
-            py_ddl_rule_messages.append(message)
-    for message in py_ddl_rule_messages:
-        result_text += f'{message}\n'
-        cnt += 1
+    seen_ddl = set()
+    for finding in run_dws_ddl_rules(data):
+        key = (finding.rule_code, finding.msg)
+        if key not in seen_ddl:
+            result.findings.append(finding)
+            seen_ddl.add(key)
 
     content = data[1000:]
     datekk = find_hardcoded_dates(content)
     datekk = ["'" + item + "'" for item in datekk]
     datekk = list(set(datekk))
     if datekk:
-        result_text += f"检测到写死日期，请确认是否业务需求（如果是注释日期，去掉两头引号）: {' '.join(datekk)} \n"
-        cnt += 1
+        result.add('nups.program.hardcoded_date', '写死日期', 'err', f"检测到写死日期，请确认是否业务需求（如果是注释日期，去掉两头引号）: {' '.join(datekk)} ", evidence={'dates': datekk})
 
     tables = extract_tables(content)
     tables2 = find_dot_strings(content)
@@ -262,11 +233,9 @@ def rule_dws_py(dws_url):
     ]
     used_views = sorted({item for item in sql_table if item.upper() in view_names})
     if used_views:
-        result_text += f'检测到使用视图，请重点审核: {",".join(used_views)}\n'
-        cnt += 1
+        result.add('nups.program.use_view', '使用视图', 'err', f'检测到使用视图，请重点审核: {",".join(used_views)}')
     if used_functions:
-        result_text += f'检测到使用函数，请重点审核: {",".join(used_functions)}\n'
-        cnt += 1
+        result.add('nups.program.use_function', '使用函数', 'err', f'检测到使用函数，请重点审核: {",".join(used_functions)}')
     sql_table = [
         item for item in sql_table
         if item.upper() != result_table_name.upper() and item.upper() not in function_names
@@ -280,52 +249,41 @@ def rule_dws_py(dws_url):
         if r and r[0] and r[0][0] > 0:
             fq_flag2 = True
         if fq_flag2 != fq_flag:
-            result_text += f'{schema}.{table_name} 分区表应该增加分区步骤 rollback_deal，或者结果表不是分区表则不要加分区步骤\n'
-            cnt += 1
+            result.add('nups.program.partition_rollback', '分区回滚步骤', 'err', f'{schema}.{table_name} 分区表应该增加分区步骤 rollback_deal，或者结果表不是分区表则不要加分区步骤')
 
     for item in sql_table:
         if item.upper() in gjz_lists:
             pass
         elif '.' not in item.upper():
-            result_text += f'表名 {item} 没有带 SCHEMA，请注意加上；如果是 with 表，请注意效率\n'
-            cnt += 1
+            result.add('nups.program.missing_schema', '表名缺少 SCHEMA', 'err', f'表名 {item} 没有带 SCHEMA，请注意加上；如果是 with 表，请注意效率')
 
     for item in kk:
         item = item[0]
         if not item:
             continue
         if item.upper() in data.upper():
-            result_text += f'用错表 {item}\n'
-            cnt += 1
+            result.add('nups.program.forbidden_table', '错误表引用', 'err', f'用错表 {item}')
 
     normalized_data = data.replace(' ', '').replace('\t', '').upper()
     if '=(SELECT' in normalized_data:
-        result_text += '存在 = ( select 子查询，请注意跑批效率，以及万一数据多条导致程序报错\n'
-        cnt += 1
+        result.add('nups.program.scalar_subquery', '标量子查询', 'err', '存在 = ( select 子查询，请注意跑批效率，以及万一数据多条导致程序报错')
     normalized_data = normalized_data.replace('JOIN(SELECT', '')
     if 'IN(SELECT' in normalized_data:
-        result_text += '存在 in ( select 子查询，请注意跑批效率\n'
-        cnt += 1
+        result.add('nups.program.in_subquery', 'IN 子查询', 'err', '存在 in ( select 子查询，请注意跑批效率')
     if '.END_DT>=' in normalized_data:
-        result_text += '检测到 END_DT>=，注意拉链数据重复\n'
-        cnt += 1
+        result.add('nups.program.end_dt_range', '拉链结束日期范围', 'err', '检测到 END_DT>=，注意拉链数据重复')
     if "D_DATE=TO_DATE('" in normalized_data:
-        result_text += "存在关键字 D_DATE=TO_DATE('，使用主题表请改为 d_date ='YYYYMMDD' \n"
-        cnt += 1
+        result.add('nups.program.d_date_to_date', '主题表日期写法', 'err', "存在关键字 D_DATE=TO_DATE('，使用主题表请改为 d_date ='YYYYMMDD' ")
     if "D_DATE=DATE'" in normalized_data:
-        result_text += "存在关键字 D_DATE = DATE'，使用主题表请改为 d_date ='YYYYMMDD' \n"
-        cnt += 1
+        result.add('nups.program.d_date_literal', '主题表日期写法', 'err', "存在关键字 D_DATE = DATE'，使用主题表请改为 d_date ='YYYYMMDD' ")
     if 'DATE(D_DATE)' in normalized_data:
-        result_text += "存在关键字 DATE(D_DATE)，使用主题表请改为 d_date ='YYYYMMDD' \n"
-        cnt += 1
+        result.add('nups.program.d_date_function', '主题表日期写法', 'err', "存在关键字 DATE(D_DATE)，使用主题表请改为 d_date ='YYYYMMDD' ")
     if 'TO_DATE(D_DATE,' in normalized_data:
-        result_text += "存在关键字 TO_DATE(D_DATE,，使用主题表请改为 d_date ='YYYYMMDD' \n"
-        cnt += 1
+        result.add('nups.program.to_date_d_date', '主题表日期写法', 'err', "存在关键字 TO_DATE(D_DATE,，使用主题表请改为 d_date ='YYYYMMDD' ")
     normalized_data = normalized_data.replace('END_DATE', '')
     if 'D_DATE<' in normalized_data:
-        result_text += '存在关键字 D_DATE<，请检查；如果使用全量主题表，不允许使用区间\n'
-        cnt += 1
+        result.add('nups.program.d_date_less_than', '主题表日期区间', 'err', '存在关键字 D_DATE<，请检查；如果使用全量主题表，不允许使用区间')
     if 'D_DATE>' in normalized_data:
-        result_text += '存在关键字 D_DATE>，请检查；如果使用全量主题表，不允许使用区间\n'
-        cnt += 1
-    return result_text, cnt, sql_table
+        result.add('nups.program.d_date_greater_than', '主题表日期区间', 'err', '存在关键字 D_DATE>，请检查；如果使用全量主题表，不允许使用区间')
+    result.artifacts['sql_tables'] = sql_table
+    return result

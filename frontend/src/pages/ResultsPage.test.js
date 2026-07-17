@@ -139,3 +139,18 @@ test("accent panel headers use theme tokens for light and dark mode compatibilit
   assert.match(sharedStyleSource, /\.panel\.accent-header \.panel-ico \{[\s\S]*var\(--accent\)[\s\S]*var\(--surface\)[\s\S]*var\(--accent-line\)/);
   assert.match(sharedStyleSource, /\[data-theme="dark"\] \.panel\.accent-header \.panel-title,[\s\S]*color: color-mix\(in oklab, var\(--accent\) 62%, var\(--text\)\);/);
 });
+
+test("structured findings keep ruleCode additive and support all three levels", () => {
+  const findings = [
+    { ruleCode: "hcyt.sql.invalid_type", rule: "字段类型不合规", level: "err", msg: "错误说明" },
+    { ruleCode: "hcyt.config.missing_source", rule: "缺少源配置", level: "warn", msg: "警告说明" },
+    { ruleCode: "hcyt.sql.alter_statement", rule: "存在 ALTER 命令", level: "info", msg: "提示说明" },
+  ];
+
+  assert.deepEqual(findings.map((item) => item.level), ["err", "warn", "info"]);
+  assert.ok(findings.every((item) => item.ruleCode && item.rule && item.msg));
+  assert.match(uiSource, /row\[column\.key\]/);
+  assert.match(uiSource, /<Sev level=\{row\.level\} \/>/);
+  assert.match(source, /row\.rule/);
+  assert.match(source, /row\.msg/);
+});

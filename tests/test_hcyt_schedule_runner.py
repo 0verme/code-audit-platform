@@ -9,8 +9,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_schedule_runner import run_hcyt_schedule, schedule_rows  # noqa: E402
-from app.modules.audit.result_normalizer import rule_label  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.hcyt_schedule_runner import run_hcyt_schedule  # noqa: E402
 
 
 class FakeReService:
@@ -26,16 +26,25 @@ class FakeHcyt:
         self.job_rule_timing_log = None
 
     def rule_excle_plan(self, plan_df):
-        return ("计划 成环", "计划 警告", 0, {"plan": "PLAN_A"})
+        result = CheckResult(artifacts={"plans": {"plan": "PLAN_A"}})
+        result.add("hcyt.schedule.plan.cycle", "计划成环", "err", "计划 成环")
+        result.add("hcyt.schedule.plan.warning", "计划警告", "warn", "计划 警告")
+        return result
 
     def rule_excle_seq(self, seq_df):
-        return ("", "顺序 缺失", 0)
+        result = CheckResult()
+        result.add("hcyt.schedule.seq.missing", "顺序缺失", "warn", "顺序 缺失")
+        return result
 
     def rule_excle_job(self, job_df, r_plan=None, timing_log=None, job_rows=None):
         self.job_rule_timing_log = timing_log
         if timing_log is not None:
             timing_log("JOB规则主循环完成：1 行，0.01s")
-        return ("作业 不存在\n作业 成环", "作业 警告", 0)
+        result = CheckResult()
+        result.add("hcyt.schedule.job.missing", "作业不存在", "err", "作业 不存在")
+        result.add("hcyt.schedule.job.cycle", "作业成环", "err", "作业 成环")
+        result.add("hcyt.schedule.job.warning", "作业警告", "warn", "作业 警告")
+        return result
 
 
 class FakePublicData:
@@ -51,18 +60,6 @@ class FakeModules:
 
 
 class HcytScheduleRunnerTests(unittest.TestCase):
-    def test_schedule_rows_preserves_rule_level_and_message_shape(self):
-        rows = schedule_rows("A\n\nB", "C", rule_label=rule_label)
-
-        self.assertEqual(
-            rows,
-            [
-                {"rule": "A", "level": "err", "msg": "A"},
-                {"rule": "B", "level": "err", "msg": "B"},
-                {"rule": "C", "level": "warn", "msg": "C"},
-            ],
-        )
-
     def test_run_hcyt_schedule_keeps_summary_tables_and_row_states_shape(self):
         plan_df = pd.DataFrame([["PLAN_A", "", "", "", "JOB_A"]])
         seq_df = pd.DataFrame([["PLAN_A", "FLOW_A", "desc"]])
@@ -87,11 +84,6 @@ class HcytScheduleRunnerTests(unittest.TestCase):
             build_job_table=lambda job_source, db_job_rows, **_kwargs: (
                 {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
                 [{"job": "JOB_A", "state": "new"}],
-            ),
-            schedule_rows_fn=lambda result_text, warn_text: schedule_rows(
-                result_text,
-                warn_text,
-                rule_label=rule_label,
             ),
         )
 
@@ -121,11 +113,6 @@ class HcytScheduleRunnerTests(unittest.TestCase):
             build_job_table=lambda _job_source, _db_job_rows, **_kwargs: (
                 {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
                 ["new"],
-            ),
-            schedule_rows_fn=lambda result_text, warn_text: schedule_rows(
-                result_text,
-                warn_text,
-                rule_label=rule_label,
             ),
             log_timing=lambda label, phase, **fields: timing_events.append((label, phase, fields)),
         )

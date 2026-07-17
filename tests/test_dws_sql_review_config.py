@@ -30,12 +30,12 @@ def test_tracked_example_declares_default_sql_review_rules():
 def test_default_rules_match_legacy_markers_and_code_tables(tmp_path: Path):
     refresh_audit_rules(path=tmp_path / "missing.yaml")
 
-    messages = run_configured_dws_sql_reviews(
+    findings = run_configured_dws_sql_reviews(
         "select wlq, lzy, bsc, ygw, tmpqs from dwm.m_pub_code_map_new",
         message_style="hcyt",
     )
 
-    assert messages == [
+    assert [item.msg for item in findings] == [
         "建表脚本带WLQ,请确认是不是取数单的表名没改",
         "建表脚本带LZY,请确认是不是取数单的表名没改",
         "建表脚本带BSC,请确认是不是取数单的表名没改",
@@ -48,12 +48,12 @@ def test_default_rules_match_legacy_markers_and_code_tables(tmp_path: Path):
 def test_marker_exclusion_and_case_insensitive_matching(tmp_path: Path):
     refresh_audit_rules(path=tmp_path / "missing.yaml")
 
-    messages = run_configured_dws_sql_reviews(
+    findings = run_configured_dws_sql_reviews(
         "select rlzy from DWM.M_PUB_CODE_INFO_NEW",
         message_style="hcyt",
     )
 
-    assert messages == ["存在码值表M_PUB_CODE_INFO_NEW修改,请审核重点检查"]
+    assert [item.msg for item in findings] == ["存在码值表M_PUB_CODE_INFO_NEW修改,请审核重点检查"]
 
 
 def test_yaml_replaces_default_review_values(tmp_path: Path):
@@ -86,7 +86,7 @@ def test_yaml_replaces_default_review_values(tmp_path: Path):
         refresh_audit_rules(path=tmp_path / "missing.yaml")
 
     assert default_messages == []
-    assert custom_messages == [
+    assert [item.msg for item in custom_messages] == [
         "建表脚本带CUSTOM_TAG,请确认是不是取数单的表名没改",
         "存在码值表CUSTOM_CODE修改,请审核重点检查",
     ]
@@ -101,11 +101,13 @@ def test_hcyt_rule_dws_uses_configured_reviews(tmp_path: Path):
         patch.object(sql_rule, "all_function_names", return_value=[]),
         patch.object(sql_rule, "run_dws_ddl_rules", return_value=[]),
     ):
-        result_text, warning_text, count = sql_rule.rule_dws("dws.sql")
+        result = sql_rule.rule_dws("dws.sql")
 
-    assert result_text == "建表脚本带WLQ,请确认是不是取数单的表名没改\n"
-    assert warning_text == "存在dws.sql\n"
-    assert count == 1
+    assert [item.msg for item in result.findings] == [
+        "存在dws.sql",
+        "建表脚本带WLQ,请确认是不是取数单的表名没改",
+    ]
+    assert [item.level for item in result.findings] == ["info", "err"]
 
 
 def test_nups_rule_dws_uses_configured_reviews(tmp_path: Path):
@@ -116,10 +118,9 @@ def test_nups_rule_dws_uses_configured_reviews(tmp_path: Path):
         patch.object(nups_rule, "all_function_names", return_value=[]),
         patch.object(nups_rule, "run_dws_ddl_rules", return_value=[]),
     ):
-        result_text, count = nups_rule.rule_dws("nups.sql")
+        result = nups_rule.rule_dws("nups.sql")
 
-    assert result_text == (
-        "存在对 dwm 模型层的操作，请审核重点检查\n"
-        "存在码值表 M_PUB_CODE_USE_NEW 修改，请审核重点检查\n"
-    )
-    assert count == 2
+    assert [item.msg for item in result.findings] == [
+        "存在对 dwm 模型层的操作，请审核重点检查",
+        "存在码值表 M_PUB_CODE_USE_NEW 修改，请审核重点检查",
+    ]

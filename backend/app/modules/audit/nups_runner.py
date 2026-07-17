@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from .findings import CheckResult, finding_messages
 from .nups_report_builder import build_nups_report
-from .result_normalizer import dedupe_tables, text_to_messages
+from .result_normalizer import dedupe_tables
 from .workflow_runtime import WorkflowRuntimeContext
 
 
@@ -14,12 +15,12 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
     context.update(progress=45, step="NUPS SQL 检查")
     sql_checks = []
     for path in sql_lists or []:
-        result = context.safe("NUPS SQL 规则", lambda p=path: mods.nups_rule.rule_dws(p), ("", 0))
+        result = context.safe("NUPS SQL 规则", lambda p=path: mods.nups_rule.rule_dws(p), CheckResult())
         sql_checks.append(
             {
                 "script": mods.re_service.get_filename(path),
                 "downloadUrl": context.download_url(path),
-                "messages": text_to_messages(result[0], ""),
+                "messages": finding_messages(result.findings),
             }
         )
 
@@ -30,9 +31,9 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
         result = context.safe(
             f"NUPS 加工程序规则({file_name})",
             lambda p=path: mods.nups_rule.rule_dws_py(p),
-            ("", 0, []),
+            CheckResult(),
         )
-        sql_tables = dedupe_tables(result[2] if len(result) > 2 else [])
+        sql_tables = dedupe_tables(result.artifacts.get("sql_tables", []))
         table_name = context.safe("表名解析", lambda p=path: mods.nups_rule.get_program_table_name(p), "")
         py_scripts.append(
             {
@@ -40,7 +41,7 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
                 "downloadUrl": context.download_url(path),
                 "path": mods.re_service.safe_remove_prefix(path),
                 "table": table_name,
-                "messages": text_to_messages(result[0], ""),
+                "messages": finding_messages(result.findings),
                 "sqlRefs": sql_tables,
             }
         )

@@ -14,7 +14,8 @@ from app.modules.audit.hcyt_subworkflow_runtime import (  # noqa: E402
     run_hcyt_programs,
     run_hcyt_schedule,
 )
-from app.modules.audit.result_normalizer import dedupe_tables, normalize_table, rule_label, text_to_rows  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
 
 
 class ScheduleModules:
@@ -27,10 +28,16 @@ class ScheduleModules:
                 "job.xlsx": pd.DataFrame([["JOB_A", "task"]]),
             }[path]
         )
+        plan_result = CheckResult(artifacts={"plans": {"plan": "PLAN_A"}})
+        plan_result.add("hcyt.schedule.plan.demo", "计划示例", "err", "plan err")
+        seq_result = CheckResult()
+        seq_result.add("hcyt.schedule.seq.demo", "作业流示例", "warn", "seq warn")
+        job_result = CheckResult()
+        job_result.add("hcyt.schedule.job.demo", "作业示例", "err", "job err")
         self.hcyt = types.SimpleNamespace(
-            rule_excle_plan=lambda _df: ("plan err", "", 0, {"plan": "PLAN_A"}),
-            rule_excle_seq=lambda _df: ("", "seq warn", 0),
-            rule_excle_job=lambda _df, **_kwargs: ("job err", "", 0),
+            rule_excle_plan=lambda _df: plan_result,
+            rule_excle_seq=lambda _df: seq_result,
+            rule_excle_job=lambda _df, **_kwargs: job_result,
         )
         self.public_data = types.SimpleNamespace(all_job=lambda: [("row",)])
 
@@ -45,7 +52,7 @@ class MinimalProgramModules:
             build_job_outfile_lookup=lambda _rows: {},
         )
         self.hcyt = types.SimpleNamespace(
-            rule_dws_py=lambda _path, **_kwargs: ("", "", 0, ["DM.TABLE_A"]),
+            rule_dws_py=lambda _path, **_kwargs: CheckResult(artifacts={"sql_tables": ["DM.TABLE_A"]}),
             get_program_table_name=lambda _path: "",
         )
 
@@ -69,7 +76,6 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
                 {"columns": ["job", "task"], "rows": [["JOB_A", "task"]]},
                 [{"job": "JOB_A", "state": "new"}],
             ),
-            rule_label=rule_label,
         )
 
         self.assertEqual(result["summary"], {"plan": 1, "seq": 1, "job": 1, "cycles": 0, "missing": 0})
@@ -104,7 +110,6 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
             normalize_table=normalize_table,
             dedupe_tables=dedupe_tables,
             cale_map={},
-            text_to_rows=text_to_rows,
             lineage_context=lineage_context,
         )
 
@@ -144,7 +149,6 @@ class HcytSubworkflowRuntimeTests(unittest.TestCase):
             normalize_table=normalize_table,
             dedupe_tables=dedupe_tables,
             cale_map={},
-            text_to_rows=text_to_rows,
             lineage_context=lineage_context,
         )
 

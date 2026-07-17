@@ -117,7 +117,6 @@ class HcytRunnerContractTests(unittest.TestCase):
                 },
                 run_hcyt_schedule=lambda *_args, **_kwargs: None,
                 run_hcyt_programs=lambda *_args, **_kwargs: None,
-                text_to_rows=lambda *_args, **_kwargs: [],
                 status_of=lambda errors, warnings: "fail" if errors else ("warn" if warnings else "pass"),
                 count_levels=lambda _rows: (0, 0),
             ),

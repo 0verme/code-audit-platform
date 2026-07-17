@@ -55,8 +55,7 @@ class AuditCompatTests(unittest.TestCase):
 
     def test_legacy_row_builders_keep_old_audit_results_fields(self):
         nups_rows = build_legacy_nups_audit_result_rows(
-            [{"script": "demo.sql", "messages": [{"level": "err", "msg": "bad sql"}]}],
-            lambda text: f"rule:{text}",
+            [{"script": "demo.sql", "messages": [{"rule": "rule:bad sql", "level": "err", "msg": "bad sql"}]}],
         )
         fine_rows = build_legacy_fine_audit_result_rows(
             [{"file": "demo.cpt", "issues": [{"rule": "missing-auth", "level": "warn", "msg": "check auth"}]}]

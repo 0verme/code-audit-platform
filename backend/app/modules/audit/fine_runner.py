@@ -5,8 +5,9 @@ from urllib.parse import quote
 from app.config.audit_rules import get_audit_rules
 
 from .compat import build_legacy_fine_audit_result_rows
+from .findings import CheckResult, finding_messages
 from .fine_report_builder import build_fine_report
-from .result_normalizer import dedupe_tables, normalize_table, rule_label, text_to_messages
+from .result_normalizer import dedupe_tables, normalize_table
 from .workflow_runtime import WorkflowRuntimeContext
 
 
@@ -42,12 +43,12 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
             lambda: mods.re_service.load_txt_to_df(menu_url, ["后台目录", "前台目录", "预览方式"]),
             None,
         )
-        result = context.safe("目录规则(rule_menu)", lambda: mods.fine_rule.rule_menu(menu_url), ([], "", 0))
-        menu_lists = result[0] if isinstance(result, tuple) and result else []
+        result = context.safe("目录规则(rule_menu)", lambda: mods.fine_rule.rule_menu(menu_url), CheckResult())
+        menu_lists = result.artifacts.get("menu_entries", [])
         menu_section = {
             "columns": ["后台目录", "前台目录", "预览方式"],
             "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
-            "messages": text_to_messages(result[1] if isinstance(result, tuple) and len(result) > 1 else "", ""),
+            "messages": finding_messages(result.findings),
         }
     if authority_url:
         table = context.safe(
@@ -58,13 +59,12 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         result = context.safe(
             "权限规则(rule_authority)",
             lambda: mods.fine_rule.rule_authority(authority_url, menu_lists),
-            ("", 0),
+            CheckResult(),
         )
-        text = result[0] if isinstance(result, tuple) else str(result)
         authority_section = {
             "columns": ["前台目录", "赋予权限"],
             "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
-            "messages": text_to_messages(text, ""),
+            "messages": finding_messages(result.findings),
         }
 
     context.update(progress=55, step="帆软模板检查")
@@ -111,23 +111,26 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
     reports, all_ref_tables = [], []
     for path in cpt_lists:
         file_name = mods.re_service.get_filename(path)
-        result = context.safe(f"帆软规则({file_name})", lambda p=path: mods.fine_rule.rule_fine(p), None)
+        result = context.safe(f"帆软规则({file_name})", lambda p=path: mods.fine_rule.rule_fine(p), CheckResult())
         issues, ref_tables = [], []
         title, conn, engine_flag, sheets, datasets = file_name, "-", "", [], []
         viewlet = ""
-        if isinstance(result, tuple) and len(result) >= 3:
-            text, _cnt, detail = result[0], result[1], result[2]
+        if isinstance(result, CheckResult):
             issues = [
-                {"cat": "dataset", "loc": file_name, "rule": rule_label(line), "level": "err", "msg": line}
-                for line in str(text or "").split("\n")
-                if line.strip() and line.strip() != "存在问题:"
+                {
+                    **finding.with_context(category="dataset", location=file_name).to_dict(),
+                    "cat": finding.category or "dataset",
+                    "loc": finding.location or file_name,
+                }
+                for finding in result.findings
             ]
-            viewlet = str(detail[0]) if detail and detail[0] else ""
+            detail = result.artifacts
+            viewlet = str(detail.get("viewlet") or "")
             title = viewlet or file_name
-            conn = str(detail[1]) if len(detail) > 1 and detail[1] else "-"
-            engine_flag = str(detail[2]) if len(detail) > 2 else ""
-            sheets = list(detail[3]) if len(detail) > 3 and detail[3] else []
-            sql_tables = dedupe_tables(detail[4] if len(detail) > 4 else [])
+            conn = str(detail.get("connection") or "-")
+            engine_flag = str(detail.get("engine") or "")
+            sheets = list(detail.get("sheets") or [])
+            sql_tables = dedupe_tables(detail.get("sql_tables", []))
             sql_text = context.safe("数据集 SQL 提取", lambda p=path: mods.fine_rule.get_cpt_sql(p), "")
             if sql_text:
                 datasets = [{"name": "数据集 SQL", "sql": (sql_text or "").strip(), "rows": "-"}]
@@ -142,9 +145,6 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                         "highlight": (name in disabled) or (name in sys_name_map),
                     }
                 )
-        elif result is not None:
-            issues = [{"cat": "tpl", "loc": file_name, "rule": "规则执行异常", "level": "warn", "msg": str(result)}]
-
         preview_url = f"{get_fine_report_preview_url()}?viewlet={quote(viewlet, safe='')}" if viewlet else ""
         reports.append(
             {

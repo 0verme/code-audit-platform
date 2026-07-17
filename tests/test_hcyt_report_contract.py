@@ -8,6 +8,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
 
 
 class FakeReService:
@@ -25,6 +26,12 @@ class FakeReService:
 
 
 class FakeHcyt:
+    @staticmethod
+    def _result(code, rule, level, msg):
+        result = CheckResult()
+        result.add(code, rule, level, msg)
+        return result
+
     def get_hcyt_type(self, exported):
         return (
             "C:/workspace/dws.sql",
@@ -45,19 +52,19 @@ class FakeHcyt:
         )
 
     def rule_dws(self, path):
-        return ("dws warning", "", 1)
+        return self._result("hcyt.sql.demo", "DWS 示例", "err", "dws warning")
 
     def rule_hive(self, path):
-        return ("", "hive error", 1)
+        return self._result("hcyt.hive.demo", "Hive 示例", "info", "hive error")
 
     def rule_sbin(self, paths):
-        return ("sbin warning", "", 1)
+        return self._result("hcyt.sbin.demo", "后置脚本示例", "err", "sbin warning")
 
     def rule_recv_json(self, paths):
-        return ("recv warning", "", 1)
+        return self._result("hcyt.recv.demo", "卸数示例", "err", "recv warning")
 
     def rule_config(self, paths):
-        return ("", "config error", 1)
+        return self._result("hcyt.config.demo", "配置示例", "warn", "config error")
 
 
 class FakeDdlRule:

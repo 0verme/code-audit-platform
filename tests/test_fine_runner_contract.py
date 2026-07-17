@@ -9,6 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.fine_runner import run_fine  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
 from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
 
 
@@ -17,11 +18,18 @@ class FineRunnerContractTests(unittest.TestCase):
         saved_groups = []
         logs = []
 
+        default_report = CheckResult(artifacts={
+            "viewlet": "ReportA",
+            "connection": "",
+            "engine": "",
+            "sheets": [],
+            "sql_tables": [],
+        })
         mods = types.SimpleNamespace(
             fine_rule=types.SimpleNamespace(
-                rule_menu=lambda _path: ([], "", 0),
-                rule_authority=lambda _path, _menus: ("", 0),
-                rule_fine=rule_fine or (lambda _path: ("", 0, ["ReportA", "", "", [], []])),
+                rule_menu=lambda _path: CheckResult(artifacts={"menu_entries": []}),
+                rule_authority=lambda _path, _menus: CheckResult(),
+                rule_fine=rule_fine or (lambda _path: default_report),
                 get_cpt_sql=lambda _path: "",
             ),
             public_data=types.SimpleNamespace(
@@ -90,7 +98,6 @@ class FineRunnerContractTests(unittest.TestCase):
             build_hcyt_report=lambda *_args, **_kwargs: None,
             run_hcyt_schedule=lambda *_args, **_kwargs: None,
             run_hcyt_programs=lambda *_args, **_kwargs: None,
-            text_to_rows=lambda *_args, **_kwargs: [],
             status_of=lambda errors, warnings: "fail" if errors else ("warn" if warnings else "pass"),
             count_levels=lambda _rows: (0, 0),
         )
@@ -138,9 +145,11 @@ class FineRunnerContractTests(unittest.TestCase):
         self.assertEqual(captured["profile"], "local_pg")
 
     def test_loader_failure_degrades_without_changing_report_shape(self):
+        fallback = CheckResult()
+        fallback.add("fine.report.execution_error", "规则执行异常", "warn", "fine rule fallback")
         context, _saved_groups, logs = self._context(
             loader=lambda *, profile: (_ for _ in ()).throw(RuntimeError(f"boom:{profile}")),
-            rule_fine=lambda _path: "fine rule fallback",
+            rule_fine=lambda _path: fallback,
         )
 
         report = run_fine(context)

@@ -40,6 +40,5 @@ class WorkflowRuntimeContext:
     build_hcyt_report: Callable[..., dict]
     run_hcyt_schedule: Callable[..., Any]
     run_hcyt_programs: Callable[..., Any]
-    text_to_rows: Callable[..., Any]
     status_of: Callable[[int, int], str]
     count_levels: Callable[[list[list[dict]]], tuple[int, int]]

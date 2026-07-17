@@ -31,7 +31,7 @@ class HcytPythonRuleTimingTests(unittest.TestCase):
                 log_timing=lambda label, phase, **fields: events.append((label, phase, fields)),
             )
 
-        self.assertEqual(len(result), 4)
+        self.assertIn("sql_tables", result.artifacts)
         labels = {event[0] for event in events}
         self.assertTrue({
             "programs.file.rule.load_sstb",
@@ -47,11 +47,11 @@ class HcytPythonRuleTimingTests(unittest.TestCase):
             self.assertEqual(label_events[-1][2]["file"], "program.py")
             self.assertIn("elapsed_ms", label_events[-1][2])
 
-    def test_rule_dws_py_keeps_legacy_call_shape_without_timing(self):
+    def test_rule_dws_py_returns_structured_result_without_timing(self):
         with self._patches()[0], self._patches()[1], self._patches()[2], self._patches()[3], self._patches()[4], self._patches()[5]:
             result = python_rule.rule_dws_py("C:/repo/DWS_DM.TABLE_A/program.py")
 
-        self.assertEqual(len(result), 4)
+        self.assertIn("sql_tables", result.artifacts)
 
     def test_rule_dws_py_reuses_task_metadata_cache(self):
         metadata_cache = {}
@@ -76,7 +76,7 @@ class HcytPythonRuleTimingTests(unittest.TestCase):
             )
 
         self.assertEqual(partitions.call_count, 0)
-        self.assertIn("分区表应该增加分区步骤", result[0])
+        self.assertTrue(any("分区表应该增加分区步骤" in item.msg for item in result.findings))
 
 
 if __name__ == "__main__":

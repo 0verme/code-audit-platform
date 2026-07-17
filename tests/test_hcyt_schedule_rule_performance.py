@@ -40,11 +40,9 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
                 return_value=[(" plan_sa_recv_cms_cms_vloan_day ",)],
             ),
         ):
-            result_text, warning_text, count, _plans = schedule_rule.rule_excle_plan(plan_df)
+            result = schedule_rule.rule_excle_plan(plan_df)
 
-        self.assertEqual(result_text, "")
-        self.assertEqual(warning_text, "")
-        self.assertEqual(count, 0)
+        self.assertEqual(result.findings, [])
 
     def test_plan_rule_warns_when_upstream_system_is_not_maintained(self):
         plan_name = "PLAN_SA_RECV_CMS_CMS_VLOAN_DAY"
@@ -54,13 +52,13 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
             patch.object(schedule_rule, "all_plan", return_value=[(plan_name,)]),
             patch.object(schedule_rule, "all_upstream_system_ids", return_value=[]),
         ):
-            _result_text, warning_text, _count, _plans = schedule_rule.rule_excle_plan(plan_df)
+            result = schedule_rule.rule_excle_plan(plan_df)
 
         self.assertIn(
             f"计划名 {plan_name} 未在数据资产系统维护上游系统",
-            warning_text,
+            [item.msg for item in result.findings],
         )
-        self.assertNotIn("dwp.p_upstream_system", warning_text)
+        self.assertFalse(any("dwp.p_upstream_system" in item.msg for item in result.findings))
 
     def test_job_rule_reuses_rules_and_job_records_without_iterrows(self):
         rows = [job_row(job="JOB_A"), job_row(job="JOB_B", dependency="33:JOB_A")]
@@ -83,7 +81,7 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
             )
 
         self.assertEqual(load_rules.call_count, 1)
-        self.assertEqual(result, ("", "", 0))
+        self.assertEqual(result.findings, [])
         self.assertTrue(any("JOB Excel 转换完成" in message for message in timings))
         self.assertTrue(any("JOB规则主循环完成" in message for message in timings))
 

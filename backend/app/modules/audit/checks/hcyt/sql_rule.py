@@ -14,6 +14,7 @@ from app.modules.metadata.services.public_data import all_function_names, all_vi
 from app.modules.audit.rules.portal_link_builder import build_portal_link
 from app.modules.audit.checks.dws_sql_review import run_configured_dws_sql_reviews
 from app.modules.audit.checks.re_service import find_dot_strings, read_data_from_file
+from app.modules.audit.findings import CheckResult
 
 
 def _build_asset_table_review_issue(full_table_name, source_module, source_file, issue_desc):
@@ -57,70 +58,49 @@ def collect_created_table_review_issues(dws_url, source_module='hcyt', source_fi
 def rule_dws(dws_url):
     print('===================================rule_dws=================================')
     data = read_data_from_file(dws_url)
-    reslut_text = ''
-    warn_result_text = ''
-    cnt = 0
+    result = CheckResult()
     view_names = load_metadata_name_set(all_view_names())
     function_names = load_metadata_name_set(all_function_names())
     created_views = detect_created_views(data)
     created_functions = detect_created_functions(data)
     used_views = sorted({item for item in find_dot_strings(data.upper()) if item.upper() in view_names})
     used_functions = detect_used_functions(data, function_names)
-    warn_result_text += '存在dws.sql\n'
+    result.add('hcyt.sql.file_present', 'DWS SQL 文件', 'info', '存在dws.sql')
     if created_views:
-        reslut_text += f'检测到创建视图，请重点审核: {",".join(created_views)}\n'
-        cnt += 1
+        result.add('hcyt.sql.create_view', '创建视图', 'err', f'检测到创建视图，请重点审核: {",".join(created_views)}')
     if created_functions:
-        reslut_text += f'检测到创建函数，请重点审核: {",".join(created_functions)}\n'
-        cnt += 1
+        result.add('hcyt.sql.create_function', '创建函数', 'err', f'检测到创建函数，请重点审核: {",".join(created_functions)}')
     if used_views:
-        reslut_text += f'检测到使用视图，请重点审核: {",".join(used_views)}\n'
-        cnt += 1
+        result.add('hcyt.sql.use_view', '使用视图', 'err', f'检测到使用视图，请重点审核: {",".join(used_views)}')
     if used_functions:
-        reslut_text += f'检测到使用函数，请重点审核: {",".join(used_functions)}\n'
-        cnt += 1
+        result.add('hcyt.sql.use_function', '使用函数', 'err', f'检测到使用函数，请重点审核: {",".join(used_functions)}')
     if len(data.split('\n')) > 20000:
-        reslut_text += '行数过多,大批量sql请上线人员操作\n'
-        cnt += 1
+        result.add('hcyt.sql.too_many_lines', 'SQL 行数过多', 'err', '行数过多,大批量sql请上线人员操作')
     if 'alter'.upper() in data.upper():
-        reslut_text += '存在alter命令,请审核重点检查\n'
-        cnt += 1
+        result.add('hcyt.sql.alter_statement', 'ALTER 命令', 'info', '存在alter命令,请审核重点检查')
     if 'dwm.'.upper() in data.upper():
-        reslut_text += '存在对dwm模型层的操作,请审核重点检查\n'
-        cnt += 1
+        result.add('hcyt.sql.dwm_operation', 'DWM 模型层操作', 'err', '存在对dwm模型层的操作,请审核重点检查')
     if 'TO GROUP GROUP_VERSION1'.upper() in data.upper():
-        reslut_text += '建表脚本不允许带 TO GROUP GROUP_VERSION1\n'
-        cnt += 1
-    configured_messages = run_configured_dws_sql_reviews(data, message_style="hcyt")
-    if configured_messages:
-        reslut_text += '\n'.join(configured_messages) + '\n'
-        cnt += len(configured_messages)
+        result.add('hcyt.sql.legacy_group_clause', '旧版 GROUP 子句', 'err', '建表脚本不允许带 TO GROUP GROUP_VERSION1')
+    result.findings.extend(run_configured_dws_sql_reviews(data, message_style="hcyt"))
 
-    ddl_rule_messages = []
-    for message in run_dws_ddl_rules(data):
-        if message not in ddl_rule_messages:
-            ddl_rule_messages.append(message)
-    if ddl_rule_messages:
-        if reslut_text and not reslut_text.endswith('\n'):
-            reslut_text += '\n'
-        reslut_text += '\n'.join(ddl_rule_messages) + '\n'
-        cnt += len(ddl_rule_messages)
-    return reslut_text, warn_result_text, cnt
+    seen = {(item.rule_code, item.msg) for item in result.findings}
+    for finding in run_dws_ddl_rules(data):
+        key = (finding.rule_code, finding.msg)
+        if key not in seen:
+            result.findings.append(finding)
+            seen.add(key)
+    return result
 
 
 def rule_hive(hive_url):
     data = read_data_from_file(hive_url)
-    reslut_text = ''
-    warn_result_text = ''
-    cnt = 0
-    warn_result_text += '存在hive.sql\n'
+    result = CheckResult()
+    result.add('hcyt.hive.file_present', 'Hive SQL 文件', 'info', '存在hive.sql')
     if len(data.split('\n')) > 20000:
-        reslut_text += '行数过多,大批量sql请上线人员操作\n'
-        cnt += 1
+        result.add('hcyt.hive.too_many_lines', 'SQL 行数过多', 'err', '行数过多,大批量sql请上线人员操作')
     if 'varchar2'.upper() in data.upper():
-        reslut_text += '湖脚本不允许VARCHAR2类型的字段\n'
-        cnt += 1
+        result.add('hcyt.hive.varchar2_type', 'VARCHAR2 字段类型', 'err', '湖脚本不允许VARCHAR2类型的字段')
     if 'alter'.upper() in data.upper():
-        reslut_text += '存在alter命令,请审核重点检查\n'
-        cnt += 1
-    return reslut_text, warn_result_text, cnt
+        result.add('hcyt.hive.alter_statement', 'ALTER 命令', 'info', '存在alter命令,请审核重点检查')
+    return result

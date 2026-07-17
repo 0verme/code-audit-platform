@@ -12,6 +12,7 @@ from app.modules.audit.checks.hcyt._sql_parser import (
 )
 from app.modules.metadata.services.public_data import all_term_roots
 from app.modules.audit.rules.portal_link_builder import build_portal_link
+from app.modules.audit.findings import Finding
 from app.config.audit_rules import get_audit_rules
 
 DWS_TABLE_PREFIX_RULES = {
@@ -179,26 +180,44 @@ def check_table_name_rule(full_table_name, is_temp=False):
     if is_temp or schema_name == 'TMP':
         prefixes = _naming_rules()["temporary_table_prefixes"]
         if not any(table_name.startswith(prefix) for prefix in prefixes):
-            return f'临时表 {full_table_name} 命名不符合规范，应以 {"/".join(prefixes)} 开头'
-        return ''
+            return Finding(
+                'hcyt.ddl.temp_table_name',
+                '临时表命名',
+                'err',
+                f'临时表 {full_table_name} 命名不符合规范，应以 {"/".join(prefixes)} 开头',
+                evidence={'table': full_table_name},
+            )
+        return None
 
     allowed_prefixes = _naming_rules()["schema_prefixes"].get(schema_name)
     if allowed_prefixes and not any(table_name.startswith(prefix) for prefix in allowed_prefixes):
-        return f'表 {full_table_name} 命名不符合规范，{schema_name} 层表名应以 {"/".join(allowed_prefixes)} 开头'
-    return ''
+        return Finding(
+            'hcyt.ddl.table_name',
+            '分层表命名',
+            'err',
+            f'表 {full_table_name} 命名不符合规范，{schema_name} 层表名应以 {"/".join(allowed_prefixes)} 开头',
+            evidence={'table': full_table_name, 'schema': schema_name},
+        )
+    return None
 
 
 def check_column_comment_rule(column_item, comment_map):
     table_name = column_item['table_name']
     schema_name, _ = split_schema_table(table_name)
     if schema_name not in _naming_rules()["comment_required_schemas"]:
-        return ''
+        return None
 
     full_column_name = f"{table_name}.{column_item['column_name']}"
     comment_text = column_item['inline_comment'] or comment_map.get(full_column_name, '')
     if not comment_text:
-        return f'字段 {full_column_name} 缺少注释，请在建表字段后补 COMMENT 或增加 COMMENT ON COLUMN'
-    return ''
+        return Finding(
+            'hcyt.ddl.column_comment',
+            '字段注释',
+            'err',
+            f'字段 {full_column_name} 缺少注释，请在建表字段后补 COMMENT 或增加 COMMENT ON COLUMN',
+            evidence={'column': full_column_name},
+        )
+    return None
 
 
 def strip_table_prefix(schema_name, table_name, is_temp=False):
@@ -223,23 +242,35 @@ def extract_root_tokens(name):
 def check_table_root_rule(full_table_name, term_roots, is_temp=False):
     schema_name, table_name = split_schema_table(full_table_name)
     if schema_name not in _naming_rules()["root_check_required_schemas"]:
-        return ''
+        return None
     pure_table_name = strip_table_prefix(schema_name, table_name, is_temp=is_temp)
     missing_roots = [token for token in extract_root_tokens(pure_table_name) if token not in term_roots]
     if missing_roots:
-        return f'建表表名 {full_table_name} 存在未维护词根: {",".join(missing_roots)}，规范命名或联系一审在词根平台加上'
-    return ''
+        return Finding(
+            'hcyt.ddl.table_root',
+            '表名词根',
+            'err',
+            f'建表表名 {full_table_name} 存在未维护词根: {",".join(missing_roots)}，规范命名或联系一审在词根平台加上',
+            evidence={'table': full_table_name, 'missingRoots': missing_roots},
+        )
+    return None
 
 
 def check_column_root_rule(column_item, term_roots):
     schema_name, _ = split_schema_table(column_item['table_name'])
     if schema_name not in _naming_rules()["root_check_required_schemas"]:
-        return ''
+        return None
     full_column_name = f"{column_item['table_name']}.{column_item['column_name']}"
     missing_roots = [token for token in extract_root_tokens(column_item['column_name']) if token not in term_roots]
     if missing_roots:
-        return f'字段 {full_column_name} 存在未维护词根: {",".join(missing_roots)}，规范命名或联系一审在词根平台加上'
-    return ''
+        return Finding(
+            'hcyt.ddl.column_root',
+            '字段词根',
+            'err',
+            f'字段 {full_column_name} 存在未维护词根: {",".join(missing_roots)}，规范命名或联系一审在词根平台加上',
+            evidence={'column': full_column_name, 'missingRoots': missing_roots},
+        )
+    return None
 
 
 def _build_root_missing_issue(
@@ -321,7 +352,7 @@ def collect_root_missing_issues(sql_text, source_module, source_file):
 
 
 def run_dws_ddl_rules(sql_text):
-    warnings = []
+    findings = []
     created_tables = extract_create_table_objects(sql_text)
     altered_tables = extract_alter_table_targets(sql_text)
     comment_map = extract_comment_on_column_map(sql_text)
@@ -331,22 +362,26 @@ def run_dws_ddl_rules(sql_text):
     for item in created_tables:
         message = check_table_name_rule(item['table_name'], is_temp=item['is_temp'])
         if message:
-            warnings.append(message)
+            findings.append(message)
         root_message = check_table_root_rule(item['table_name'], term_roots, is_temp=item['is_temp'])
         if root_message:
-            warnings.append(root_message)
+            findings.append(root_message)
 
     for table_name in altered_tables:
         message = check_table_name_rule(table_name)
         if message:
-            warnings.append(f'{message}（ALTER TABLE 对象）')
+            findings.append(replace(
+                message,
+                msg=f'{message.msg}（ALTER TABLE 对象）',
+                evidence={**(message.evidence or {}), 'source': 'alter_table'},
+            ))
 
     for column_item in column_items:
         comment_message = check_column_comment_rule(column_item, comment_map)
         if comment_message:
-            warnings.append(comment_message)
+            findings.append(comment_message)
         root_message = check_column_root_rule(column_item, term_roots)
         if root_message:
-            warnings.append(root_message)
+            findings.append(root_message)
 
-    return warnings
+    return findings

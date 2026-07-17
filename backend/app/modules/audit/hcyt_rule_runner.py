@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from .findings import CheckResult, finding_rows
 
 def _run_timed(label, fn, log_timing=None):
     started = time.perf_counter()
@@ -40,13 +41,8 @@ def run_hcyt_rules(
 
     if dws_url:
         task_running("dws_sql")
-        result = _run_timed("rules.dws_sql", lambda: safe("dws.sql 规则", lambda: modules.hcyt.rule_dws(dws_url), ("", "", 0)), log_timing)
-        grouped["dws"] += modules.text_to_rows(
-            result[0],
-            result[1],
-            modules.re_service.get_filename(dws_url),
-            warn_level="info",
-        )
+        result = _run_timed("rules.dws_sql", lambda: safe("dws.sql 规则", lambda: modules.hcyt.rule_dws(dws_url), CheckResult()), log_timing)
+        grouped["dws"] += finding_rows(result.findings, file=modules.re_service.get_filename(dws_url))
         sql_checks["dws"] = {
             "script": modules.re_service.get_filename(dws_url),
             "downloadUrl": download_url(dws_url),
@@ -71,13 +67,8 @@ def run_hcyt_rules(
 
     if hive_url:
         task_running("hive_sql")
-        result = _run_timed("rules.hive_sql", lambda: safe("hive.sql 规则", lambda: modules.hcyt.rule_hive(hive_url), ("", "", 0)), log_timing)
-        grouped["hive"] += modules.text_to_rows(
-            result[0],
-            result[1],
-            modules.re_service.get_filename(hive_url),
-            warn_level="info",
-        )
+        result = _run_timed("rules.hive_sql", lambda: safe("hive.sql 规则", lambda: modules.hcyt.rule_hive(hive_url), CheckResult()), log_timing)
+        grouped["hive"] += finding_rows(result.findings, file=modules.re_service.get_filename(hive_url))
         sql_checks["hive"] = {
             "script": modules.re_service.get_filename(hive_url),
             "downloadUrl": download_url(hive_url),
@@ -90,8 +81,8 @@ def run_hcyt_rules(
 
     if sbin_lists:
         task_running("post_scripts")
-        result = _run_timed("rules.post_scripts", lambda: safe("sbin 规则", lambda: modules.hcyt.rule_sbin(sbin_lists), ("", "", 0)), log_timing)
-        grouped["sbin"] += modules.text_to_rows(result[0], result[1], "sbin")
+        result = _run_timed("rules.post_scripts", lambda: safe("sbin 规则", lambda: modules.hcyt.rule_sbin(sbin_lists), CheckResult()), log_timing)
+        grouped["sbin"] += finding_rows(result.findings, file="sbin")
         set_partial("sbin", grouped["sbin"])
         task_success("post_scripts", result=grouped["sbin"], summary={"issues": len(grouped["sbin"])})
     else:
@@ -99,8 +90,8 @@ def run_hcyt_rules(
 
     if recv_lists:
         task_running("recv_config")
-        result = _run_timed("rules.recv_config", lambda: safe("recv 卸数规则", lambda: modules.hcyt.rule_recv_json(recv_lists), ("", "", 0)), log_timing)
-        grouped["recv"] += modules.text_to_rows(result[0], result[1], "recv_json")
+        result = _run_timed("rules.recv_config", lambda: safe("recv 卸数规则", lambda: modules.hcyt.rule_recv_json(recv_lists), CheckResult()), log_timing)
+        grouped["recv"] += finding_rows(result.findings, file="recv_json")
         set_partial("recv", grouped["recv"])
         task_success("recv_config", result=grouped["recv"], summary={"issues": len(grouped["recv"])})
     else:
@@ -108,8 +99,8 @@ def run_hcyt_rules(
 
     if schame_config_lists:
         task_running("config_files")
-        result = _run_timed("rules.config_files", lambda: safe("schema_config 规则", lambda: modules.hcyt.rule_config(schame_config_lists), ("", "", 0)), log_timing)
-        grouped["config"] += modules.text_to_rows(result[0], result[1], "SCHEMA_CONFIG", err_level="warn")
+        result = _run_timed("rules.config_files", lambda: safe("schema_config 规则", lambda: modules.hcyt.rule_config(schame_config_lists), CheckResult()), log_timing)
+        grouped["config"] += finding_rows(result.findings, file="SCHEMA_CONFIG")
         config_files = build_config_files(schame_config_lists)
         set_partial("config", grouped["config"])
         set_partial("configFiles", config_files)
@@ -118,10 +109,10 @@ def run_hcyt_rules(
         task_skipped("config_files", "no schema config files")
 
     for path in dwo_lists or []:
-        result = _run_timed("rules.dwo", lambda p=path: safe("dwo 规则", lambda: modules.hcyt.rule_dwo(p), ("", "", 0)), log_timing)
-        grouped["python"] += modules.text_to_rows(result[0], result[1], modules.re_service.get_filename(path))
+        result = _run_timed("rules.dwo", lambda p=path: safe("dwo 规则", lambda: modules.hcyt.rule_dwo(p), CheckResult()), log_timing)
+        grouped["python"] += finding_rows(result.findings, file=modules.re_service.get_filename(path))
     for path in dwf_lists or []:
-        result = _run_timed("rules.dwf", lambda p=path: safe("dwf 规则", lambda: modules.hcyt.rule_dwf(p), ("", "", 0)), log_timing)
-        grouped["python"] += modules.text_to_rows(result[0], result[1], modules.re_service.get_filename(path))
+        result = _run_timed("rules.dwf", lambda p=path: safe("dwf 规则", lambda: modules.hcyt.rule_dwf(p), CheckResult()), log_timing)
+        grouped["python"] += finding_rows(result.findings, file=modules.re_service.get_filename(path))
 
     return sql_checks, asset_issues, config_files

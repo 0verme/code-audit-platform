@@ -56,13 +56,13 @@ def build_audit_run_partial_result_payload(task_id: int, status_payload: dict, f
     }
 
 
-def build_legacy_nups_audit_result_rows(sql_checks: list[dict], rule_label_fn) -> dict[str, list[dict]]:
+def build_legacy_nups_audit_result_rows(sql_checks: list[dict]) -> dict[str, list[dict]]:
     return {
         "nups": [
             legacy_audit_result_row(
                 file=check.get("script", ""),
                 line=0,
-                rule=rule_label_fn(message.get("msg")),
+                rule=message.get("rule", ""),
                 level=message.get("level", "info"),
                 msg=message.get("msg", ""),
             )

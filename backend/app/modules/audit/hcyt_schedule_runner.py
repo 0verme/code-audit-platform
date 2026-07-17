@@ -4,6 +4,7 @@ import inspect
 import time
 from pathlib import Path
 
+from .findings import CheckResult, finding_messages
 
 def _timed(label, fn, log_timing=None, result_fields=None, **fields):
     started = time.perf_counter()
@@ -22,18 +23,6 @@ def _timed(label, fn, log_timing=None, result_fields=None, **fields):
             log_timing(label, "end", **end_fields)
 
 
-def schedule_rows(result_text, warn_text, *, rule_label):
-    rows = []
-    for raw, level in ((result_text, "err"), (warn_text, "warn")):
-        if not raw or not isinstance(raw, str):
-            continue
-        for line in raw.split("\n"):
-            line = line.strip()
-            if line:
-                rows.append({"rule": rule_label(line), "level": level, "msg": line})
-    return rows
-
-
 def run_hcyt_schedule(
     plan_xls,
     seq_xls,
@@ -43,7 +32,6 @@ def run_hcyt_schedule(
     safe,
     modules,
     build_job_table,
-    schedule_rows_fn,
     log_timing=None,
 ):
     rows = []
@@ -65,9 +53,9 @@ def run_hcyt_schedule(
             plan_df = plan_source.iloc[:, [0, 4]].fillna("")
             plan_df.columns = ["计划名", "前置依赖"]
             tables["plan"] = {"title": "PLAN 计划清单", **df_table(plan_df)}
-            result = _timed("schedule.plan.rules", lambda: safe("PLAN 规则", lambda: modules.hcyt.rule_excle_plan(plan_df), ("", "", 0, None)), log_timing)
-            r_plan = result[3] if len(result) > 3 else None
-            plan_rows = schedule_rows_fn(result[0], result[1])
+            result = _timed("schedule.plan.rules", lambda: safe("PLAN 规则", lambda: modules.hcyt.rule_excle_plan(plan_df), CheckResult()), log_timing)
+            r_plan = result.artifacts.get("plans")
+            plan_rows = finding_messages(result.findings)
             tables["plan"]["messages"] = plan_rows
             rows += [{"table": "PLAN", "item": Path(plan_xls).name, **row} for row in plan_rows]
 
@@ -78,8 +66,8 @@ def run_hcyt_schedule(
             seq_df = seq_source.iloc[:, [0, 1, 2]].fillna("")
             seq_df.columns = ["计划名", "作业流名", "作业流描述"]
             tables["seq"] = {"title": "SEQ 作业流清单", **df_table(seq_df)}
-            result = _timed("schedule.seq.rules", lambda: safe("SEQ 规则", lambda: modules.hcyt.rule_excle_seq(seq_df), ("", "", 0)), log_timing)
-            seq_rows = schedule_rows_fn(result[0], result[1])
+            result = _timed("schedule.seq.rules", lambda: safe("SEQ 规则", lambda: modules.hcyt.rule_excle_seq(seq_df), CheckResult()), log_timing)
+            seq_rows = finding_messages(result.findings)
             tables["seq"]["messages"] = seq_rows
             rows += [{"table": "SEQ", "item": Path(seq_xls).name, **row} for row in seq_rows]
 
@@ -135,11 +123,12 @@ def run_hcyt_schedule(
             }
             rule_timing = None
             if log_timing is not None:
-                rule_timing = lambda message: log_timing(
-                    "schedule.job.rules.detail",
-                    "point",
-                    message=message,
-                )
+                def rule_timing(message):
+                    log_timing(
+                        "schedule.job.rules.detail",
+                        "point",
+                        message=message,
+                    )
             result = _timed("schedule.job.rules", lambda: safe(
                 "JOB 规则",
                 lambda: modules.hcyt.rule_excle_job(
@@ -148,11 +137,11 @@ def run_hcyt_schedule(
                     timing_log=rule_timing,
                     job_rows=db_job_rows,
                 ),
-                ("", "", 0),
+                CheckResult(),
             ), log_timing)
             job_rows = _timed(
                 "schedule.job.build_messages",
-                lambda: schedule_rows_fn(result[0], result[1]),
+                lambda: finding_messages(result.findings),
                 log_timing,
                 result_fields=lambda message_rows: {"rows": len(message_rows)},
             )

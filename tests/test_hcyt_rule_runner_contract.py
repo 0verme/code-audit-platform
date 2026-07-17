@@ -8,7 +8,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
-from app.modules.audit.result_normalizer import text_to_rows  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
 
 
 class FakeReService:
@@ -21,25 +21,29 @@ class FakeReService:
 
 class FakeHcyt:
     def rule_dws(self, path):
-        return ("", "dws warning", 0)
+        result = CheckResult()
+        result.add("hcyt.sql.demo", "DWS 示例", "info", "dws warning")
+        return result
 
     def rule_hive(self, path):
-        return ("", "hive warning", 0)
+        result = CheckResult()
+        result.add("hcyt.hive.demo", "Hive 示例", "info", "hive warning")
+        return result
 
     def rule_sbin(self, paths):
-        return ("", "", 0)
+        return CheckResult()
 
     def rule_recv_json(self, paths):
-        return ("", "", 0)
+        return CheckResult()
 
     def rule_config(self, paths):
-        return ("", "", 0)
+        return CheckResult()
 
     def rule_dwo(self, path):
-        return ("", "", 0)
+        return CheckResult()
 
     def rule_dwf(self, path):
-        return ("", "", 0)
+        return CheckResult()
 
 
 class FakeModules:
@@ -52,7 +56,6 @@ class FakeModules:
             (),
             {"collect_created_table_review_issues": staticmethod(lambda *args: [])},
         )()
-        self.text_to_rows = text_to_rows
 
 
 class HcytRuleRunnerContractTests(unittest.TestCase):

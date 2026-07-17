@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from .hcyt_program_runner import run_hcyt_programs as _run_hcyt_programs
-from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule, schedule_rows as _schedule_rows
+from .hcyt_schedule_runner import run_hcyt_schedule as _run_hcyt_schedule
 
 
 def run_hcyt_schedule(
@@ -15,7 +15,6 @@ def run_hcyt_schedule(
     safe,
     modules,
     build_job_table,
-    rule_label,
     log_timing=None,
 ):
     return _run_hcyt_schedule(
@@ -26,11 +25,6 @@ def run_hcyt_schedule(
         safe=safe,
         modules=modules,
         build_job_table=build_job_table,
-        schedule_rows_fn=lambda result_text, warn_text: _schedule_rows(
-            result_text,
-            warn_text,
-            rule_label=rule_label,
-        ),
         log_timing=log_timing,
     )
 
@@ -50,7 +44,6 @@ def run_hcyt_programs(
     normalize_table,
     dedupe_tables,
     cale_map,
-    text_to_rows,
     log_timing=None,
     lineage_context=None,
 ):
@@ -60,7 +53,7 @@ def run_hcyt_programs(
         program_xls,
         db_job_rows,
         safe=safe,
-        modules=_build_hcyt_program_modules(modules, text_to_rows=text_to_rows),
+        modules=_build_hcyt_program_modules(modules),
         download_url=download_url,
         load_result_table_annotations=load_result_table_annotations,
         annotate_table=annotate_table,
@@ -73,7 +66,7 @@ def run_hcyt_programs(
     )
 
 
-def _build_hcyt_program_modules(modules, *, text_to_rows):
+def _build_hcyt_program_modules(modules):
     return SimpleNamespace(
         re_service=modules.re_service,
         hcyt=modules.hcyt,
@@ -91,7 +84,6 @@ def _build_hcyt_program_modules(modules, *, text_to_rows):
             "load_result_table_catalog_snapshot",
             None,
         ),
-        text_to_rows=text_to_rows,
     )
 
 

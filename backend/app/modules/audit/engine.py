@@ -54,9 +54,6 @@ from .result_normalizer import (
     dedupe_tables,
     format_duration,
     normalize_table,
-    rule_label,
-    text_to_messages,
-    text_to_rows,
 )
 from .run_failure_result import build_engine_load_failure_result, build_failure_result
 from .run_result_finalizer import finalize_run_result
@@ -400,7 +397,7 @@ class TaskRun:
             audit_results = (
                 build_legacy_hcyt_audit_result_rows(report)
                 if self.workflow == "hcyt"
-                else build_legacy_nups_audit_result_rows(report.get("sqlChecks", []), rule_label)
+                else build_legacy_nups_audit_result_rows(report.get("sqlChecks", []))
             )
             try:
                 persist("task.persistence.atomic", lambda: persist_task_completion_atomic(
@@ -475,7 +472,6 @@ class TaskRun:
             build_hcyt_report=build_hcyt_report,
             run_hcyt_schedule=self.run_hcyt_schedule,
             run_hcyt_programs=self.run_hcyt_programs,
-            text_to_rows=text_to_rows,
             status_of=self.status_of,
             count_levels=self.count_levels,
         )
@@ -663,7 +659,6 @@ class TaskRun:
             safe=self.safe,
             modules=_mods,
             build_job_table=self.build_job_table,
-            rule_label=rule_label,
             log_timing=log_timing,
         )
 
@@ -687,7 +682,6 @@ class TaskRun:
             normalize_table=normalize_table,
             dedupe_tables=dedupe_tables,
             cale_map=_display_rules().get("calendar_labels", {}),
-            text_to_rows=text_to_rows,
             log_timing=log_timing,
             lineage_context=lineage_context,
         )

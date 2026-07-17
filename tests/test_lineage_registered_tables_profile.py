@@ -91,8 +91,10 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
             safe_remove_prefix=lambda path: path,
             build_export_download_url=lambda _path: "",
         )
+        from app.modules.audit.findings import CheckResult
+
         hcyt = types.SimpleNamespace(
-            rule_dws_py=lambda _path, **_kwargs: ("", "", 0, []),
+            rule_dws_py=lambda _path, **_kwargs: CheckResult(),
             get_program_table_name=lambda _path: "",
         )
         audit_engine._mods = types.SimpleNamespace(

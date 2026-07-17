@@ -8,7 +8,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
-from app.modules.audit.result_normalizer import text_to_rows  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
 
 
 class FakeReService:
@@ -21,25 +21,39 @@ class FakeReService:
 
 class FakeHcyt:
     def rule_dws(self, path):
-        return ("dws info", "", 0)
+        result = CheckResult()
+        result.add("hcyt.sql.demo", "DWS 示例", "err", "dws info")
+        return result
 
     def rule_hive(self, path):
-        return ("", "hive error", 0)
+        result = CheckResult()
+        result.add("hcyt.hive.demo", "Hive 示例", "info", "hive error")
+        return result
 
     def rule_sbin(self, paths):
-        return ("sbin info", "", 0)
+        result = CheckResult()
+        result.add("hcyt.sbin.demo", "后置脚本示例", "err", "sbin info")
+        return result
 
     def rule_recv_json(self, paths):
-        return ("recv info", "", 0)
+        result = CheckResult()
+        result.add("hcyt.recv.demo", "卸数示例", "err", "recv info")
+        return result
 
     def rule_config(self, paths):
-        return ("", "config error", 0)
+        result = CheckResult()
+        result.add("hcyt.config.demo", "配置示例", "warn", "config error")
+        return result
 
     def rule_dwo(self, path):
-        return ("dwo info", "", 0)
+        result = CheckResult()
+        result.add("hcyt.dwo.demo", "DWO 示例", "err", "dwo info")
+        return result
 
     def rule_dwf(self, path):
-        return ("", "dwf error", 0)
+        result = CheckResult()
+        result.add("hcyt.dwf.demo", "DWF 示例", "warn", "dwf error")
+        return result
 
 
 class FakeDdlRule:
@@ -58,7 +72,6 @@ class FakeModules:
         self.hcyt = FakeHcyt()
         self.hcyt_ddl_rule = FakeDdlRule()
         self.hcyt_sql_rule = FakeSqlRule()
-        self.text_to_rows = text_to_rows
 
 
 class HcytRuleRunnerTests(unittest.TestCase):

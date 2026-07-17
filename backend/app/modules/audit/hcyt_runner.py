@@ -151,7 +151,6 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
                         {"collect_created_table_review_issues": staticmethod(lambda *args, **kwargs: [])},
                     )(),
                 ),
-                "text_to_rows": staticmethod(context.text_to_rows),
             },
         )(),
         grouped=grouped,

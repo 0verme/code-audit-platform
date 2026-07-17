@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from app.modules.metadata.services.public_data import all_role, all_fine
 from app.modules.audit.checks.re_service import read_data_from_file, find_hardcoded_dates, extract_tables, find_dot_strings
 from app.config.audit_rules import get_audit_rules
+from app.modules.audit.findings import CheckResult
 
 gjz_lists = ['DATETIME', 'DUAL', 'AGE','LAST_DAY']
 
@@ -123,6 +124,7 @@ def get_cpt_yuan(fine_name):
 
 def rule_menu(authority_name):
     print('===========rule_menu==========')
+    result = CheckResult()
     try:
         menu_rules = get_audit_rules()["fine_report"]["menu_normalization"]
         required_root_prefix = menu_rules["required_root_prefix"]
@@ -136,49 +138,39 @@ def rule_menu(authority_name):
         }
         data = read_data_from_file(authority_name)
         relsut = []
-        cnt=0
-        relsut_test=''
         for i in data.split('\n'):
             i.replace('，', ',').replace('\r\n', '\n')
             finememu = i.split(',')[1]
             cpturl = i.split(',')[0]
             if required_root_prefix not in cpturl:
-                relsut_test+=f"{cpturl} 第一段路径不对 需要在开头加上 数据仓库/ "
-                cnt += 1
+                result.add('fine.menu.root_prefix', '后台目录根路径', 'err', f'{cpturl} 第一段路径不对 需要在开头加上 数据仓库/ ')
             if '.cpt' not in cpturl and '.frm' not in cpturl:
-                relsut_test+=f"{cpturl} 第一段路径不对 目录里应有.cpt或.frm"
-                cnt += 1
+                result.add('fine.menu.backend_extension', '后台目录模板扩展名', 'err', f'{cpturl} 第一段路径不对 目录里应有.cpt或.frm')
             if '(村镇银行发展部)' in cpturl:
-                relsut_test+=f"{cpturl} 第一段路径不对 (村镇银行发展部) 改为 中文括号（村镇银行发展部） "
-                cnt += 1
+                result.add('fine.menu.backend_department_brackets', '后台目录部门括号', 'err', f'{cpturl} 第一段路径不对 (村镇银行发展部) 改为 中文括号（村镇银行发展部） ')
             if any(source in cpturl for source in backend_replacement_sources):
-                relsut_test+=f"{cpturl} 第一段路径不对 会计结算部/会计部报表 改为 运营管理部"
-                cnt += 1
+                result.add('fine.menu.backend_department', '后台目录部门名称', 'err', f'{cpturl} 第一段路径不对 会计结算部/会计部报表 改为 运营管理部')
             if ' ' in cpturl:
-                relsut_test+=f"{cpturl} 里面有空格"
-                cnt += 1
+                result.add('fine.menu.backend_space', '后台目录空格', 'err', f'{cpturl} 里面有空格')
             if required_root_prefix in finememu:
-                relsut_test+=f"{finememu} 第二段路径不对 数据仓库/ 不需要写"
-                cnt += 1
+                result.add('fine.menu.frontend_root_prefix', '前台目录根路径', 'err', f'{finememu} 第二段路径不对 数据仓库/ 不需要写')
             if any(source in finememu for source in menu_replacement_sources):
-                relsut_test+=f"{finememu} 第二段路径不对 会计结算部/会计部报表 改为 运营管理部"
-                cnt += 1
+                result.add('fine.menu.frontend_department', '前台目录部门名称', 'err', f'{finememu} 第二段路径不对 会计结算部/会计部报表 改为 运营管理部')
             if '互联网金融部' in menu_replacement_sources and '互联网金融部' in finememu:
-                relsut_test+=f"{finememu} 第二段路径不对 互联网金融部 改为 互联网金融"
-                cnt += 1
+                result.add('fine.menu.frontend_finance_department', '前台目录部门名称', 'err', f'{finememu} 第二段路径不对 互联网金融部 改为 互联网金融')
             if '（村镇银行发展部）' in finememu:
-                relsut_test+=f"{finememu} 第二段路径不对 （村镇银行发展部） 改为 英文括号 (村镇银行发展部)"
-                cnt += 1
+                result.add('fine.menu.frontend_department_brackets', '前台目录部门括号', 'err', f'{finememu} 第二段路径不对 （村镇银行发展部） 改为 英文括号 (村镇银行发展部)')
             if '.cpt' in finememu:
-                relsut_test+=f"{finememu} 第二段路径不对 目录里不应有.cpt"
-                cnt += 1
+                result.add('fine.menu.frontend_extension', '前台目录模板扩展名', 'err', f'{finememu} 第二段路径不对 目录里不应有.cpt')
             if ' ' in finememu:
-                relsut_test+=f"{finememu} 里面有空格"
-                cnt += 1
+                result.add('fine.menu.frontend_space', '前台目录空格', 'err', f'{finememu} 里面有空格')
             relsut.append(finememu.split('/')[-1])
-        return relsut,relsut_test,cnt
+        result.artifacts['menu_entries'] = relsut
+        return result
     except Exception as e:
-        return [],str(e.args)
+        result.add('fine.menu.execution_error', '目录规则执行异常', 'err', str(e.args))
+        result.artifacts['menu_entries'] = []
+        return result
 
 def normalize_fine_entry_name(value):
     if value is None:
@@ -196,11 +188,10 @@ def rule_authority(authority_name,memu_url):
     print('===========rule_authority==========')
     role_lists, fine_lists = all_role(), all_fine()
 
-    relsut_test = '存在问题:\n'
+    result = CheckResult()
     try:
         data = read_data_from_file(authority_name)
         authority_lists = [['报表名称', '权限']]
-        cnt = 0
         valid_report_names = {
             normalize_fine_entry_name(name)
             for name in fine_lists + memu_url
@@ -216,43 +207,35 @@ def rule_authority(authority_name,memu_url):
             for j in r_lists:
                 if j not in role_lists:
                     print(j)
-                    relsut_test += f'{j} 生产没有该角色 \n'
-                    cnt += 1
+                    result.add('fine.authority.missing_role', '生产角色登记', 'err', f'{j} 生产没有该角色 ')
             if repot_name and repot_name not in valid_report_names:
-                relsut_test += f'{repot_name} 未有该目录 \n'
-                cnt += 1
-        return relsut_test,cnt
+                result.add('fine.authority.missing_menu', '报表目录登记', 'err', f'{repot_name} 未有该目录 ')
+        return result
     except Exception as e:
-        return str(e.args)
+        result.add('fine.authority.execution_error', '权限规则执行异常', 'err', str(e.args))
+        return result
 
 def rule_fine(fine_name):
     print('===========rule_fine==========')
     sstb_name = []
     viewlet_url = str(extract_sub_path(fine_name))
     print(fine_name)
-    relsut_test='存在问题:\n'
-    cnt=0
+    result = CheckResult()
     data = read_data_from_file(fine_name)
     f_name = fine_name.split('/')[-1]
     if '[' not in f_name or ']' not in f_name:
-        relsut_test+=f'该帆软没有报表编号\n'
-        cnt+=1
+        result.add('fine.report.missing_number', '报表编号', 'err', '该帆软没有报表编号')
     if ' ' in fine_name:
-        relsut_test+=f'名称有带空值\n'
-        cnt += 1
+        result.add('fine.report.name_space', '报表名称空格', 'err', '名称有带空值')
     if 'DISTINCT' in data.upper():
-        relsut_test+=f'请审核重点检查脚本中的distinct是否必须添加 有无关联出重复数据\n'
-        cnt += 1
+        result.add('fine.report.distinct_review', 'DISTINCT 审查', 'err', '请审核重点检查脚本中的distinct是否必须添加 有无关联出重复数据')
     if '<ATTR DIVIDEMODE="1"/>' in data:
-        relsut_test+=f'该报表没有列表展示 全是分组，请确认是否需要分组\n'
-        cnt += 1
+        result.add('fine.report.group_only', '报表列表展示', 'err', '该报表没有列表展示 全是分组，请确认是否需要分组')
     if "权限机构树" in data and "SELECT MIN(T.NBJGH)  FROM DWP.P_SYS_USER_INFO T WHERE T.GH ='${FINE_USERNAME}" not in data.upper():
-        relsut_test+='机构树默认值不对\n'
-        cnt += 1
+        result.add('fine.report.org_tree_default', '机构树默认值', 'err', '机构树默认值不对')
     for i in sstb_name:
         if i.upper() in data.upper():
-            relsut_test+=f' {viewlet_url} 用错表 {i}'
-            cnt += 1
+            result.add('fine.report.forbidden_table', '错误表引用', 'err', f' {viewlet_url} 用错表 {i}')
     try:
         yuan = get_cpt_yuan(fine_name).upper()
         sheets = find_report(fine_name)
@@ -260,31 +243,24 @@ def rule_fine(fine_name):
         yq = find_clientPaging(fine_name)
         sensitive_fields = find_sensitive_fields(reslut)
         if sensitive_fields:
-            relsut_test += f"检测到敏感信息字段: {','.join(sensitive_fields)}，请重点确认是否涉及证件或个人隐私信息展示\n"
-            cnt += 1
+            result.add('fine.report.sensitive_fields', '敏感信息字段', 'err', f"检测到敏感信息字段: {','.join(sensitive_fields)}，请重点确认是否涉及证件或个人隐私信息展示")
         datekk = find_hardcoded_dates(reslut)
         datekk = ["'" + item + "'" for item in datekk]
         datekk = list(set(datekk))
         if len(datekk) > 0:
-            relsut_test+=f"检测到的写死日期 请甄别是否业务需求 (如果是注释日期去掉两头引号): " + " ".join(datekk)+'\n'
-            cnt += 1
+            result.add('fine.report.hardcoded_date', '写死日期', 'err', "检测到的写死日期 请甄别是否业务需求 (如果是注释日期去掉两头引号): " + " ".join(datekk))
 
         if '=(SELECT' in reslut:
-            relsut_test+=f"存在 = ( select 子查询 注意跑批效率 和 万一数据多条导致程序报错\n"
-            cnt += 1
+            result.add('fine.report.scalar_subquery', '标量子查询', 'err', '存在 = ( select 子查询 注意跑批效率 和 万一数据多条导致程序报错')
         reslut = reslut.replace('JOIN(SELECT', '')
         if 'IN(SELECT' in reslut:
-            relsut_test+=f"存在 in ( select 子查询 注意跑批效率\n"
-            cnt += 1
+            result.add('fine.report.in_subquery', 'IN 子查询', 'err', '存在 in ( select 子查询 注意跑批效率')
         if '.END_DT>=' in reslut:
-            relsut_test+=f"检测到 END_DT>= 注意拉链数据重复\n"
-            cnt += 1
+            result.add('fine.report.end_dt_range', '拉链结束日期范围', 'err', '检测到 END_DT>= 注意拉链数据重复')
         if "D_DATE=TO_DATE('" in data:
-            relsut_test+=f"存在关键字 D_DATE=TO_DATE(' 使用主题表请改为 d_date ='YYYYMMDD' \n"
-            cnt += 1
+            result.add('fine.report.d_date_to_date', '主题表日期写法', 'err', "存在关键字 D_DATE=TO_DATE(' 使用主题表请改为 d_date ='YYYYMMDD' ")
         if "D_DATE=DATE'" in data:
-            relsut_test+=f"存在关键 D_DATE = DATE' 使用主题表请改为 d_date ='YYYYMMDD' \n"
-            cnt += 1
+            result.add('fine.report.d_date_literal', '主题表日期写法', 'err', "存在关键 D_DATE = DATE' 使用主题表请改为 d_date ='YYYYMMDD' ")
 
         tables = extract_tables(reslut)
         tables2 = find_dot_strings(reslut)
@@ -294,11 +270,18 @@ def rule_fine(fine_name):
             if i.upper() in gjz_lists:
                 pass
             elif '.' not in i.upper():
-                relsut_test+=f"表名 {i} 没有带SCHAME请注意加上 如果是用with表注意效率\n"
-                cnt += 1
+                result.add('fine.report.missing_schema', '表名缺少 SCHEMA', 'err', f'表名 {i} 没有带SCHAME请注意加上 如果是用with表注意效率')
         sql_table = sorted(sql_table)
 
-        return relsut_test,cnt,[viewlet_url,yuan,yq,sheets,sql_table]
+        result.artifacts.update({
+            'viewlet': viewlet_url,
+            'connection': yuan,
+            'engine': yq,
+            'sheets': sheets,
+            'sql_tables': sql_table,
+        })
+        return result
 
     except Exception as e:
-        return str(e.args)
+        result.add('fine.report.execution_error', '规则执行异常', 'warn', str(e.args))
+        return result

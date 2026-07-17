@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from .findings import CheckResult, finding_rows
 
 def _timed(label, fn, log_timing=None, **fields):
     started = time.perf_counter()
@@ -281,13 +282,13 @@ def run_hcyt_programs(
                     file_name=file_name,
                     metadata_cache=rule_metadata_cache,
                 ),
-                ("", "", 0, []),
+                CheckResult(),
             ),
             log_timing,
             **file_fields,
         )
-        lint = modules.text_to_rows(result[0], result[1], file_name)
-        sql_tables = dedupe_tables(result[3] if len(result) > 3 else [])
+        lint = finding_rows(result.findings, file=file_name)
+        sql_tables = dedupe_tables(result.artifacts.get("sql_tables", []))
         table_name = _timed("programs.file.table_name", lambda: safe("表名解析", lambda p=path: modules.hcyt.get_program_table_name(p), ""), log_timing, **file_fields)
         source_text = _timed("programs.file.read_source", lambda: safe(f"加工程序内容读取({file_name})", lambda p=path: modules.re_service.read_data_from_file(p), ""), log_timing, **file_fields)
         job_name, freq, yilai_tables, dependency_jobs = "", "", None, []

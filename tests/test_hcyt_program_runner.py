@@ -8,7 +8,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.hcyt_program_runner import run_hcyt_programs  # noqa: E402
-from app.modules.audit.result_normalizer import dedupe_tables, normalize_table, text_to_rows  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
 from app.modules.lineage.registered_tables import ResultTableCatalogSnapshot  # noqa: E402
 
 
@@ -63,7 +64,9 @@ class FakeHcyt:
         return FakeProgramDf()
 
     def rule_dws_py(self, path, *, log_timing=None, file_name=None, metadata_cache=None):
-        return ("program error", "", 0, ["DM.TABLE_A", "DM.TABLE_B", "DM.TABLE_C"])
+        result = CheckResult(artifacts={"sql_tables": ["DM.TABLE_A", "DM.TABLE_B", "DM.TABLE_C"]})
+        result.add("hcyt.program.demo", "程序示例", "err", "program error")
+        return result
 
     def get_program_table_name(self, path):
         return "DM.TABLE_A"
@@ -108,7 +111,6 @@ class FakeModules:
         self.public_data = FakePublicData()
         self.hcyt_python_rule = FakePythonRule()
         self.hcyt_ddl_rule = FakeDdlRule()
-        self.text_to_rows = text_to_rows
         self.profile_calls = []
 
     def load_registered_result_tables(self, *, profile):

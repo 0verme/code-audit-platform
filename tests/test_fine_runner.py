@@ -10,6 +10,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.fine_runner import run_fine  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
 from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
 
 
@@ -38,14 +39,22 @@ class FineRunnerTests(unittest.TestCase):
         updates = []
         logs = []
 
+        menu_result = CheckResult(artifacts={"menu_entries": ["/menu/demo"]})
+        menu_result.add("fine.menu.demo", "目录示例", "err", "menu warn")
+        authority_result = CheckResult()
+        authority_result.add("fine.authority.demo", "权限示例", "err", "authority warn")
+        report_result = CheckResult(artifacts={
+            "viewlet": "ReportA",
+            "connection": "connA",
+            "engine": "spark",
+            "sheets": ["Sheet1"],
+            "sql_tables": ["dm.result_a", "src.input_a"],
+        })
+        report_result.add("fine.report.demo", "数据集示例", "err", "bad dataset")
         fine_rule = types.SimpleNamespace(
-            rule_menu=lambda _path: (["/menu/demo"], "menu warn", 1),
-            rule_authority=lambda _path, _menus: ("authority warn", 1),
-            rule_fine=lambda _path: (
-                "存在问题:\nbad dataset",
-                1,
-                ["ReportA", "connA", "spark", ["Sheet1"], ["dm.result_a", "src.input_a"]],
-            ),
+            rule_menu=lambda _path: menu_result,
+            rule_authority=lambda _path, _menus: authority_result,
+            rule_fine=lambda _path: report_result,
             get_cpt_sql=lambda _path: "select * from dm.result_a",
         )
         public_data = types.SimpleNamespace(
@@ -127,7 +136,6 @@ class FineRunnerTests(unittest.TestCase):
             build_hcyt_report=lambda *_args, **_kwargs: None,
             run_hcyt_schedule=lambda *_args, **_kwargs: None,
             run_hcyt_programs=lambda *_args, **_kwargs: None,
-            text_to_rows=lambda *_args, **_kwargs: [],
             status_of=lambda errors, warnings: "fail" if errors else ("warn" if warnings else "pass"),
             count_levels=lambda _rows: (0, 0),
         )

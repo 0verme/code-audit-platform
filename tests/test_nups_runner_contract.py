@@ -9,6 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.nups_runner import run_nups  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
 from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
 
 
@@ -27,8 +28,8 @@ class NupsRunnerContractTests(unittest.TestCase):
         mods = types.SimpleNamespace(
             nups_rule=types.SimpleNamespace(
                 get_nups_type=lambda _paths: (["/tmp/query.sql"], ["/tmp/job.py"]),
-                rule_dws=sql_rule or (lambda _path: ("", 0)),
-                rule_dws_py=py_rule or (lambda _path: ("", 0, [])),
+                rule_dws=sql_rule or (lambda _path: CheckResult()),
+                rule_dws_py=py_rule or (lambda _path: CheckResult()),
                 get_program_table_name=lambda _path: "DM.TABLE_A",
             ),
             re_service=types.SimpleNamespace(
@@ -84,7 +85,6 @@ class NupsRunnerContractTests(unittest.TestCase):
             build_hcyt_report=lambda *_args, **_kwargs: None,
             run_hcyt_schedule=lambda *_args, **_kwargs: None,
             run_hcyt_programs=lambda *_args, **_kwargs: None,
-            text_to_rows=lambda *_args, **_kwargs: [],
             status_of=lambda errors, warnings: "fail" if errors else ("warn" if warnings else "pass"),
             count_levels=lambda _rows: (0, 0),
         )

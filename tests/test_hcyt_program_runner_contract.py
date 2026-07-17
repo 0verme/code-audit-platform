@@ -8,7 +8,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.hcyt_program_runner import run_hcyt_programs  # noqa: E402
-from app.modules.audit.result_normalizer import dedupe_tables, normalize_table, text_to_rows  # noqa: E402
+from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
 
 
 class FakeProgramDf:
@@ -59,7 +60,7 @@ class FakeHcyt:
         return FakeProgramDf()
 
     def rule_dws_py(self, path, **_kwargs):
-        return ("", "", 0, ["DM.TABLE_A", "DM.TABLE_B"])
+        return CheckResult(artifacts={"sql_tables": ["DM.TABLE_A", "DM.TABLE_B"]})
 
     def get_program_table_name(self, path):
         return "DM.TABLE_A"
@@ -88,7 +89,6 @@ class FakeModules:
             (),
             {"collect_root_missing_issues": staticmethod(lambda *args, **kwargs: [])},
         )()
-        self.text_to_rows = text_to_rows
         self.profile_calls = []
 
     def load_registered_result_tables(self, *, profile):
