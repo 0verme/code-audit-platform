@@ -46,17 +46,17 @@ def seed_demo_data() -> None:
         )
         connection.executemany(
             """
-            INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO {{table:audit_results}} (task_id, category, file_name, rule_name, level, message)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             [
-                (1, "dws", "dws_cust_asset_d.sql", 18, "No CREATE VIEW", "err", "DWS layer cannot create views."),
-                (1, "dws", "dws_cust_asset_d.sql", 42, "No ALTER TABLE", "err", "Schema changes must go through DDL process."),
-                (1, "hive", "dwd_acct_event_i.hql", 12, "Missing partition", "err", "Incremental table is missing dt partition."),
-                (1, "python", "load_loan_daily.py", 88, "Hard-coded connection", "err", "Database connection string is hard-coded."),
-                (1, "sbin", "post_dws_cust_asset.sh", 5, "Missing set -e", "warn", "Shell script will continue after failures."),
-                (1, "config", "dws_loan_balance_sum.json", 9, "Missing field type", "err", "Field loan_amt has no type definition."),
-                (1, "recv", "cust_asset_recv.json", 3, "Missing charset", "warn", "File charset is not explicitly declared."),
+                (1, "dws", "dws_cust_asset_d.sql", "No CREATE VIEW", "err", "DWS layer cannot create views."),
+                (1, "dws", "dws_cust_asset_d.sql", "No ALTER TABLE", "err", "Schema changes must go through DDL process."),
+                (1, "hive", "dwd_acct_event_i.hql", "Missing partition", "err", "Incremental table is missing dt partition."),
+                (1, "python", "load_loan_daily.py", "Hard-coded connection", "err", "Database connection string is hard-coded."),
+                (1, "sbin", "post_dws_cust_asset.sh", "Missing set -e", "warn", "Shell script will continue after failures."),
+                (1, "config", "dws_loan_balance_sum.json", "Missing field type", "err", "Field loan_amt has no type definition."),
+                (1, "recv", "cust_asset_recv.json", "Missing charset", "warn", "File charset is not explicitly declared."),
             ],
         )
 

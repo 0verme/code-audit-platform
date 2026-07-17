@@ -169,12 +169,11 @@ export function ScriptDetailAccordion({ script, detailId, open, onClose }) {
               <div className="table-wrap sd-cmp">
                 <table className="tbl">
                   <thead>
-                    <tr><th className="num" style={{ width: 56 }}>行号</th><th>规则</th><th className="severity-cell">级别</th><th>说明</th></tr>
+                    <tr><th>规则</th><th className="severity-cell">级别</th><th>说明</th></tr>
                   </thead>
                   <tbody>
                     {lint.map((item, index) => (
                       <tr key={index} className={item.level === "err" ? "err-row" : item.level === "warn" ? "warn-row" : ""}>
-                        <td className="num mono">{item.line}</td>
                         <td className="rule-cell">{item.rule}</td>
                         <td className="severity-cell"><Sev level={item.level} /></td>
                         <td>{item.msg}</td>

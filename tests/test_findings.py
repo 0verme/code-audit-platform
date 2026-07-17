@@ -19,7 +19,7 @@ def test_finding_validates_required_fields_and_level():
 
 
 def test_finding_serializes_rule_code_and_preserves_existing_context():
-    finding = Finding("demo.rule", "示例规则", "warn", "示例说明", file="source.sql", line=7)
+    finding = Finding("demo.rule", "示例规则", "warn", "示例说明", file="source.sql")
 
     row = finding_rows([finding], file="fallback.sql")[0]
 
@@ -29,7 +29,6 @@ def test_finding_serializes_rule_code_and_preserves_existing_context():
         "level": "warn",
         "msg": "示例说明",
         "file": "source.sql",
-        "line": 7,
     }
 
 

@@ -80,7 +80,7 @@ class NupsAtomicCompletionTests(unittest.TestCase):
 
     @staticmethod
     def _old_row():
-        return {"file": "old.sql", "line": 3, "rule": "old", "level": "warn", "msg": "old finding"}
+        return {"file": "old.sql", "rule": "old", "level": "warn", "msg": "old finding"}
 
     def _seed_old_state(self):
         runtime_store.upsert_task_report(self.task_id, '{"version":"old"}', "2026-07-11 10:00:00")

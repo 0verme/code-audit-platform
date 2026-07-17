@@ -4,14 +4,12 @@ from __future__ import annotations
 def legacy_audit_result_row(
     *,
     file: str = "",
-    line: int = 0,
     rule: str = "",
     level: str = "info",
     msg: str = "",
 ) -> dict:
     return {
         "file": file or "",
-        "line": int(line or 0),
         "rule": rule or "",
         "level": level or "info",
         "msg": msg or "",
@@ -24,7 +22,6 @@ def normalize_legacy_audit_result_groups(grouped_rows: dict[str, list[dict]] | N
         normalized[str(category or "")] = [
             legacy_audit_result_row(
                 file=row.get("file", ""),
-                line=row.get("line", 0),
                 rule=row.get("rule", ""),
                 level=row.get("level", "info"),
                 msg=row.get("msg", ""),
@@ -61,7 +58,6 @@ def build_legacy_nups_audit_result_rows(sql_checks: list[dict]) -> dict[str, lis
         "nups": [
             legacy_audit_result_row(
                 file=check.get("script", ""),
-                line=0,
                 rule=message.get("rule", ""),
                 level=message.get("level", "info"),
                 msg=message.get("msg", ""),
@@ -91,7 +87,6 @@ def build_legacy_fine_audit_result_rows(reports: list[dict]) -> dict[str, list[d
         "fine": [
             legacy_audit_result_row(
                 file=report.get("file", ""),
-                line=0,
                 rule=issue.get("rule", ""),
                 level=issue.get("level", "info"),
                 msg=issue.get("msg", ""),

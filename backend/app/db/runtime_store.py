@@ -194,7 +194,6 @@ def build_audit_result_row_payloads(task_id: int, grouped_rows: dict[str, list[d
                     task_id,
                     category,
                     row["file"],
-                    row["line"],
                     row["rule"],
                     row["level"],
                     row["msg"],
@@ -213,8 +212,8 @@ def _replace_audit_results_with_connection(connection, task_id: int, grouped_row
     for row_payload in row_payloads:
         connection.execute(
             """
-            INSERT INTO {{table:audit_results}} (task_id, category, file_name, line_no, rule_name, level, message)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO {{table:audit_results}} (task_id, category, file_name, rule_name, level, message)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             row_payload,
         )
@@ -272,7 +271,7 @@ def persist_task_completion_atomic(
 
 def list_audit_results(task_id: int | None = None):
     query = """
-        SELECT id, task_id, category, file_name, line_no, rule_name, level, message
+        SELECT id, task_id, category, file_name, rule_name, level, message
         FROM {{table:audit_results}}
     """
     args = ()

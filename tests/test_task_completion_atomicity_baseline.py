@@ -83,7 +83,7 @@ class TaskCompletionAtomicityBaselineTests(unittest.TestCase):
 
     @staticmethod
     def _result(message):
-        return {"file": "demo.sql", "line": 7, "rule": "rule", "level": "warn", "msg": message}
+        return {"file": "demo.sql", "rule": "rule", "level": "warn", "msg": message}
 
     def _state(self):
         task = runtime_store.get_audit_task(self.task_id)

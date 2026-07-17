@@ -69,7 +69,7 @@ class HcytAtomicCompletionTests(unittest.TestCase):
 
     @staticmethod
     def _row(message="new finding"):
-        return {"file": "demo.sql", "line": 7, "rule": "rule-a", "level": "warn", "msg": message}
+        return {"file": "demo.sql", "rule": "rule-a", "level": "warn", "msg": message}
 
     def _report(self, status="pass", grouped=None):
         grouped = grouped if grouped is not None else {"dws": [self._row()]}
@@ -122,9 +122,10 @@ class HcytAtomicCompletionTests(unittest.TestCase):
         task, stored_report, rows = self._state()
         self.assertEqual(task["status"], "pass")
         self.assertEqual(stored_report, report)
-        self.assertEqual([(row["category"], row["file_name"], row["line_no"], row["message"]) for row in rows], [
-            ("dws", "demo.sql", 7, "new finding")
+        self.assertEqual([(row["category"], row["file_name"], row["message"]) for row in rows], [
+            ("dws", "demo.sql", "new finding")
         ])
+        self.assertNotIn("line_no", rows[0])
         self.assertEqual(events, ["commit", "final_ready"])
         legacy_completion.assert_not_called()
         legacy_results.assert_not_called()

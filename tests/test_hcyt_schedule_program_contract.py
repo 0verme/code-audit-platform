@@ -120,7 +120,7 @@ class HcytScheduleProgramContractTests(unittest.TestCase):
         if programs is None:
             programs = (
                 [{"script": "program.py", "path": "C:/workspace/program.py"}],
-                [{"file": "program.py", "line": 3, "rule": "py-rule", "level": "err", "msg": "program error"}],
+                [{"file": "program.py", "rule": "py-rule", "level": "err", "msg": "program error"}],
                 [{"name": "DM.TABLE_A", "type": "result"}],
                 [{"lane": "job", "nodes": [{"name": "JOB_A"}]}],
                 [{"rule": "asset-review"}],

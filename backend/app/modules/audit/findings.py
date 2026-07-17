@@ -15,7 +15,6 @@ class Finding:
     level: FindingLevel
     msg: str
     file: str | None = None
-    line: int | None = None
     category: str | None = None
     location: str | None = None
     evidence: dict[str, Any] | None = None
@@ -31,14 +30,12 @@ class Finding:
         self,
         *,
         file: str | None = None,
-        line: int | None = None,
         category: str | None = None,
         location: str | None = None,
     ) -> Finding:
         return replace(
             self,
             file=self.file if self.file is not None else file,
-            line=self.line if self.line is not None else line,
             category=self.category if self.category is not None else category,
             location=self.location if self.location is not None else location,
         )
@@ -53,7 +50,6 @@ class Finding:
         if include_context:
             for key, value in (
                 ("file", self.file),
-                ("line", self.line),
                 ("category", self.category),
                 ("location", self.location),
                 ("evidence", self.evidence),
@@ -97,7 +93,6 @@ def finding_rows(
         enriched = item.with_context(file=file, category=category, location=location)
         row = enriched.to_dict()
         row.setdefault("file", "")
-        row.setdefault("line", None)
         rows.append(row)
     return rows
 

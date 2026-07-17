@@ -110,7 +110,6 @@ export function ViolationTable({ rows, cols }) {
   const sortedRows = sortAlertRows(rows);
   const columns = cols || [
     { key: "file", label: "文件", cls: "file-cell" },
-    { key: "line", label: "行号", cls: "num" },
     { key: "rule", label: "规则", cls: "rule-cell" },
     { key: "level", label: "级别", cls: "severity-cell", width: 84, minWidth: 84 },
     { key: "msg", label: "说明" },

@@ -133,6 +133,14 @@ test("SCHEMA_CONFIG details expand inline instead of using a separate panel", ()
   assert.match(resultsStyleSource, /\.config-check-row\.open \.config-row-chev \{ transform: rotate\(90deg\); \}/);
 });
 
+test("audit result tables do not expose line-number fields", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(uiSource, /label: "行号"|key: "line"/);
+  assert.doesNotMatch(source, />行号<|row\.line|row\.line_no|item\.line/);
+  assert.doesNotMatch(scriptSource, />行号<|item\.line/);
+  assert.match(source, /<td colSpan=\{4\}>/);
+});
+
 test("accent panel headers use theme tokens for light and dark mode compatibility", () => {
   assert.match(sharedStyleSource, /\.panel\.accent-header \.panel-head \{[\s\S]*background: var\(--accent-weak\);[\s\S]*border-bottom-color: var\(--accent-line\);/);
   assert.match(sharedStyleSource, /\.panel\.accent-header \.panel-title,[\s\S]*color: var\(--accent\);/);

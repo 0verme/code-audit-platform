@@ -106,7 +106,6 @@ platform runtime tables targeted by this migration.
 | `task_id` | `INTEGER NOT NULL` | References `audit_tasks(id)` |
 | `category` | `TEXT NOT NULL` | Result category |
 | `file_name` | `TEXT NOT NULL` | File path/name |
-| `line_no` | `INTEGER NOT NULL` | Line number |
 | `rule_name` | `TEXT NOT NULL` | Rule name |
 | `level` | `TEXT NOT NULL` | Severity |
 | `message` | `TEXT NOT NULL` | Finding text |

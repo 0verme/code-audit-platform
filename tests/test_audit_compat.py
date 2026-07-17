@@ -40,7 +40,7 @@ class AuditCompatTests(unittest.TestCase):
     def test_normalize_legacy_audit_result_groups_preserves_shape_and_defaults(self):
         payload = normalize_legacy_audit_result_groups(
             {
-                "python": [{"file": "demo.py", "line": None, "rule": None, "level": "", "msg": None}],
+                "python": [{"file": "demo.py", "rule": None, "level": "", "msg": None}],
                 "dws": [],
             }
         )
@@ -48,7 +48,7 @@ class AuditCompatTests(unittest.TestCase):
         self.assertEqual(
             payload,
             {
-                "python": [{"file": "demo.py", "line": 0, "rule": "", "level": "info", "msg": ""}],
+                "python": [{"file": "demo.py", "rule": "", "level": "info", "msg": ""}],
                 "dws": [],
             },
         )
@@ -64,13 +64,13 @@ class AuditCompatTests(unittest.TestCase):
         self.assertEqual(
             nups_rows,
             {
-                "nups": [{"file": "demo.sql", "line": 0, "rule": "rule:bad sql", "level": "err", "msg": "bad sql"}]
+                "nups": [{"file": "demo.sql", "rule": "rule:bad sql", "level": "err", "msg": "bad sql"}]
             },
         )
         self.assertEqual(
             fine_rows,
             {
-                "fine": [{"file": "demo.cpt", "line": 0, "rule": "missing-auth", "level": "warn", "msg": "check auth"}]
+                "fine": [{"file": "demo.cpt", "rule": "missing-auth", "level": "warn", "msg": "check auth"}]
             },
         )
 

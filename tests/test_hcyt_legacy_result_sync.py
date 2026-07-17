@@ -15,12 +15,12 @@ from app.modules.audit.hcyt_legacy_result_sync import (  # noqa: E402
 
 def _sample_grouped_rows():
     return {
-        "dws": [{"file": "dws.sql", "line": None, "rule": "", "level": "info", "msg": "dws warning"}],
-        "hive": [{"file": "hive.sql", "line": None, "rule": "", "level": "err", "msg": "hive error"}],
-        "python": [{"file": "program.py", "line": 7, "rule": "py-rule", "level": "error", "msg": "python error"}],
-        "sbin": [{"file": "sbin", "line": None, "rule": "", "level": "info", "msg": "sbin warning"}],
-        "config": [{"file": "SCHEMA_CONFIG", "line": None, "rule": "", "level": "err", "msg": "config error"}],
-        "recv": [{"file": "recv_json", "line": None, "rule": "", "level": "info", "msg": "recv warning"}],
+        "dws": [{"file": "dws.sql", "rule": "", "level": "info", "msg": "dws warning"}],
+        "hive": [{"file": "hive.sql", "rule": "", "level": "err", "msg": "hive error"}],
+        "python": [{"file": "program.py", "rule": "py-rule", "level": "error", "msg": "python error"}],
+        "sbin": [{"file": "sbin", "rule": "", "level": "info", "msg": "sbin warning"}],
+        "config": [{"file": "SCHEMA_CONFIG", "rule": "", "level": "err", "msg": "config error"}],
+        "recv": [{"file": "recv_json", "rule": "", "level": "info", "msg": "recv warning"}],
     }
 
 
@@ -37,9 +37,8 @@ class HcytLegacyResultSyncTests(unittest.TestCase):
         for category, rows in calls[0].items():
             self.assertIsInstance(rows, list, category)
             for row in rows:
-                self.assertEqual(set(row.keys()), {"file", "line", "rule", "level", "msg"})
+                self.assertEqual(set(row.keys()), {"file", "rule", "level", "msg"})
                 self.assertIn("file", row)
-                self.assertIn("line", row)
                 self.assertIn("rule", row)
                 self.assertIn("level", row)
                 self.assertIn("msg", row)

@@ -42,7 +42,6 @@ CREATE TABLE IF NOT EXISTS {{table:audit_results}} (
     task_id INTEGER NOT NULL,
     category TEXT NOT NULL,
     file_name TEXT NOT NULL,
-    line_no INTEGER NOT NULL,
     rule_name TEXT NOT NULL,
     level TEXT NOT NULL,
     message TEXT NOT NULL,

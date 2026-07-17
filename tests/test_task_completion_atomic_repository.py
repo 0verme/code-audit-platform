@@ -81,7 +81,7 @@ class AtomicTaskCompletionRepositoryTests(unittest.TestCase):
 
     @staticmethod
     def _row(message):
-        return {"file": "demo.sql", "line": 7, "rule": "rule", "level": "warn", "msg": message}
+        return {"file": "demo.sql", "rule": "rule", "level": "warn", "msg": message}
 
     def _seed_old_state(self):
         runtime_store.upsert_task_report(self.task_id, json.dumps({"version": "old"}), "2026-07-11 10:00:00")

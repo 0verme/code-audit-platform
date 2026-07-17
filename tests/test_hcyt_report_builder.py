@@ -16,12 +16,12 @@ from app.modules.audit.hcyt_report_builder import (  # noqa: E402
 
 def _sample_inputs():
     grouped = {
-        "dws": [{"file": "dws.sql", "line": None, "rule": "", "level": "info", "msg": "dws warning"}],
-        "hive": [{"file": "hive.sql", "line": None, "rule": "", "level": "err", "msg": "hive error"}],
-        "python": [{"file": "program.py", "line": 7, "rule": "py-rule", "level": "error", "msg": "python error"}],
-        "sbin": [{"file": "sbin", "line": None, "rule": "", "level": "info", "msg": "sbin warning"}],
-        "config": [{"file": "SCHEMA_CONFIG", "line": None, "rule": "", "level": "err", "msg": "config error"}],
-        "recv": [{"file": "recv_json", "line": None, "rule": "", "level": "info", "msg": "recv warning"}],
+        "dws": [{"file": "dws.sql", "rule": "", "level": "info", "msg": "dws warning"}],
+        "hive": [{"file": "hive.sql", "rule": "", "level": "err", "msg": "hive error"}],
+        "python": [{"file": "program.py", "rule": "py-rule", "level": "error", "msg": "python error"}],
+        "sbin": [{"file": "sbin", "rule": "", "level": "info", "msg": "sbin warning"}],
+        "config": [{"file": "SCHEMA_CONFIG", "rule": "", "level": "err", "msg": "config error"}],
+        "recv": [{"file": "recv_json", "rule": "", "level": "info", "msg": "recv warning"}],
     }
     lineage_summary = {
         "resultTables": [],

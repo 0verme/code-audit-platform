@@ -56,27 +56,27 @@ const HCYT_FAIL = {
     { path: "hcyt/schema/dws_loan_balance_sum.json", trunkRev: "r48205", mineRev: "r48217", note: "Schema 字段定义与主干版本冲突。" },
   ],
   dws: [
-    { file: "dws_cust_asset_d.sql", line: 18, rule: "禁止视图创建", level: "err", msg: "DWS 层不允许 CREATE VIEW，应改为物理表落地。" },
-    { file: "dws_cust_asset_d.sql", line: 42, rule: "禁止 ALTER 语句", level: "err", msg: "检测到 ALTER TABLE，结构变更需走独立流程。" },
-    { file: "dws_loan_balance_sum.sql", line: 96, rule: "超长代码行", level: "warn", msg: "单行 312 字符，超过 200 字符上限。" },
+    { file: "dws_cust_asset_d.sql", rule: "禁止视图创建", level: "err", msg: "DWS 层不允许 CREATE VIEW，应改为物理表落地。" },
+    { file: "dws_cust_asset_d.sql", rule: "禁止 ALTER 语句", level: "err", msg: "检测到 ALTER TABLE，结构变更需走独立流程。" },
+    { file: "dws_loan_balance_sum.sql", rule: "超长代码行", level: "warn", msg: "单行 312 字符，超过 200 字符上限。" },
   ],
   hive: [
-    { file: "dwd_acct_event_i.hql", line: 12, rule: "分区字段缺失", level: "err", msg: "增量表未声明 dt 分区字段。" },
-    { file: "ods_cust_info.hql", line: 19, rule: "中文别名", level: "warn", msg: "字段别名包含中文字符，建议统一英文命名。" },
+    { file: "dwd_acct_event_i.hql", rule: "分区字段缺失", level: "err", msg: "增量表未声明 dt 分区字段。" },
+    { file: "ods_cust_info.hql", rule: "中文别名", level: "warn", msg: "字段别名包含中文字符，建议统一英文命名。" },
   ],
   sqlChecks: {
     dws: { script: "dws_cust_asset_d.sql", downloadUrl: "#" },
     hive: { script: "ods_trans_detail.hql", downloadUrl: "#" },
   },
   python: [
-    { file: "load_loan_daily.py", line: 88, rule: "硬编码连接串", level: "err", msg: "数据库连接串明文硬编码，应迁移至配置中心。" },
-    { file: "etl_cust_profile.py", line: 61, rule: "硬编码字段长度", level: "warn", msg: "varchar(32) 建议改为配置化参数。" },
+    { file: "load_loan_daily.py", rule: "硬编码连接串", level: "err", msg: "数据库连接串明文硬编码，应迁移至配置中心。" },
+    { file: "etl_cust_profile.py", rule: "硬编码字段长度", level: "warn", msg: "varchar(32) 建议改为配置化参数。" },
   ],
   sbin: [
-    { file: "post_dws_cust_asset.sh", line: 5, rule: "缺少 set -e", level: "warn", msg: "脚本异常不会中断执行。" },
+    { file: "post_dws_cust_asset.sh", rule: "缺少 set -e", level: "warn", msg: "脚本异常不会中断执行。" },
   ],
   config: [
-    { file: "dws_loan_balance_sum.json", line: 9, rule: "字段类型缺失", level: "err", msg: "字段 loan_amt 缺少 type 定义。" },
+    { file: "dws_loan_balance_sum.json", rule: "字段类型缺失", level: "err", msg: "字段 loan_amt 缺少 type 定义。" },
   ],
   configFiles: [
     {
@@ -91,7 +91,7 @@ const HCYT_FAIL = {
     },
   ],
   recv: [
-    { file: "cust_asset_recv.json", line: 3, rule: "编码格式未声明", level: "warn", msg: "未指定 charset，存在乱码风险。" },
+    { file: "cust_asset_recv.json", rule: "编码格式未声明", level: "warn", msg: "未指定 charset，存在乱码风险。" },
   ],
   assetIssues: [
     {
@@ -198,8 +198,8 @@ const HCYT_FAIL = {
       freq: "每日",
       focus: "重点检查 SQL 结果表依赖与调度依赖是否一致，并确认 distinct 是否缺失。",
       lint: [
-        { line: 47, rule: "去重缺失风险", level: "warn", msg: "LEFT JOIN 后未显式 distinct，可能产出重复数据。" },
-        { line: 88, rule: "硬编码字段长度", level: "warn", msg: "varchar(32) 建议改为配置引用。" },
+        { rule: "去重缺失风险", level: "warn", msg: "LEFT JOIN 后未显式 distinct，可能产出重复数据。" },
+        { rule: "硬编码字段长度", level: "warn", msg: "varchar(32) 建议改为配置引用。" },
       ],
       result: [
         { sql: "DWF.F_DATA_RESULT_ACTIVITY", dep: "DWF.F_DATA_RESULT_ACTIVITY", state: "same", name: "DWF.F_DATA_RESULT_ACTIVITY", disabled: false, sysNames: ["二代评分卡"], highlight: true },
@@ -218,8 +218,8 @@ const HCYT_FAIL = {
       freq: "每日",
       focus: "重点核对结果表依赖是否完整，并确认异常捕获与连接串是否合规。",
       lint: [
-        { line: 22, rule: "深层循环", level: "warn", msg: "存在 4 层 for 循环嵌套，可能有性能风险。" },
-        { line: 88, rule: "硬编码连接串", level: "err", msg: "数据库连接串明文硬编码。" },
+        { rule: "深层循环", level: "warn", msg: "存在 4 层 for 循环嵌套，可能有性能风险。" },
+        { rule: "硬编码连接串", level: "err", msg: "数据库连接串明文硬编码。" },
       ],
       result: [
         { sql: "DWF.F_LOAN_BALANCE_SUM", dep: "DWF.F_LOAN_BALANCE_SUM", state: "same", name: "DWF.F_LOAN_BALANCE_SUM", disabled: true, sysNames: [], highlight: true },
@@ -268,7 +268,7 @@ const HCYT_PASS = {
   },
   svn: { branchChanged: ["hcyt/dws/sql/dws_cust_asset_d.sql"], trunkConflict: [] },
   conflicts: [],
-  dws: [{ file: "dws_cust_asset_d.sql", line: 7, rule: "缺少 SET 参数", level: "warn", msg: "未设置 mapreduce.job.queuename，将使用默认队列。" }],
+  dws: [{ file: "dws_cust_asset_d.sql", rule: "缺少 SET 参数", level: "warn", msg: "未设置 mapreduce.job.queuename，将使用默认队列。" }],
   hive: [],
   python: [],
   sbin: [],

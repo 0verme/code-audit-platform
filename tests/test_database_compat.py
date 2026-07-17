@@ -174,8 +174,8 @@ class DatabaseCompatTests(unittest.TestCase):
         )
 
     def test_build_audit_result_row_payloads_normalizes_legacy_defaults(self):
-        payloads = build_audit_result_row_payloads(8, {"python": [{"file": "demo.py", "line": None, "rule": None, "level": "", "msg": None}]})
-        self.assertEqual(payloads, [(8, "python", "demo.py", 0, "", "info", "")])
+        payloads = build_audit_result_row_payloads(8, {"python": [{"file": "demo.py", "rule": None, "level": "", "msg": None}]})
+        self.assertEqual(payloads, [(8, "python", "demo.py", "", "info", "")])
 
     def test_init_db_only_initializes_runtime_tables(self):
         with patch("app.db.schema.ensure_runtime_tables") as ensure_runtime_tables:

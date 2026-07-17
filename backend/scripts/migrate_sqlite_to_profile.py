@@ -89,6 +89,8 @@ class SQLiteToProfileMigrator:
         return row is not None
 
     def _insert_row(self, table: str, row: dict[str, Any]) -> None:
+        if table == "audit_results":
+            row = {column: value for column, value in row.items() if column != "line_no"}
         columns = list(row.keys())
         placeholders = ", ".join("?" for _ in columns)
         column_sql = ", ".join(columns)

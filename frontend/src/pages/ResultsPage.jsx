@@ -350,7 +350,7 @@ function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
 function ConfigFilesDetail({ files, detailId }) {
   return (
     <tr className="config-detail-row">
-      <td colSpan={5}>
+      <td colSpan={4}>
         <section id={detailId} className="config-detail fade-in" role="region" aria-label="SCHEMA_CONFIG 详情">
           {files.map((file, fileIndex) => (
             <div key={`${file.name}-${fileIndex}`} className="config-file-detail">
@@ -383,7 +383,6 @@ export function ConfigCheckSection({ rows = [], files = [], reg }) {
 
   const displayRows = rows.length ? sortAlertRows(rows) : [{
     file: "SCHEMA_CONFIG",
-    line: null,
     rule: "",
     level: "ok",
     msg: "Schema 配置文件校验通过",
@@ -415,7 +414,7 @@ export function ConfigCheckSection({ rows = [], files = [], reg }) {
         <div className="table-wrap">
           <table className="tbl config-check-table">
             <thead>
-              <tr><th>文件</th><th className="num">行号</th><th>规则</th><th className="severity-cell">级别</th><th>说明</th></tr>
+              <tr><th>文件</th><th>规则</th><th className="severity-cell">级别</th><th>说明</th></tr>
             </thead>
             <tbody>
               {displayRows.map((row, rowIndex) => {
@@ -442,7 +441,6 @@ export function ConfigCheckSection({ rows = [], files = [], reg }) {
                           </button>
                         ) : <span className="mono">{row.file}</span>}
                       </td>
-                      <td className="num">{row.line}</td>
                       <td className="rule-cell">{row.rule}</td>
                       <td className="severity-cell"><Sev level={row.level} /></td>
                       <td>{row.msg}</td>
@@ -863,7 +861,7 @@ function IssuesBoard({ d }) {
                 <td className="severity-cell"><Sev level={item.level} /></td>
                 <td><Badge>{item.cat}</Badge></td>
                 <td className="rule-cell">{item.rule}</td>
-                <td className="mono" style={{ fontSize: "var(--fs-xs)" }}>{item.file ? `${item.file}${item.line ? `:${item.line}` : ""}` : item.item}</td>
+                <td className="mono" style={{ fontSize: "var(--fs-xs)" }}>{item.file || item.item}</td>
                 <td>{item.msg}</td>
               </tr>
             ))}
@@ -920,7 +918,6 @@ export function mergeAuditResults(baseData, apiRows) {
   apiRows.forEach((row) => {
     const normalized = {
       file: row.file_name,
-      line: row.line_no,
       rule: row.rule_name,
       level: row.level,
       msg: row.message,

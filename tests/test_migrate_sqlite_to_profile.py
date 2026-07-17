@@ -207,6 +207,7 @@ class MigrationScriptTests(unittest.TestCase):
             second = SQLiteToProfileMigrator(source, "local_pg", runner=runner).migrate()
         self.assertTrue(all(result.inserted == 1 for result in first))
         self.assertTrue(all(result.inserted == 0 and result.skipped == 1 for result in second))
+        self.assertNotIn("line_no", runner.rows["audit_results"][1])
 
     def test_sqlite_target_preserves_json_text(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
@@ -221,7 +222,14 @@ class MigrationScriptTests(unittest.TestCase):
                 report_json = connection.execute(
                     f"SELECT report_json FROM {qualified_table_name('task_reports', profile)} WHERE task_id = 1"
                 ).fetchone()[0]
+                audit_result_columns = {
+                    row[1]
+                    for row in connection.execute(
+                        f"PRAGMA table_info({qualified_table_name('audit_results', profile)})"
+                    )
+                }
         self.assertEqual(json.loads(report_json), {"text": "中文\nline"})
+        self.assertNotIn("line_no", audit_result_columns)
 
     def test_missing_source_has_friendly_error(self):
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:

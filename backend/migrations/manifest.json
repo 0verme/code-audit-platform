@@ -17,6 +17,15 @@
         "postgresql": "postgresql/0002_audit_task_idempotency.sql",
         "dws": "dws/0002_audit_task_idempotency.sql"
       }
+    },
+    {
+      "version": "0003",
+      "name": "remove_audit_result_line_number",
+      "files": {
+        "sqlite": "sqlite/0003_remove_audit_result_line_number.sql",
+        "postgresql": "postgresql/0003_remove_audit_result_line_number.sql",
+        "dws": "dws/0003_remove_audit_result_line_number.sql"
+      }
     }
   ]
 }

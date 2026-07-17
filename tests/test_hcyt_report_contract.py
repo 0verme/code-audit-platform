@@ -146,7 +146,7 @@ class HcytReportContractTests(unittest.TestCase):
         }
         run.run_hcyt_programs = lambda *args, **kwargs: (
             [{"path": "C:/workspace/program.py"}],
-            [{"file": "program.py", "line": 7, "rule": "py-rule", "level": "error", "msg": "python error"}],
+            [{"file": "program.py", "rule": "py-rule", "level": "error", "msg": "python error"}],
             ["DM.TABLE_A"],
             [{"from": "program.py", "to": "DM.TABLE_A"}],
             [],
@@ -278,9 +278,8 @@ class HcytReportContractTests(unittest.TestCase):
         for category, rows in grouped.items():
             self.assertIsInstance(rows, list, category)
             for row in rows:
-                self.assertEqual(set(row.keys()), {"file", "line", "rule", "level", "msg"})
+                self.assertEqual(set(row.keys()), {"file", "rule", "level", "msg"})
                 self.assertIsInstance(row["file"], str)
-                self.assertTrue(row["line"] is None or isinstance(row["line"], int))
                 self.assertIsInstance(row["rule"], str)
                 self.assertIn(row["level"], {"info", "warn", "err", "error"})
                 self.assertIsInstance(row["msg"], str)

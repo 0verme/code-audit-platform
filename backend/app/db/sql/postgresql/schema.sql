@@ -44,7 +44,6 @@ CREATE TABLE IF NOT EXISTS dwp.p_audit_run_issue (
     task_id BIGINT NOT NULL,
     category TEXT NOT NULL,
     file_name TEXT NOT NULL,
-    line_no INTEGER NOT NULL,
     rule_name TEXT NOT NULL,
     level TEXT NOT NULL,
     message TEXT NOT NULL,
