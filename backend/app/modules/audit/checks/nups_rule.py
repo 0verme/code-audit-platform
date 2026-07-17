@@ -27,6 +27,7 @@ from app.modules.audit.checks.re_service import (
     read_data_from_file,
 )
 from app.config.audit_rules import get_audit_rules
+from app.modules.audit.checks.dws_sql_review import run_configured_dws_sql_reviews
 
 
 NUPS_SQL_NAMES = {
@@ -162,17 +163,10 @@ def _legacy_rule_dws(dws_url):
     if 'TO GROUP GROUP_VERSION1' in data.upper():
         result_text += '建表脚本不允许带 TO GROUP GROUP_VERSION1\n'
         cnt += 1
-    for token in ('WLQ', 'BSC', 'YGW', 'TMPQS'):
-        if token in data.upper():
-            result_text += f'建表脚本带 {token}，请确认是不是取数单的表名没改\n'
-            cnt += 1
-    if 'LZY' in data.upper() and 'RLZY' not in data.upper():
-        result_text += '建表脚本带 LZY，请确认是不是取数单的表名没改\n'
-        cnt += 1
-    for table_name in ('DWM.M_PUB_CODE_MAP_NEW', 'DWM.M_PUB_CODE_INFO_NEW', 'DWM.M_PUB_CODE_USE_NEW'):
-        if table_name in data.upper():
-            result_text += f'存在码值表 {table_name.split(".")[-1]} 修改，请审核重点检查\n'
-            cnt += 1
+    configured_messages = run_configured_dws_sql_reviews(data, message_style="nups")
+    if configured_messages:
+        result_text += '\n'.join(configured_messages) + '\n'
+        cnt += len(configured_messages)
     return result_text, cnt
 
 
