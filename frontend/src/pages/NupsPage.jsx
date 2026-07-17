@@ -1,6 +1,7 @@
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
+import { sortAlertRows } from "../utils/alertSorting";
 
 export const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
@@ -79,9 +80,10 @@ function ChangesSection({ d, reg }) {
 
 function MessageList({ messages }) {
   if (!messages?.length) return <OkState>未发现违规项</OkState>;
+  const sortedMessages = sortAlertRows(messages);
   return (
     <div className="fr-issue-list">
-      {messages.map((msg, index) => (
+      {sortedMessages.map((msg, index) => (
         <div key={index} className={`ai-finding ${msg.level}`} style={{ marginBottom: 6 }}>
           <Sev level={msg.level} />
           <div className="aif-body"><div className="aif-text">{msg.msg}</div></div>

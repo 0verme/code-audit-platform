@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { sortAlertRows } from "../utils/alertSorting";
 
 export const Ic = {
   chevron: <path d="M9 6l6 6-6 6" />,
@@ -106,6 +107,7 @@ export function Panel({ id, icon, title, sub, right, count, countTone, accentHea
 }
 
 export function ViolationTable({ rows, cols }) {
+  const sortedRows = sortAlertRows(rows);
   const columns = cols || [
     { key: "file", label: "文件", cls: "file-cell" },
     { key: "line", label: "行号", cls: "num" },
@@ -130,7 +132,7 @@ export function ViolationTable({ rows, cols }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
+          {sortedRows.map((row, index) => (
             <tr key={`${row.file || row.item}-${index}`} className={row.level === "err" ? "err-row" : row.level === "warn" ? "warn-row" : ""}>
               {columns.map((column) => (
                 <td key={column.key} className={column.cls || ""}>

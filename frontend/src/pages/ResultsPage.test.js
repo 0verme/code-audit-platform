@@ -128,7 +128,7 @@ test("SCHEMA_CONFIG details expand inline instead of using a separate panel", ()
   assert.match(source, /aria-expanded=\{isOpen\}/);
   assert.match(source, /aria-controls=\{detailId\}/);
   assert.match(source, /onClick=\{canExpand \? \(\) => toggleRow\(rowIndex\) : undefined\}/);
-  assert.match(source, /rows\.length \? rows : \[\{[\s\S]*?file: "SCHEMA_CONFIG"[\s\S]*?level: "ok"/);
+  assert.match(source, /rows\.length \? sortAlertRows\(rows\) : \[\{[\s\S]*?file: "SCHEMA_CONFIG"[\s\S]*?level: "ok"/);
   assert.match(source, /files\.map\(\(file, fileIndex\)/);
   assert.match(resultsStyleSource, /\.config-check-row\.open \.config-row-chev \{ transform: rotate\(90deg\); \}/);
 });

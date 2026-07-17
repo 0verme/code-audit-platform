@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
+import { sortAlertRows } from "../utils/alertSorting";
 
 const FR_CAT = {
   dataset: { label: "数据集", icon: "db" },
@@ -136,6 +137,7 @@ function ReportListSection({ d, reg, openReportIds, onToggle }) {
 function TxtTableSection({ id, icon, title, section, reg }) {
   if (!section) return null;
   const messages = section.messages || [];
+  const sortedMessages = sortAlertRows(messages);
   const severity = messages.some((m) => m.level === "err") ? "err" : messages.some((m) => m.level === "warn") ? "warn" : "ok";
   return (
     <Panel
@@ -162,7 +164,7 @@ function TxtTableSection({ id, icon, title, section, reg }) {
         ) : null}
         {messages.length ? (
           <div className="fr-issue-list">
-            {messages.map((msg, index) => (
+            {sortedMessages.map((msg, index) => (
               <div key={index} className={`ai-finding ${msg.level}`} style={{ marginBottom: 6 }}>
                 <Sev level={msg.level} />
                 <div className="aif-body"><div className="aif-text">{msg.msg}</div></div>
@@ -203,9 +205,7 @@ function ReportDetailAccordion({ report, detailId, open, onClose }) {
   const audit = reportAudit(report);
   const type = reportType(report);
   const refTables = Array.isArray(report.refTables) ? report.refTables : [];
-  const issues = [...(report.issues || [])].sort(
-    (left, right) => (left.level === "err" ? 0 : 1) - (right.level === "err" ? 0 : 1),
-  );
+  const issues = sortAlertRows(report.issues);
 
   return (
     <section id={detailId} className={`detail-accordion${open ? " open" : ""}`} role="region" aria-label={`${report.title} 详情`} aria-hidden={!open} inert={open ? undefined : ""}>

@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
+import { sortAlertRows } from "../utils/alertSorting";
 import { PyScriptAuditSection } from "./ScriptAudit";
 import {
   getCycleDependencyFindings,
@@ -380,7 +381,7 @@ export function ConfigCheckSection({ rows = [], files = [], reg }) {
   const [openRowIndex, setOpenRowIndex] = useState(null);
   if (!rows.length && !files.length) return null;
 
-  const displayRows = rows.length ? rows : [{
+  const displayRows = rows.length ? sortAlertRows(rows) : [{
     file: "SCHEMA_CONFIG",
     line: null,
     rule: "",
@@ -657,6 +658,7 @@ const SCHED_TABLE_TITLES = {
 
 function ScheduleIssueTable({ rows, columns }) {
   if (!rows.length) return null;
+  const sortedRows = sortAlertRows(rows);
   return (
     <>
       <div className="subhead" style={{ margin: "12px 0 7px" }}><Icon name="alert" size={12} /> 调度规则告警</div>
@@ -676,7 +678,7 @@ function ScheduleIssueTable({ rows, columns }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
+            {sortedRows.map((row, index) => (
               <tr key={index} className={row.level === "err" ? "err-row" : row.level === "warn" ? "warn-row" : ""}>
                 <td><Badge mono tone={row.table === "PLAN" ? "accent" : row.table === "SEQ" ? "info" : ""}>{row.table}</Badge></td>
                 <td className="rule-cell mono" style={{ fontSize: "var(--fs-xs)" }}>{row.item}</td>
@@ -837,8 +839,7 @@ function aggregateIssues(data) {
     ["收卸配置", data.recv],
     ["调度表检查", getScheduleIssueRows(data)],
   ];
-  const order = { err: 0, warn: 1, info: 2, ok: 3 };
-  return groups.flatMap(([cat, rows]) => rows.map((row) => ({ cat, ...row }))).sort((left, right) => order[left.level] - order[right.level]);
+  return sortAlertRows(groups.flatMap(([cat, rows]) => rows.map((row) => ({ cat, ...row }))));
 }
 
 function IssuesBoard({ d }) {

@@ -2,6 +2,7 @@ import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { formatSqlReference } from "../utils/resultTablePresentation";
 import { scriptAudit } from "../utils/scriptAuditPresentation";
+import { sortAlertRows } from "../utils/alertSorting";
 
 const SD_STATE = {
   same: { cls: "ok", label: "相同", icon: "check" },
@@ -117,7 +118,7 @@ export function ScriptDetailAccordion({ script, detailId, open, onClose }) {
   const audit = scriptAudit(script);
   const result = Array.isArray(script?.result) ? script.result : [];
   const same = result.filter((item) => item.state === "same").length;
-  const lint = Array.isArray(script?.lint) ? script.lint : [];
+  const lint = sortAlertRows(script?.lint);
 
   return (
     <section id={detailId} className={`detail-accordion${open ? " open" : ""}`} role="region" aria-label={`${script.script} 详情`} aria-hidden={!open} inert={open ? undefined : ""}>
