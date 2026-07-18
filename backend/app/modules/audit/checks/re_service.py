@@ -13,7 +13,6 @@ import xlrd
 
 
 import pandas as pd
-from pathlib import Path
 import fnmatch
 
 
@@ -717,27 +716,3 @@ def read_data_from_file(file_path):
     else:
         print(file_path + ' 不存在')
         return ''
-
-def ifmiaoshu(miaoshu,job_name):
-    pattern = re.compile(r'^[A-Za-z0-9]+$')
-    if miaoshu=='':
-        return True
-    if miaoshu==None:
-        return True
-    if miaoshu=='数据供应作业':
-        return True
-    ms=miaoshu.replace('加工表[','').replace('接入表[','').replace('模型层[','').replace('新国结表[','').replace(']数据采集作业','').replace(']数据加工作业','').\
-        replace(']数据预处理作业','').replace(']数据装载作业','').replace('数据供应作业SEND:','').replace('数据采集作业',''). \
-        replace('数据装载加工作业', '').replace('-数据供应作业','').replace('监管集市-','').replace('监管集市-LDM-JGJS_','').replace('卸数','').\
-        replace('数据供应','').replace('全量','').replace('增量','').replace('实时数据供应','').replace('拉链表','').replace('拉链','').replace('数据','').replace('F层','').replace('贴源层','').\
-        replace('装载','').replace('采集','').replace('预处理','').replace('[','').replace(']','').replace('作业','').replace('加工','').replace('-','').\
-        replace('国结模型表','').replace('新国结表','').replace('新国结','').replace('国结表','').replace('国结','')
-    if ms=='':
-        return True
-    if len(ms)<=1:
-        return True
-    if ms in job_name:
-        return True
-    if bool(pattern.match(ms)):
-        return True
-    return False

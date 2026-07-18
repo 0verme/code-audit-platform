@@ -11,6 +11,10 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.audit.checks.hcyt import schedule_rule  # noqa: E402
+from app.modules.audit.checks.hcyt.description_rule import (  # noqa: E402
+    has_meaningful_job_description,
+)
+from app.config.audit_rules import DEFAULT_RULES  # noqa: E402
 from app.modules.audit.report_builder import build_job_table  # noqa: E402
 
 
@@ -19,7 +23,7 @@ def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", domain="CMS_DOMAIN", sta
     row[0] = plan
     row[1] = seq
     row[2] = job
-    row[3] = "valid description"
+    row[3] = "处理客户账户信息"
     row[5] = domain
     row[6] = "1"
     row[23] = status
@@ -71,7 +75,6 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
         with (
             patch.object(schedule_rule, "_schedule_rules", return_value=rules) as load_rules,
             patch.object(schedule_rule, "all_job_outfile", return_value=[]),
-            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
         ):
             result = schedule_rule.rule_excle_job(
                 job_df,
@@ -93,7 +96,6 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
 
         with (
             patch.object(schedule_rule, "all_job_outfile", return_value=[]),
-            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
         ):
             result = schedule_rule.rule_excle_job(
                 pd.DataFrame(rows),
@@ -120,7 +122,6 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
 
         with (
             patch.object(schedule_rule, "all_job_outfile", return_value=[]),
-            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
         ):
             result = schedule_rule.rule_excle_job(
                 pd.DataFrame(rows),
@@ -138,7 +139,6 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
 
         with (
             patch.object(schedule_rule, "all_job_outfile", return_value=[]),
-            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
         ):
             result = schedule_rule.rule_excle_job(
                 pd.DataFrame(rows),
@@ -184,6 +184,76 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
                 "schedule.job.table.serialize_rows",
                 "schedule.job.table.classify_states",
             ],
+        )
+
+
+class HcytJobDescriptionRuleTests(unittest.TestCase):
+    def setUp(self):
+        self.rules = DEFAULT_RULES["hcyt"]["schedule"]["description_validation"]
+
+    def test_rejects_empty_placeholder_and_non_chinese_descriptions(self):
+        invalid_descriptions = [
+            None,
+            "",
+            "   ",
+            "12345",
+            "audit sample",
+            "ＡＵＤＩＴ　ＳＡＭＰＬＥ",
+            "JOB_DWS_CUSTOMER_DAY",
+            "数据采集作业",
+            "数 据，采 集 作 业",
+            "数据供应作业",
+            "测试描述",
+        ]
+
+        for description in invalid_descriptions:
+            with self.subTest(description=description):
+                self.assertFalse(
+                    has_meaningful_job_description(
+                        description,
+                        "JOB_DWS_CUSTOMER_DAY",
+                        self.rules,
+                    )
+                )
+
+    def test_accepts_descriptions_with_chinese_business_meaning(self):
+        valid_descriptions = [
+            "客户账户信息汇总",
+            "加工表[客户信息]数据加工作业",
+            "客户增量装载",
+            "同步 customer 客户信息",
+            "处理，客户　账户信息",
+        ]
+
+        for description in valid_descriptions:
+            with self.subTest(description=description):
+                self.assertTrue(
+                    has_meaningful_job_description(
+                        description,
+                        "JOB_DWS_CUSTOMER_DAY",
+                        self.rules,
+                    )
+                )
+
+    def test_rejects_description_that_only_repeats_chinese_job_name(self):
+        self.assertFalse(
+            has_meaningful_job_description("客户信息作业", "客户信息", self.rules)
+        )
+
+    def test_job_rule_reports_invalid_description_without_mocking_validator(self):
+        row = job_row()
+        row[3] = "audit sample"
+
+        with patch.object(schedule_rule, "all_job_outfile", return_value=[]):
+            result = schedule_rule.rule_excle_job(
+                pd.DataFrame([row]),
+                r_plan={row[0]},
+                job_rows=[row],
+            )
+
+        self.assertIn(
+            "hcyt.schedule.job.description",
+            [finding.rule_code for finding in result.findings],
         )
 
 

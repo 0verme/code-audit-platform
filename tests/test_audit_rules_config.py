@@ -20,6 +20,26 @@ def test_valid_rules_file_overrides_declared_values(tmp_path: Path):
     assert rules["hcyt"]["schedule"]["allowed_domains"] == ["DOMAIN_A"]
 
 
+def test_description_validation_rules_can_be_overridden(tmp_path: Path):
+    rules_file = tmp_path / "rules.yaml"
+    rules_file.write_text(
+        "hcyt:\n"
+        "  schedule:\n"
+        "    description_validation:\n"
+        "      min_meaningful_chinese_chars: 4\n"
+        "      noise_phrases: [自定义模板]\n"
+        "      invalid_values: [自定义占位]\n",
+        encoding="utf-8",
+    )
+
+    rules = load_audit_rules(path=rules_file)
+    description_rules = rules["hcyt"]["schedule"]["description_validation"]
+
+    assert description_rules["min_meaningful_chinese_chars"] == 4
+    assert description_rules["noise_phrases"] == ["自定义模板"]
+    assert description_rules["invalid_values"] == ["自定义占位"]
+
+
 def test_empty_allowed_domains_keeps_compatibility_defaults(tmp_path: Path):
     rules_file = tmp_path / "rules.yaml"
     rules_file.write_text(

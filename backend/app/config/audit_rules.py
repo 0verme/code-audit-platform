@@ -60,6 +60,23 @@ DEFAULT_RULES: dict[str, Any] = {
         "realtime_dependency_exception": "PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY",
         "forbidden_dependency_plans": ["PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY", "PLAN_DWS_KDW_PAM_DWS_DWF_DAY"],
         "required_predecessors": {"JOB_DWS_DWS_DWUPRR_GJYW_ACCT_OPEN_INFO_R_00_DAY": ["JOB_DWS_DWS_DWF_F_AGT_SAVB_BASICINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_AGT_SAVB_ACCTINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_EVT_SAVR_OPENBOOK_R_00_DAY", "JOB_DWS_DWS_DWF_F_PTY_TABLE_R_00_DAY"]},
+        "description_validation": {
+            "min_meaningful_chinese_chars": 2,
+            "noise_phrases": [
+                "数据装载加工作业", "数据预处理作业", "实时数据供应", "数据采集作业",
+                "数据加工作业", "数据装载作业", "数据供应作业", "国结模型表",
+                "监管集市", "数据供应", "加工表", "接入表", "新国结表", "模型层",
+                "贴源层", "拉链表", "预处理", "新国结", "国结表", "待补充",
+                "待完善", "实时", "卸数", "全量", "增量", "拉链", "装载",
+                "采集", "作业", "加工", "数据", "国结", "测试", "描述", "说明",
+                "暂无", "默认", "同上", "未知", "F层", "SEND",
+            ],
+            "invalid_values": [
+                "null", "none", "n/a", "na", "todo", "tbd", "audit sample",
+                "test", "description", "无", "暂无", "无描述", "暂无描述",
+                "待补充", "待完善", "同上", "默认", "未知",
+            ],
+        },
     }},
     "dws": {
         "naming": {

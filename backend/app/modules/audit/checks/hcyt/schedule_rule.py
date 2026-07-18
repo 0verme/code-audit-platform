@@ -15,8 +15,9 @@ from app.modules.metadata.services.public_data import (
     all_seqjob,
     get_job2,
 )
-from app.modules.audit.checks.re_service import extract_values, ifmiaoshu
+from app.modules.audit.checks.re_service import extract_values
 from app.modules.audit.checks.dependency import build_dependency_graph, find_cycles
+from app.modules.audit.checks.hcyt.description_rule import has_meaningful_job_description
 from app.config.audit_rules import get_audit_rules
 from app.modules.audit.findings import CheckResult
 
@@ -293,7 +294,11 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
             result.add('hcyt.schedule.job.realtime_priority', '实时作业优先级', 'err', f'{job_name} 实时作业的优先级需要设置 99')
         if rules["realtime_sequence_keyword"] in seq_name and str(level) not in rules["realtime_priority_values"]:
             result.add('hcyt.schedule.job.realtime_priority', '实时作业优先级', 'err', f'{job_name} 实时作业的优先级需要设置 99')
-        if ifmiaoshu(miaoshu, job_name):
+        if not has_meaningful_job_description(
+            miaoshu,
+            job_name,
+            rules["description_validation"],
+        ):
             result.add('hcyt.schedule.job.description', '作业描述', 'err', f'{job_name} 第四列作业描述必须要明确加工作用 参考： https://example.com/docs/schedule-description')
         if plan_name in rules["realtime_calendar_plans"] and cale != rules["realtime_calendar_value"]:
             result.add('hcyt.schedule.job.realtime_calendar', '实时作业日历', 'err', f'{job_name} 的执行日历 {cale} 不对  实际应该是每日跑批 SYS_EVERYDAY_CALENDAR')
