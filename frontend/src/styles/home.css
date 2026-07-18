@@ -117,6 +117,11 @@
   font-weight: 600;
 }
 
+.home-project-chips {
+  padding-top: 8px;
+  margin-bottom: 12px;
+}
+
 .route-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));

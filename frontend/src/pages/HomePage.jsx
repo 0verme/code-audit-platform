@@ -230,7 +230,7 @@ export default function HomePage({
           </p>
         ) : null}
         {projectsState.data?.length ? (
-          <div className="chips" style={{ marginBottom: 12 }}>
+          <div className="chips home-project-chips">
             {projectsState.data.map((project) => (
               <span key={project.id} className="chip src">
                 {project.name}
