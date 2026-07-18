@@ -10,6 +10,7 @@ from app.modules.audit.checks.hcyt.ddl_rule import (
     load_metadata_name_set,
     run_dws_ddl_rules,
 )
+from app.modules.audit.checks.hcyt.sensitive_sql import scan_sensitive_sql
 from app.modules.metadata.services.public_data import all_function_names, all_view_names
 from app.modules.audit.rules.portal_link_builder import build_portal_link
 from app.modules.audit.checks.dws_sql_review import run_configured_dws_sql_reviews
@@ -76,8 +77,7 @@ def rule_dws(dws_url):
         result.add('hcyt.sql.use_function', '使用函数', 'err', f'检测到使用函数，请重点审核: {",".join(used_functions)}')
     if len(data.split('\n')) > 20000:
         result.add('hcyt.sql.too_many_lines', 'SQL 行数过多', 'err', '行数过多,大批量sql请上线人员操作')
-    if 'alter'.upper() in data.upper():
-        result.add('hcyt.sql.alter_statement', 'ALTER 命令', 'info', '存在alter命令,请审核重点检查')
+    result.findings.extend(scan_sensitive_sql(data, namespace='hcyt.sql'))
     if 'dwm.'.upper() in data.upper():
         result.add('hcyt.sql.dwm_operation', 'DWM 模型层操作', 'err', '存在对dwm模型层的操作,请审核重点检查')
     if 'TO GROUP GROUP_VERSION1'.upper() in data.upper():
@@ -101,6 +101,5 @@ def rule_hive(hive_url):
         result.add('hcyt.hive.too_many_lines', 'SQL 行数过多', 'err', '行数过多,大批量sql请上线人员操作')
     if 'varchar2'.upper() in data.upper():
         result.add('hcyt.hive.varchar2_type', 'VARCHAR2 字段类型', 'err', '湖脚本不允许VARCHAR2类型的字段')
-    if 'alter'.upper() in data.upper():
-        result.add('hcyt.hive.alter_statement', 'ALTER 命令', 'info', '存在alter命令,请审核重点检查')
+    result.findings.extend(scan_sensitive_sql(data, namespace='hcyt.hive'))
     return result
