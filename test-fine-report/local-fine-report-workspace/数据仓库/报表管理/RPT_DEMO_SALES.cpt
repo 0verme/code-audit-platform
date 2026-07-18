@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WorkBook>
+  <Report class="com.fr.report.worksheet.WorkSheet" name="Demo Sales Report">
+    <LayerReportAttr clientPaging="false" engineState="0" />
+  </Report>
+  <Query><![CDATA[
+select distinct T.ORDER_ID,
+       (select max(X.AMOUNT) from DWF.F_FINE_DETAIL X) as MAX_AMOUNT
+from LOCAL_SALES T
+where T.CUSTOMER_ID in(select C.CUSTOMER_ID from DWF.F_FINE_CUSTOMER C)
+  and T.ORDER_ID=(select max(X.ORDER_ID) from DWF.F_FINE_DETAIL X)
+  and T.END_DT>='20240101'
+  and T.D_DATE=TO_DATE('20240102', 'YYYYMMDD')
+  and T.D_DATE=DATE'2024-01-03'
+  ]]></Query>
+  <DatabaseName>demo_reporting</DatabaseName>
+  <Attributes dsName="表头" columnName="order_id" />
+</WorkBook>

@@ -139,7 +139,9 @@ def rule_menu(authority_name):
         data = read_data_from_file(authority_name)
         relsut = []
         for i in data.split('\n'):
-            i.replace('，', ',').replace('\r\n', '\n')
+            i = i.replace('，', ',').replace('\r', '').strip()
+            if not i:
+                continue
             finememu = i.split(',')[1]
             cpturl = i.split(',')[0]
             if required_root_prefix not in cpturl:
