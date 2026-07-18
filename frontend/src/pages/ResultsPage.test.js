@@ -59,6 +59,15 @@ test("Python script details use independently expanded inline accordions", () =>
   assert.doesNotMatch(scriptSource, /sd-overlay|sd-drawer/);
 });
 
+test("Python script details omit the review focus while FineReport keeps its focus callout", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  const fineReportSource = readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(scriptSource, /className="sd-focus"/);
+  assert.doesNotMatch(scriptSource, /script\.focus/);
+  assert.match(fineReportSource, /className="sd-focus"/);
+  assert.match(fineReportSource, /report\.focus/);
+});
+
 test("Python script findings auto-open after progressive results arrive without overriding manual dismissal", () => {
   const cleanScript = { script: "clean.py", lint: [], result: [] };
   const errorScript = { script: "error.py", lint: [{ level: "err" }], result: [] };

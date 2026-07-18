@@ -149,14 +149,6 @@ export function ScriptDetailAccordion({ script, detailId, open, onClose }) {
         </div>
 
         <div className="sd-body">
-          <div className="sd-focus">
-            <span className="sd-focus-ic"><Icon name="search" size={14} /></span>
-            <div>
-              <div className="sd-focus-label">审查重点</div>
-              <p className="sd-focus-text">{script.focus}</p>
-            </div>
-          </div>
-
           <div className="sd-block">
             <div className="subhead">
               <Icon name="code" size={12} /> 规范检查 <span className="sd-num mono">{lint.length}</span>
