@@ -26,3 +26,24 @@ test("startAuditRun sends the idempotency key without dropping JSON headers", as
   assert.equal(capturedOptions.headers["Content-Type"], "application/json");
   assert.equal(capturedOptions.headers["Idempotency-Key"], "submission-42");
 });
+
+test("audit polling bypasses browser caches", async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedOptions;
+  globalThis.fetch = async (_url, options) => {
+    capturedOptions = options;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ runId: 42 }),
+    };
+  };
+
+  try {
+    await reviewService.getAuditRunPartialResult(42);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(capturedOptions.cache, "no-store");
+});

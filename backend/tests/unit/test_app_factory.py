@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from app import create_app
 
@@ -35,6 +36,19 @@ class AppFactoryTests(unittest.TestCase):
         response = client.delete("/api/health")
         self.assertEqual(response.status_code, 405)
         self.assertEqual(response.get_json()["error"]["code"], "METHOD_NOT_ALLOWED")
+
+    @patch("app.routes.audit_runs.get_partial_result")
+    def test_partial_result_disables_intermediary_and_browser_caches(self, get_partial_result):
+        get_partial_result.return_value = {
+            "runId": 7,
+            "status": "running",
+            "taskStatus": "running",
+        }
+
+        response = self.app.test_client().get("/api/audit-runs/7/partial-result")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
 
 
 if __name__ == "__main__":

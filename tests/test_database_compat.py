@@ -183,7 +183,7 @@ class DatabaseCompatTests(unittest.TestCase):
         payloads = build_audit_result_row_payloads(8, {"python": [{"file": "demo.py", "rule": None, "level": "", "msg": None}]})
         self.assertEqual(payloads, [(8, "python", "demo.py", "", "info", "")])
 
-    def test_replace_audit_results_batches_insert_rows(self):
+    def test_replace_audit_results_uses_one_multi_value_insert(self):
         fake = SequenceConnection()
         with patch("app.db.connection.connect", return_value=fake):
             connection = CompatConnection(pg_profile())
@@ -196,9 +196,28 @@ class DatabaseCompatTests(unittest.TestCase):
                 ]},
             )
         self.assertEqual(written, 2)
-        sql, rows = fake.cursor_obj.executed[-1]
+        sql, parameters = fake.cursor_obj.executed[-1]
         self.assertIn("INSERT INTO dwp.p_audit_run_issue", sql)
-        self.assertEqual(len(rows), 2)
+        self.assertEqual(sql.count("(%s, %s, %s, %s, %s, %s)"), 2)
+        self.assertEqual(len(parameters), 12)
+
+    def test_dws_multi_value_insert_keeps_jdbc_placeholders(self):
+        fake = SequenceConnection()
+        with patch("app.db.connection.connect", return_value=fake):
+            connection = CompatConnection(dws_profile())
+            _replace_audit_results_with_connection(
+                connection,
+                8,
+                {"dws": [
+                    {"file": "a.sql", "rule": "a", "level": "warn", "msg": "one"},
+                    {"file": "b.sql", "rule": "b", "level": "err", "msg": "two"},
+                ]},
+            )
+
+        sql, parameters = fake.cursor_obj.executed[-1]
+        self.assertIn("INSERT INTO dwp.p_audit_run_issue", sql)
+        self.assertEqual(sql.count("(?, ?, ?, ?, ?, ?)"), 2)
+        self.assertEqual(len(parameters), 12)
 
     def test_init_db_only_initializes_runtime_tables(self):
         with patch("app.db.schema.ensure_runtime_tables") as ensure_runtime_tables:

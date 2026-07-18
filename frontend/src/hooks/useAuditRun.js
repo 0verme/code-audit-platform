@@ -9,6 +9,20 @@ export function createIdempotencyKey() {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+export function isCurrentAuditRunResponse({
+  activeRunId,
+  targetRunId,
+  payloadRunId,
+  activeSession,
+  expectedSession,
+}) {
+  return (
+    activeSession === expectedSession &&
+    String(activeRunId) === String(targetRunId) &&
+    (payloadRunId == null || String(payloadRunId) === String(targetRunId))
+  );
+}
+
 const TERMINAL_RUN_STATUSES = new Set(["success", "failed"]);
 const TERMINAL_TASK_STATUSES = new Set(["pass", "warn", "fail"]);
 
@@ -96,7 +110,8 @@ function getCurrentModule(tasks, progress) {
 
 export function useAuditRun(runId) {
   const timerRef = useRef(null);
-  const stoppedRef = useRef(false);
+  const sessionRef = useRef(0);
+  const activeRunIdRef = useRef(runId || null);
   const startFlightRef = useRef(null);
   if (!startFlightRef.current) startFlightRef.current = createSingleFlight();
   const [activeRunId, setActiveRunId] = useState(runId || null);
@@ -106,42 +121,78 @@ export function useAuditRun(runId) {
   const [starting, setStarting] = useState(false);
 
   const stopPolling = useCallback(() => {
-    stoppedRef.current = true;
+    sessionRef.current += 1;
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
   }, []);
 
-  const loadPartialResult = useCallback(async (targetRunId = activeRunId) => {
+  const loadPartialResult = useCallback(async (
+    targetRunId = activeRunIdRef.current,
+    expectedSession = sessionRef.current,
+  ) => {
     if (!targetRunId) return null;
     const payload = await reviewService.getAuditRunPartialResult(targetRunId);
+    if (sessionRef.current !== expectedSession || String(activeRunIdRef.current) !== String(targetRunId)) {
+      return null;
+    }
+    if (!isCurrentAuditRunResponse({
+      activeRunId: activeRunIdRef.current,
+      targetRunId,
+      payloadRunId: payload?.runId,
+      activeSession: sessionRef.current,
+      expectedSession,
+    })) {
+      throw new Error(`Audit run response mismatch: expected ${targetRunId}, received ${payload.runId}`);
+    }
     setPartialResult(payload);
     setStatusPayload(payload);
     return payload;
-  }, [activeRunId]);
+  }, []);
 
-  const pollAuditRunStatus = useCallback(async (targetRunId = activeRunId) => {
+  const pollAuditRunStatus = useCallback(async (
+    targetRunId = activeRunIdRef.current,
+    expectedSession = sessionRef.current,
+  ) => {
     if (!targetRunId) return null;
     const payload = await reviewService.getAuditRunStatus(targetRunId);
+    if (sessionRef.current !== expectedSession || String(activeRunIdRef.current) !== String(targetRunId)) {
+      return null;
+    }
+    if (!isCurrentAuditRunResponse({
+      activeRunId: activeRunIdRef.current,
+      targetRunId,
+      payloadRunId: payload?.runId,
+      activeSession: sessionRef.current,
+      expectedSession,
+    })) {
+      throw new Error(`Audit run response mismatch: expected ${targetRunId}, received ${payload.runId}`);
+    }
     setStatusPayload(payload);
     return payload;
-  }, [activeRunId]);
+  }, []);
 
-  const schedulePoll = useCallback((targetRunId) => {
-    if (stoppedRef.current || !targetRunId) return;
+  const schedulePoll = useCallback((targetRunId, expectedSession = sessionRef.current) => {
+    if (
+      !targetRunId ||
+      sessionRef.current !== expectedSession ||
+      String(activeRunIdRef.current) !== String(targetRunId)
+    ) return;
     timerRef.current = setTimeout(async () => {
       try {
-        const partial = await loadPartialResult(targetRunId);
+        const partial = await loadPartialResult(targetRunId, expectedSession);
+        if (partial === null || sessionRef.current !== expectedSession) return;
         const terminal = isTerminalAuditRun(null, partial);
         if (terminal) {
           stopPolling();
           return;
         }
-        schedulePoll(targetRunId);
+        schedulePoll(targetRunId, expectedSession);
       } catch (pollError) {
+        if (sessionRef.current !== expectedSession) return;
         setError(new Error(getErrorMessage(pollError)));
-        schedulePoll(targetRunId);
+        schedulePoll(targetRunId, expectedSession);
       }
     }, POLL_INTERVAL_MS);
   }, [loadPartialResult, stopPolling]);
@@ -149,7 +200,7 @@ export function useAuditRun(runId) {
   const startAuditRun = useCallback((payload) => (
     startFlightRef.current.run(async () => {
       stopPolling();
-      stoppedRef.current = false;
+      activeRunIdRef.current = null;
       setStarting(true);
       setError(null);
       setStatusPayload(null);
@@ -159,11 +210,14 @@ export function useAuditRun(runId) {
           idempotencyKey: createIdempotencyKey(),
         });
         const nextRunId = created?.runId ?? created?.run_id ?? created?.id;
+        const nextSession = sessionRef.current + 1;
+        sessionRef.current = nextSession;
+        activeRunIdRef.current = nextRunId || null;
         setActiveRunId(nextRunId || null);
         setStarting(false);
         if (nextRunId) {
-          const partial = await loadPartialResult(nextRunId);
-          if (!isTerminalAuditRun(null, partial)) schedulePoll(nextRunId);
+          const partial = await loadPartialResult(nextRunId, nextSession);
+          if (partial && !isTerminalAuditRun(null, partial)) schedulePoll(nextRunId, nextSession);
         }
         return created;
       } catch (startError) {
@@ -176,7 +230,9 @@ export function useAuditRun(runId) {
 
   useEffect(() => {
     stopPolling();
-    stoppedRef.current = false;
+    const nextSession = sessionRef.current + 1;
+    sessionRef.current = nextSession;
+    activeRunIdRef.current = runId || null;
     setActiveRunId(runId || null);
     setStatusPayload(null);
     setPartialResult(null);
@@ -186,11 +242,12 @@ export function useAuditRun(runId) {
 
     (async () => {
       try {
-        const partial = await loadPartialResult(runId);
-        if (!isTerminalAuditRun(null, partial)) {
-          schedulePoll(runId);
+        const partial = await loadPartialResult(runId, nextSession);
+        if (partial && !isTerminalAuditRun(null, partial)) {
+          schedulePoll(runId, nextSession);
         }
       } catch (pollError) {
+        if (sessionRef.current !== nextSession) return;
         setError(new Error(getErrorMessage(pollError)));
       }
     })();

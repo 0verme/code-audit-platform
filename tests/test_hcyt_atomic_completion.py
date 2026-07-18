@@ -169,14 +169,25 @@ class HcytAtomicCompletionTests(unittest.TestCase):
                 self._seed_old_state()
                 run = self._run()
                 legacy_completion = Mock()
-                with self._faulty_connections(fail_when), patch.object(
+                failure_triggered = False
+
+                def fail_once(sql, params):
+                    nonlocal failure_triggered
+                    if failure_triggered or not fail_when(sql, params):
+                        return False
+                    failure_triggered = True
+                    return True
+
+                with self._faulty_connections(fail_once), patch.object(
                     audit_engine, "persist_task_run_completion", legacy_completion
                 ):
                     with self.assertRaises(InjectedPersistenceFailure):
                         run.finish("pass", report=self._report())
 
                 task, report, rows = self._state()
-                self.assertEqual(task["status"], "running")
+                self.assertEqual(task["status"], "fail")
+                self.assertEqual(task["step"], "persistence_failed")
+                self.assertIn("审查报告保存失败", task["error"])
                 self.assertEqual(report, {"version": "old"})
                 self.assertEqual([row["message"] for row in rows], ["old finding"])
                 self.assertNotIn("finalReport", run.run_state.partial_report)
@@ -196,6 +207,27 @@ class HcytAtomicCompletionTests(unittest.TestCase):
 
         atomic_completion.assert_not_called()
         legacy_completion.assert_called_once()
+
+    def test_atomic_completion_failure_is_published_to_the_database(self):
+        run = self._run()
+        legacy_completion = Mock()
+        with patch.object(
+            audit_engine,
+            "persist_task_completion_atomic",
+            side_effect=InjectedPersistenceFailure("DWS batch rejected"),
+        ), patch.object(audit_engine, "persist_task_run_completion", legacy_completion):
+            with self.assertRaises(InjectedPersistenceFailure):
+                run.finish("pass", report=self._report())
+
+        task = dict(runtime_store.get_audit_task(self.task_id))
+        self.assertEqual(task["status"], "fail")
+        self.assertEqual(task["step"], "persistence_failed")
+        self.assertEqual(task["progress"], 95)
+        self.assertIn("审查报告保存失败", task["error"])
+        self.assertIn("DWS batch rejected", task["error"])
+        self.assertIn("审查报告保存失败", task["logs_json"])
+        self.assertIsNone(runtime_store.get_task_report_payload(self.task_id))
+        legacy_completion.assert_not_called()
 
 
 if __name__ == "__main__":

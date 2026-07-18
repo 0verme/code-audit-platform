@@ -78,6 +78,7 @@ from .workflow_runtime import WorkflowRuntimeContext
 from app.db.profiles import get_metadata_profile
 from app.config.audit_rules import get_audit_rules
 from app.db.runtime_store import (
+    finalize_task_persistence_failure,
     persist_task_completion_atomic,
     persist_task_run_completion,
     replace_audit_results,
@@ -422,6 +423,24 @@ class TaskRun:
                     summary_state.mark_failed(exc)
                 self._ensure_run_state().mark_finished(error=exc)
                 self._atomic_completion_failed = True
+                persistence_error = f"审查报告保存失败: {exc}"
+                failure_entry = {
+                    "ts": datetime.now().strftime("%H:%M:%S"),
+                    "level": "ERR",
+                    "msg": persistence_error,
+                }
+                self.logs.append(failure_entry)
+                self._ensure_run_state().add_log(persistence_error, level="ERR")
+                try:
+                    finalize_task_persistence_failure(
+                        self.task_id,
+                        duration=duration,
+                        finished_at=finished_at,
+                        error=persistence_error,
+                        logs=self.logs,
+                    )
+                except Exception:
+                    self.log(traceback.format_exc(), "ERR", detail=True)
                 raise
 
             # Completion is published only after the DB commit.

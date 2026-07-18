@@ -27,6 +27,8 @@ TASK_COLUMNS = """
     error, logs_json, source_type
 """
 
+AUDIT_RESULT_INSERT_BATCH_SIZE = 100
+
 
 def fail_orphan_tasks() -> None:
     with get_connection() as connection:
@@ -196,6 +198,27 @@ def finalize_task(
         )
 
 
+def finalize_task_persistence_failure(
+    task_id: int,
+    *,
+    duration: str,
+    finished_at: str,
+    error: str,
+    logs: list[dict],
+) -> None:
+    """Publish a durable failure after an atomic completion transaction rolls back."""
+    finalize_task(
+        task_id,
+        status="fail",
+        duration=duration,
+        finished_at=finished_at,
+        error=error,
+        progress=95,
+        step="persistence_failed",
+        logs_json=build_task_logs_json(logs),
+    )
+
+
 def persist_task_run_completion(
     task_id: int,
     *,
@@ -246,13 +269,17 @@ def _replace_audit_results_with_connection(connection, task_id: int, grouped_row
     """
     row_payloads = build_audit_result_row_payloads(task_id, grouped_rows)
     connection.execute("DELETE FROM {{table:audit_results}} WHERE task_id = ?", (task_id,))
-    if row_payloads:
-        connection.executemany(
-            """
-            INSERT INTO {{table:audit_results}} (task_id, category, file_name, rule_name, level, message)
-            VALUES (?, ?, ?, ?, ?, ?)
+    for offset in range(0, len(row_payloads), AUDIT_RESULT_INSERT_BATCH_SIZE):
+        batch = row_payloads[offset:offset + AUDIT_RESULT_INSERT_BATCH_SIZE]
+        placeholders = ", ".join("(?, ?, ?, ?, ?, ?)" for _row in batch)
+        parameters = tuple(value for row in batch for value in row)
+        connection.execute(
+            f"""
+            INSERT INTO {{{{table:audit_results}}}}
+                (task_id, category, file_name, rule_name, level, message)
+            VALUES {placeholders}
             """,
-            row_payloads,
+            parameters,
         )
     return len(row_payloads)
 
@@ -301,7 +328,10 @@ def persist_task_completion_atomic(
             connection, task_id, status=status, duration=duration, finished_at=finished_at,
             error=error, progress=progress, step=step, logs_json=logs_json,
         )
-        if updated != 1:
+        # Some JDBC drivers report -1/None for a successful DML statement.
+        # The task was verified immediately above in the same transaction, so
+        # only a definite zero or a conflicting positive count is a failure.
+        if updated == 0 or (isinstance(updated, int) and updated > 1):
             raise TaskCompletionValidationError(f"task {task_id} was not updated")
     return AtomicTaskCompletionResult(task_id=task_id, report_written=True, results_written=results_written)
 

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { deriveAuditRunPageStatus, mergePartialReport, shouldShowAuditRunFailure } from "./useAuditRun.js";
+import {
+  deriveAuditRunPageStatus,
+  isCurrentAuditRunResponse,
+  mergePartialReport,
+  shouldShowAuditRunFailure,
+} from "./useAuditRun.js";
 
 const hookSource = readFileSync(new URL("./useAuditRun.js", import.meta.url), "utf8");
 
@@ -100,6 +105,40 @@ test("automatic polling uses only the combined partial-result request", () => {
     hookSource.indexOf("const schedulePoll"),
     hookSource.indexOf("const startAuditRun"),
   );
-  assert.match(schedulePollSource, /loadPartialResult\(targetRunId\)/);
+  assert.match(schedulePollSource, /loadPartialResult\(targetRunId, expectedSession\)/);
   assert.doesNotMatch(schedulePollSource, /pollAuditRunStatus\(targetRunId\)/);
+});
+
+test("responses from an old audit session cannot overwrite the active audit", () => {
+  assert.equal(isCurrentAuditRunResponse({
+    activeRunId: 202,
+    targetRunId: 101,
+    payloadRunId: 101,
+    activeSession: 8,
+    expectedSession: 7,
+  }), false);
+  assert.equal(isCurrentAuditRunResponse({
+    activeRunId: 202,
+    targetRunId: 202,
+    payloadRunId: 101,
+    activeSession: 8,
+    expectedSession: 8,
+  }), false);
+  assert.equal(isCurrentAuditRunResponse({
+    activeRunId: 202,
+    targetRunId: 202,
+    payloadRunId: 202,
+    activeSession: 8,
+    expectedSession: 8,
+  }), true);
+});
+
+test("polling carries a session token through requests and rescheduling", () => {
+  const schedulePollSource = hookSource.slice(
+    hookSource.indexOf("const schedulePoll"),
+    hookSource.indexOf("const startAuditRun"),
+  );
+  assert.match(schedulePollSource, /loadPartialResult\(targetRunId, expectedSession\)/);
+  assert.match(schedulePollSource, /schedulePoll\(targetRunId, expectedSession\)/);
+  assert.match(schedulePollSource, /sessionRef\.current !== expectedSession/);
 });

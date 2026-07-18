@@ -17,7 +17,9 @@ def _client_ip() -> str:
 @audit_runs_bp.get("/api/audit-runs/<int:run_id>/status")
 def status(run_id: int):
     try:
-        return jsonify(get_status(run_id))
+        response = jsonify(get_status(run_id))
+        response.headers["Cache-Control"] = "no-store"
+        return response
     except ServiceError as exc:
         return service_error_response(exc)
 
@@ -25,7 +27,9 @@ def status(run_id: int):
 @audit_runs_bp.get("/api/audit-runs/<int:run_id>/partial-result")
 def partial_result(run_id: int):
     try:
-        return jsonify(get_partial_result(run_id))
+        response = jsonify(get_partial_result(run_id))
+        response.headers["Cache-Control"] = "no-store"
+        return response
     except ServiceError as exc:
         return service_error_response(exc)
 

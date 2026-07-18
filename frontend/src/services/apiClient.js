@@ -28,7 +28,7 @@ async function request(path, options = {}) {
 }
 
 export const apiClient = {
-  get: (path) => request(path),
+  get: (path) => request(path, { cache: "no-store" }),
   post: (path, body, options = {}) =>
     request(path, {
       method: "POST",

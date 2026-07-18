@@ -64,11 +64,13 @@ def _build_audit_run_status(task_id: int, snapshot: dict) -> dict:
         }
 
     payload["task"] = task
-    if (
-        run_state is not None
-        and run_state.status.value == "failed"
-        and task.get("status") in {"running", "queued"}
-    ):
+    if task.get("step") == "persistence_failed":
+        payload["status"] = "failed"
+    elif snapshot["finalReportReady"]:
+        payload["status"] = status_from_task_status(task.get("status", ""))
+    elif run_state is not None and run_state.status.value == "failed":
+        payload["status"] = "failed"
+    elif task.get("status") == "fail":
         payload["status"] = "failed"
     else:
         payload["status"] = status_from_task_status(task.get("status", ""))
