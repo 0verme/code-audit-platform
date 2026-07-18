@@ -140,6 +140,16 @@ def _merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
             base[key] = value
     return base
 
+
+def _restore_compatibility_defaults(rules: dict[str, Any]) -> dict[str, Any]:
+    schedule = rules["hcyt"]["schedule"]
+    if not schedule["allowed_domains"]:
+        schedule["allowed_domains"] = copy.deepcopy(
+            DEFAULT_RULES["hcyt"]["schedule"]["allowed_domains"]
+        )
+    return rules
+
+
 def load_audit_rules(*, path: Path | None = None) -> dict[str, Any]:
     """Load a rules file safely, falling back to in-code defaults on failure."""
     rules = copy.deepcopy(DEFAULT_RULES)
@@ -151,7 +161,7 @@ def load_audit_rules(*, path: Path | None = None) -> dict[str, Any]:
             supplied = yaml.safe_load(stream) or {}
         if not isinstance(supplied, dict):
             raise TypeError("audit rules root must be a mapping")
-        return _merge(rules, supplied)
+        return _restore_compatibility_defaults(_merge(rules, supplied))
     except Exception as exc:
         LOGGER.warning("Audit rules configuration ignored; using safe defaults: %s", exc)
         return rules

@@ -20,6 +20,19 @@ def test_valid_rules_file_overrides_declared_values(tmp_path: Path):
     assert rules["hcyt"]["schedule"]["allowed_domains"] == ["DOMAIN_A"]
 
 
+def test_empty_allowed_domains_keeps_compatibility_defaults(tmp_path: Path):
+    rules_file = tmp_path / "rules.yaml"
+    rules_file.write_text(
+        "display:\n  highlight_result_source_systems: []\nhcyt:\n  schedule:\n    allowed_domains: []\n",
+        encoding="utf-8",
+    )
+
+    rules = load_audit_rules(path=rules_file)
+
+    assert rules["hcyt"]["schedule"]["allowed_domains"] == DEFAULT_RULES["hcyt"]["schedule"]["allowed_domains"]
+    assert rules["display"]["highlight_result_source_systems"] == []
+
+
 def test_missing_or_invalid_rules_file_keeps_safe_defaults(tmp_path: Path):
     assert load_audit_rules(path=tmp_path / "missing.yaml") == DEFAULT_RULES
     broken = tmp_path / "broken.yaml"

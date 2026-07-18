@@ -15,7 +15,13 @@ display:
 hcyt:
   schedule:
     real_job_plan_names: []
-    allowed_domains: []
+    allowed_domains:
+      - EDWS_DOMAIN
+      - CMS_DOMAIN
+      - NOVA_DOMAIN
+      - CBSRUN_DOMAIN
+      - IS_DOMAIN
+      - EXPORT_DOMAIN
     realtime_priority_values: ["99", "99.0"]
 dws:
   naming:

@@ -14,13 +14,13 @@ from app.modules.audit.checks.hcyt import schedule_rule  # noqa: E402
 from app.modules.audit.report_builder import build_job_table  # noqa: E402
 
 
-def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", status="1", dependency=""):
+def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", domain="CMS_DOMAIN", status="1", dependency=""):
     row = [""] * 28
     row[0] = plan
     row[1] = seq
     row[2] = job
     row[3] = "valid description"
-    row[5] = "CMS_DOMAIN"
+    row[5] = domain
     row[6] = "1"
     row[23] = status
     row[27] = dependency
@@ -84,6 +84,72 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
         self.assertEqual(result.findings, [])
         self.assertTrue(any("JOB Excel 转换完成" in message for message in timings))
         self.assertTrue(any("JOB规则主循环完成" in message for message in timings))
+
+    def test_valid_edws_and_export_domains_do_not_raise_domain_findings(self):
+        rows = [
+            job_row(plan="PLAN_DWS_PROCESS_DAY", job="JOB_DWS_PROCESS_DAY", domain="EDWS_DOMAIN"),
+            job_row(plan="PLAN_PROV_SEND_DAY", job="JOB_PROV_SEND_DAY", domain="EXPORT_DOMAIN"),
+        ]
+
+        with (
+            patch.object(schedule_rule, "all_job_outfile", return_value=[]),
+            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
+        ):
+            result = schedule_rule.rule_excle_job(
+                pd.DataFrame(rows),
+                r_plan={row[0] for row in rows},
+                job_rows=rows,
+            )
+
+        self.assertFalse(any(
+            finding.rule_code in {
+                "hcyt.schedule.job.execution_domain",
+                "hcyt.schedule.job.invalid_domain",
+            }
+            for finding in result.findings
+        ))
+
+    def test_special_plan_still_rejects_edws_domain(self):
+        rows = [
+            job_row(
+                plan="PLAN_SA_RECV_CMS_DAY",
+                job="JOB_SA_RECV_CMS_DAY",
+                domain="EDWS_DOMAIN",
+            )
+        ]
+
+        with (
+            patch.object(schedule_rule, "all_job_outfile", return_value=[]),
+            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
+        ):
+            result = schedule_rule.rule_excle_job(
+                pd.DataFrame(rows),
+                r_plan={rows[0][0]},
+                job_rows=rows,
+            )
+
+        self.assertIn(
+            "hcyt.schedule.job.execution_domain",
+            [finding.rule_code for finding in result.findings],
+        )
+
+    def test_unknown_domain_still_raises_invalid_domain_finding(self):
+        rows = [job_row(domain="UNKNOWN_DOMAIN")]
+
+        with (
+            patch.object(schedule_rule, "all_job_outfile", return_value=[]),
+            patch.object(schedule_rule, "ifmiaoshu", return_value=False),
+        ):
+            result = schedule_rule.rule_excle_job(
+                pd.DataFrame(rows),
+                r_plan={rows[0][0]},
+                job_rows=rows,
+            )
+
+        self.assertIn(
+            "hcyt.schedule.job.invalid_domain",
+            [finding.rule_code for finding in result.findings],
+        )
 
     def test_build_job_table_preserves_rows_and_production_states(self):
         source = pd.DataFrame([
