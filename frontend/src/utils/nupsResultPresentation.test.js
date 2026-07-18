@@ -6,6 +6,7 @@ import {
   getNupsPyScripts,
   getNupsSqlChecks,
   normalizeNupsList,
+  normalizeNupsMessageRows,
 } from "./nupsResultPresentation.js";
 
 const appSource = await readFile(new URL("../App.jsx", import.meta.url), "utf8");
@@ -29,6 +30,22 @@ test("NUPS list selectors preserve final report arrays", () => {
   assert.equal(getNupsChanges(report), changes);
   assert.equal(getNupsSqlChecks(report), sqlChecks);
   assert.equal(getNupsPyScripts(report), pyScripts);
+});
+
+test("NUPS message rows preserve structured findings and fill missing rule names", () => {
+  const structured = {
+    ruleCode: "nups.program.for_loop",
+    rule: "FOR 循环",
+    level: "err",
+    msg: "脚本不允许出现循环",
+  };
+
+  assert.deepEqual(normalizeNupsMessageRows([structured]), [structured]);
+  assert.deepEqual(
+    normalizeNupsMessageRows([{ level: "warn", msg: "历史告警" }]),
+    [{ rule: "未分类规则", level: "warn", msg: "历史告警" }],
+  );
+  assert.deepEqual(normalizeNupsMessageRows(null), []);
 });
 
 test("NUPS navigation and result sections use the safe list selectors", () => {

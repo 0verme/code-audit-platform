@@ -619,15 +619,15 @@ const NUPS_FAIL = {
       script: "pboc.sql",
       downloadUrl: "#",
       messages: [
-        { level: "err", msg: "存在 alter 命令，请审核重点检查" },
-        { level: "err", msg: "建表脚本不允许带 TO GROUP GROUP_VERSION1" },
+        { ruleCode: "nups.sql.alter_statement", rule: "ALTER 命令", level: "err", msg: "存在 alter 命令，请审核重点检查" },
+        { ruleCode: "nups.sql.legacy_group_clause", rule: "旧版 GROUP 子句", level: "err", msg: "建表脚本不允许带 TO GROUP GROUP_VERSION1" },
       ],
     },
     {
       script: "east.sql",
       downloadUrl: "#",
       messages: [
-        { level: "err", msg: "存在对 dwm 模型层的操作，请审核重点检查" },
+        { ruleCode: "nups.sql.dwm_operation", rule: "DWM 模型层操作", level: "err", msg: "存在对 dwm 模型层的操作，请审核重点检查" },
       ],
     },
   ],
@@ -638,8 +638,8 @@ const NUPS_FAIL = {
       path: "NUPS_DATA/001_load_pboc.py",
       table: "NUPS_DATA.T_PBOC_RESULT",
       messages: [
-        { level: "err", msg: "存在 for 循环 for i in，脚本不允许出现循环，如特殊情况需说明" },
-        { level: "err", msg: "模板太旧，请增加影响条数 LOG.info('影响条数:' + str(rownum))" },
+        { ruleCode: "nups.program.for_loop", rule: "FOR 循环", level: "err", msg: "存在 for 循环 for i in，脚本不允许出现循环，如特殊情况需说明" },
+        { ruleCode: "nups.program.affected_rows_log", rule: "影响条数日志", level: "err", msg: "模板太旧，请增加影响条数 LOG.info('影响条数:' + str(rownum))" },
       ],
       sqlRefs: ["NUPS_DATA.SRC_PBOC", "NUPS_DATA.CODE_BANK"],
     },
@@ -649,7 +649,7 @@ const NUPS_FAIL = {
       path: "NUPS_DATA/002_load_east.py",
       table: "NUPS_DATA.T_EAST_RESULT",
       messages: [
-        { level: "err", msg: "检测到写死日期，请确认是否业务需求（如果是注释日期，去掉两头引号）: '20240101'" },
+        { ruleCode: "nups.program.hardcoded_date", rule: "写死日期", level: "err", msg: "检测到写死日期，请确认是否业务需求（如果是注释日期，去掉两头引号）: '20240101'" },
       ],
       sqlRefs: ["NUPS_DATA.SRC_EAST"],
     },

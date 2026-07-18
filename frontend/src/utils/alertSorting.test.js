@@ -56,7 +56,7 @@ test("HCYT, NUPS, and FineReport rule-alert renderers use the shared sorter", ()
   assert.match(resultsSource, /const sortedRows = sortAlertRows\(rows\)/);
   assert.match(resultsSource, /return sortAlertRows\(groups\.flatMap/);
   assert.match(scriptSource, /const lint = sortAlertRows\(script\?\.lint\)/);
-  assert.match(nupsSource, /const sortedMessages = sortAlertRows\(messages\)/);
+  assert.match(nupsSource, /<ViolationTable rows=\{rows\} cols=\{NUPS_MESSAGE_COLUMNS\} \/>/);
   assert.match(fineSource, /const sortedMessages = sortAlertRows\(messages\)/);
   assert.match(fineSource, /const issues = sortAlertRows\(report\.issues\)/);
 });

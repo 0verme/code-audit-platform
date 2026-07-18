@@ -1,8 +1,18 @@
-import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
+import { Badge, Icon, Metric, OkState, Panel, ViolationTable } from "../components/ui";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
-import { sortAlertRows } from "../utils/alertSorting";
-import { getNupsChanges, getNupsPyScripts, getNupsSqlChecks } from "../utils/nupsResultPresentation";
+import {
+  getNupsChanges,
+  getNupsPyScripts,
+  getNupsSqlChecks,
+  normalizeNupsMessageRows,
+} from "../utils/nupsResultPresentation";
+
+const NUPS_MESSAGE_COLUMNS = [
+  { key: "rule", label: "规则", cls: "rule-cell" },
+  { key: "level", label: "级别", cls: "severity-cell", width: 84, minWidth: 84 },
+  { key: "msg", label: "说明" },
+];
 
 export const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
@@ -80,16 +90,11 @@ function ChangesSection({ d, reg }) {
 }
 
 function MessageList({ messages }) {
-  if (!messages?.length) return <OkState>未发现违规项</OkState>;
-  const sortedMessages = sortAlertRows(messages);
+  const rows = normalizeNupsMessageRows(messages);
+  if (!rows.length) return <OkState>未发现违规项</OkState>;
   return (
-    <div className="fr-issue-list">
-      {sortedMessages.map((msg, index) => (
-        <div key={index} className={`ai-finding ${msg.level}`} style={{ marginBottom: 6 }}>
-          <Sev level={msg.level} />
-          <div className="aif-body"><div className="aif-text">{msg.msg}</div></div>
-        </div>
-      ))}
+    <div className="sd-cmp">
+      <ViolationTable rows={rows} cols={NUPS_MESSAGE_COLUMNS} />
     </div>
   );
 }
