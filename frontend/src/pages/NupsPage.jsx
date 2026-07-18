@@ -2,12 +2,13 @@ import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 import { sortAlertRows } from "../utils/alertSorting";
+import { getNupsChanges, getNupsPyScripts, getNupsSqlChecks } from "../utils/nupsResultPresentation";
 
 export const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
-  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => data.sqlChecks, neutral: true },
-  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => data.pyScripts, neutral: true },
+  { id: "changes", label: "变更文件", icon: "git", get: (data) => getNupsChanges(data), neutral: true },
+  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => getNupsSqlChecks(data), neutral: true },
+  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => getNupsPyScripts(data), neutral: true },
 ];
 
 function NupsStatusHeader({ d }) {
@@ -46,7 +47,7 @@ function NupsStatusHeader({ d }) {
 }
 
 function ChangesSection({ d, reg }) {
-  const changes = d.changes || [];
+  const changes = getNupsChanges(d);
   return (
     <Panel
       id="changes"
@@ -94,8 +95,7 @@ function MessageList({ messages }) {
 }
 
 function NupsSqlSection({ d, reg }) {
-  const items = d.sqlChecks || [];
-  const total = items.reduce((sum, item) => sum + (item.messages?.length || 0), 0);
+  const items = getNupsSqlChecks(d);
   return (
     <Panel id="nups-sql" icon="db" title="NUPS SQL 检查" registerRef={reg} count={items.length || "无"} sub="cbrc / pboc / east 等系统脚本">
       <div className="panel-body">
@@ -114,7 +114,7 @@ function NupsSqlSection({ d, reg }) {
 }
 
 function NupsPySection({ d, reg }) {
-  const items = d.pyScripts || [];
+  const items = getNupsPyScripts(d);
   return (
     <Panel id="nups-py" icon="python" title="NUPS 加工程序检查" registerRef={reg} count={items.length || "无"} sub="规范检查 + SQL 引用表">
       <div className="panel-body">

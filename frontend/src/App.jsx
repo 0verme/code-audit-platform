@@ -10,6 +10,7 @@ import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./ho
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
 import { hasScheduleTables } from "./utils/hcytResultPresentation";
+import { getNupsChanges, getNupsPyScripts, getNupsSqlChecks } from "./utils/nupsResultPresentation";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
@@ -18,9 +19,9 @@ const NupsResultsPage = lazy(() => import("./pages/NupsPage").then((module) => (
 const LineagePage = lazy(() => import("./pages/LineagePage").then((module) => ({ default: module.LineagePage })));
 const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
-  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => data.sqlChecks, neutral: true },
-  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => data.pyScripts, neutral: true },
+  { id: "changes", label: "变更文件", icon: "git", get: (data) => getNupsChanges(data), neutral: true },
+  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => getNupsSqlChecks(data), neutral: true },
+  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => getNupsPyScripts(data), neutral: true },
 ];
 const SECTION_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
