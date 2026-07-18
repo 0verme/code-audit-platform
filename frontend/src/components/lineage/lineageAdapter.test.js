@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toViewerGraph } from "./lineageAdapter.js";
+import { toCycleDependencyGraph, toViewerGraph } from "./lineageAdapter.js";
 import { getRootNeighborhoodNodeIds } from "./lineageViewport.js";
 
 const graph = {
@@ -25,4 +25,39 @@ test("lineage graph adapter preserves task and table semantics", () => {
 
 test("root focus includes direct upstream and downstream neighbors", () => {
   assert.deepEqual(getRootNeighborhoodNodeIds(graph).sort(), ["table:source", "table:target", "task:a"]);
+});
+
+test("cycle findings merge shared jobs and dependency edges into one graph", () => {
+  const cycleGraph = toCycleDependencyGraph([
+    { path: "JOB_A → JOB_B → JOB_C → JOB_A" },
+    { path: "JOB_C → JOB_A → JOB_C" },
+  ]);
+
+  assert.deepEqual(cycleGraph.nodes.map((node) => node.name), ["JOB_A", "JOB_B", "JOB_C"]);
+  assert.deepEqual(
+    cycleGraph.edges.map((edge) => [edge.sourceId, edge.targetId]),
+    [
+      ["schedule-job:JOB_A", "schedule-job:JOB_B"],
+      ["schedule-job:JOB_B", "schedule-job:JOB_C"],
+      ["schedule-job:JOB_C", "schedule-job:JOB_A"],
+      ["schedule-job:JOB_A", "schedule-job:JOB_C"],
+    ],
+  );
+  assert.ok(cycleGraph.nodes.every((node) => node.status === "error"));
+});
+
+test("cycle graph preserves self dependencies and skips findings without a path", () => {
+  const cycleGraph = toCycleDependencyGraph([
+    { path: "JOB_SELF -> JOB_SELF" },
+    { path: "" },
+  ]);
+
+  assert.equal(cycleGraph.nodes.length, 1);
+  assert.equal(cycleGraph.edges.length, 1);
+  assert.equal(cycleGraph.edges[0].sourceId, cycleGraph.edges[0].targetId);
+  assert.equal(cycleGraph.rootId, "schedule-job:JOB_SELF");
+});
+
+test("cycle graph handles missing findings", () => {
+  assert.deepEqual(toCycleDependencyGraph(), { rootId: "", nodes: [], edges: [] });
 });

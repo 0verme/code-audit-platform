@@ -65,7 +65,7 @@ export function getCycleDependencyFindings(data) {
 }
 
 export function getCyclePath(row) {
-  const values = [row?.cyclePath, row?.cycle_path, row?.path, row?.item, row?.msg];
+  const values = [row?.cyclePath, row?.cycle_path, row?.path, row?.msg, row?.item];
   for (const value of values) {
     if (typeof value !== "string") continue;
     const match = value.match(PATH_PATTERN);

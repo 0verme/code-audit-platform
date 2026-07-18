@@ -52,7 +52,13 @@ test("cycle detail renders a normalized cycle path", () => {
   const data = {
     schedule: {
       summary: { cycles: 1 },
-      rows: [{ table: "JOB", rule: "循环依赖检测", level: "err", msg: "作业依赖成环，请检查: JOB_A -> JOB_B -> JOB_C -> JOB_A" }],
+      rows: [{
+        table: "JOB",
+        item: "JOB_A -> JOB_B",
+        rule: "循环依赖检测",
+        level: "err",
+        msg: "作业依赖成环，请检查: JOB_A -> JOB_B -> JOB_C -> JOB_A",
+      }],
     },
   };
 

@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
+import { LineageCanvas } from "../components/lineage/LineageCanvas";
+import { toCycleDependencyGraph } from "../components/lineage/lineageAdapter";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
@@ -694,14 +696,24 @@ function ScheduleIssueTable({ rows, columns }) {
 
 function CycleDependencyList({ findings }) {
   if (!findings.length) return null;
+  const graph = toCycleDependencyGraph(findings);
+  const pathlessFindings = findings.filter((finding) => !finding.path);
   return (
-    <div className="dep-graph" style={{ marginTop: 14 }}>
+    <div className="dep-graph cycle-dependency-graph" style={{ marginTop: 14 }}>
       <div className="subhead" style={{ marginBottom: 7 }}><Icon name="flow" size={12} /> 循环依赖</div>
-      {findings.map((finding, index) => (
-        <div key={`${finding.path || finding.msg}-${index}`} className="dep-lane">
-          {finding.path ? <div className="dep-nodes"><span className="dep-node focus">{finding.path}</span></div> : null}
-          {finding.msg ? <div className="dep-lane-label">{finding.msg}</div> : null}
+      {graph.nodes.length ? (
+        <div className="cycle-lineage-frame">
+          <LineageCanvas
+            graph={graph}
+            ariaLabel="调度作业循环依赖血缘图"
+            compact
+            showRootControl={false}
+            showSelfLoops
+          />
         </div>
+      ) : null}
+      {pathlessFindings.map((finding, index) => (
+        <div key={`${finding.msg}-${index}`} className="cycle-dependency-fallback">{finding.msg}</div>
       ))}
     </div>
   );
