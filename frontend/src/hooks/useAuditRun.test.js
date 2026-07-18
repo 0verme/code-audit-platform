@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { deriveAuditRunPageStatus, mergePartialReport, shouldShowAuditRunFailure } from "./useAuditRun.js";
+
+const hookSource = readFileSync(new URL("./useAuditRun.js", import.meta.url), "utf8");
 
 const baseReport = {
   task: {
@@ -90,4 +93,13 @@ test("mergePartialReport returns final report without reshaping legacy fields", 
   assert.deepEqual(report.assetIssues, [{ issueType: "legacy" }]);
   assert.deepEqual(report.lineageSummary, { resultTables: ["A"] });
   assert.equal(report.__auditRun.finalReportReady, true);
+});
+
+test("automatic polling uses only the combined partial-result request", () => {
+  const schedulePollSource = hookSource.slice(
+    hookSource.indexOf("const schedulePoll"),
+    hookSource.indexOf("const startAuditRun"),
+  );
+  assert.match(schedulePollSource, /loadPartialResult\(targetRunId\)/);
+  assert.doesNotMatch(schedulePollSource, /pollAuditRunStatus\(targetRunId\)/);
 });

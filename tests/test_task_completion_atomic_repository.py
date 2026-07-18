@@ -54,6 +54,12 @@ class _FaultInjectingConnection:
             raise InjectedPersistenceFailure("injected persistence failure")
         return self._connection.execute(sql, params, **kwargs)
 
+    def executemany(self, sql, param_sets):
+        rows = list(param_sets)
+        if any(self._fail_when(sql, params) for params in rows):
+            raise InjectedPersistenceFailure("injected persistence failure")
+        return self._connection.executemany(sql, rows)
+
     def __getattr__(self, name):
         return getattr(self._connection, name)
 

@@ -10,7 +10,13 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.db.connection import CompatConnection, connect_dws  # noqa: E402
 from app.db.profiles import DatabaseProfile  # noqa: E402
-from app.db.runtime_store import build_audit_result_row_payloads, persist_task_run_completion, update_task_runtime_state, upsert_task_report  # noqa: E402
+from app.db.runtime_store import (  # noqa: E402
+    _replace_audit_results_with_connection,
+    build_audit_result_row_payloads,
+    persist_task_run_completion,
+    update_task_runtime_state,
+    upsert_task_report,
+)
 from app.db.schema import init_db  # noqa: E402
 
 
@@ -176,6 +182,23 @@ class DatabaseCompatTests(unittest.TestCase):
     def test_build_audit_result_row_payloads_normalizes_legacy_defaults(self):
         payloads = build_audit_result_row_payloads(8, {"python": [{"file": "demo.py", "rule": None, "level": "", "msg": None}]})
         self.assertEqual(payloads, [(8, "python", "demo.py", "", "info", "")])
+
+    def test_replace_audit_results_batches_insert_rows(self):
+        fake = SequenceConnection()
+        with patch("app.db.connection.connect", return_value=fake):
+            connection = CompatConnection(pg_profile())
+            written = _replace_audit_results_with_connection(
+                connection,
+                8,
+                {"python": [
+                    {"file": "a.py", "rule": "a", "level": "warn", "msg": "one"},
+                    {"file": "b.py", "rule": "b", "level": "err", "msg": "two"},
+                ]},
+            )
+        self.assertEqual(written, 2)
+        sql, rows = fake.cursor_obj.executed[-1]
+        self.assertIn("INSERT INTO dwp.p_audit_run_issue", sql)
+        self.assertEqual(len(rows), 2)
 
     def test_init_db_only_initializes_runtime_tables(self):
         with patch("app.db.schema.ensure_runtime_tables") as ensure_runtime_tables:

@@ -92,6 +92,7 @@ function StatusHeader({ d }) {
 }
 
 const MODULE_TASKS = [
+  { key: "source_load", section: "changes", label: "读取工作区 / SVN", icon: "download" },
   { key: "classify_files", section: "changes", label: "变更文件", icon: "git" },
   { key: "trunk_conflicts", section: "conflict", label: "trunk 冲突", icon: "conflict" },
   { key: "dws_sql", section: "dws", label: "DWS SQL", icon: "db" },
@@ -101,6 +102,8 @@ const MODULE_TASKS = [
   { key: "recv_config", section: "recv", label: "收卸配置", icon: "download" },
   { key: "schedule", section: "schedule", label: "调度表检查", icon: "grid" },
   { key: "python_scripts", section: "python", label: "Python 脚本", icon: "python" },
+  { key: "lineage", section: "lineage-summary", label: "依赖链分析", icon: "flow" },
+  { key: "summary", section: "overview", label: "保存审查报告", icon: "check" },
 ];
 
 const TASK_STATUS_META = {

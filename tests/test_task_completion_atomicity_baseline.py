@@ -45,6 +45,12 @@ class _FaultInjectingConnection:
             raise InjectedPersistenceFailure("injected persistence failure")
         return self._connection.execute(sql, params, **kwargs)
 
+    def executemany(self, sql, param_sets):
+        rows = list(param_sets)
+        if any(self._fail_when(sql, params) for params in rows):
+            raise InjectedPersistenceFailure("injected persistence failure")
+        return self._connection.executemany(sql, rows)
+
     def __getattr__(self, name):
         return getattr(self._connection, name)
 
@@ -202,15 +208,15 @@ class TaskCompletionAtomicityBaselineTests(unittest.TestCase):
         self.assertEqual([row["message"] for row in results], ["two"])
         self.assertEqual(len(results), 1)
 
-    def test_legacy_task_run_marks_memory_terminal_before_persistence_failure(self):
-        """Characterization baseline for unmigrated legacy completion paths."""
+    def test_legacy_task_run_does_not_publish_memory_terminal_before_persistence(self):
+        """Legacy report paths now publish memory completion only after persistence succeeds."""
         run = audit_engine.TaskRun(999, "svn://example/task", "fine-report")
         with patch.object(audit_engine, "persist_task_run_completion", side_effect=InjectedPersistenceFailure("boom")):
             with self.assertRaises(InjectedPersistenceFailure):
                 run.finish("pass", report={"task": {"status": "pass"}})
 
-        self.assertEqual(run.run_state.status.value, "success")
-        self.assertTrue(run.run_state.finished_at is not None)
+        self.assertEqual(run.run_state.status.value, "running")
+        self.assertIsNone(run.run_state.finished_at)
 
 
 if __name__ == "__main__":

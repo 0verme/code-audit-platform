@@ -31,6 +31,18 @@ test("SQL downloads preserve the server attachment response instead of creating 
   assert.doesNotMatch(source, /downloadSourceFile|resolveSourceDownloadUrl|URL\.createObjectURL|fetch\(/);
 });
 
+test("module progress board covers all twelve backend tasks", () => {
+  const taskBlock = source.slice(
+    source.indexOf("const MODULE_TASKS"),
+    source.indexOf("const TASK_STATUS_META"),
+  );
+  const keys = [...taskBlock.matchAll(/key:\s*"([^"]+)"/g)].map((match) => match[1]);
+  assert.equal(keys.length, 12);
+  assert.deepEqual(keys.slice(-2), ["lineage", "summary"]);
+  assert.match(taskBlock, /key:\s*"source_load"/);
+  assert.match(taskBlock, /label:\s*"保存审查报告"/);
+});
+
 test("execution logs remain the only results-page log entry", () => {
   assert.match(source, /function RunLogs\(\{ d \}\)/);
   assert.match(source, /<RunLogs d=\{mergedData\} \/>/);

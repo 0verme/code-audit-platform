@@ -44,6 +44,7 @@ def build_audit_run_partial_result_payload(task_id: int, status_payload: dict, f
         "workflow": status_payload.get("workflow", ""),
         "status": status_payload.get("status", ""),
         "taskStatus": status_payload.get("taskStatus"),
+        "task": status_payload.get("task"),
         "progress": status_payload.get("progress", {}),
         "tasks": status_payload.get("tasks", {}),
         "partialReport": build_legacy_partial_report(status_payload.get("partialReport"), final_report),

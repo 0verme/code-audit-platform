@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS {{table:audit_results}} (
     FOREIGN KEY (task_id) REFERENCES {{table:audit_tasks}}(id)
 );
 
+CREATE INDEX IF NOT EXISTS ix_p_audit_run_issue_task_id ON {{table:audit_results}} (task_id);
+
 CREATE TABLE IF NOT EXISTS {{table:fine_report_items}} (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,

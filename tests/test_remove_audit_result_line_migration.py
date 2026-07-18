@@ -33,15 +33,23 @@ class RemoveAuditResultLineMigrationTests(unittest.TestCase):
             connection = sqlite3.connect(path)
             try:
                 runner = MigrationRunner(connection, "sqlite", MIGRATIONS_DIR, sqlite_profile(path))
-                self.assertEqual(runner.apply(), ["0001", "0002", "0003"])
+                self.assertEqual(runner.apply(), ["0001", "0002", "0003", "0004"])
                 table = qualified_table_name("audit_results", sqlite_profile(path))
                 columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+                indexes = {row[1] for row in connection.execute(f"PRAGMA index_list({table})")}
+                delete_plan = " ".join(
+                    str(column)
+                    for row in connection.execute(f"EXPLAIN QUERY PLAN DELETE FROM {table} WHERE task_id = 1")
+                    for column in row
+                )
                 versions = [row[0] for row in connection.execute("SELECT version FROM schema_migrations ORDER BY version")]
             finally:
                 connection.close()
 
         self.assertNotIn("line_no", columns)
-        self.assertEqual(versions, ["0001", "0002", "0003"])
+        self.assertIn("ix_p_audit_run_issue_task_id", indexes)
+        self.assertIn("ix_p_audit_run_issue_task_id", delete_plan)
+        self.assertEqual(versions, ["0001", "0002", "0003", "0004"])
 
     def test_line_removal_migration_preserves_existing_findings(self):
         with sqlite3.connect(":memory:") as connection:

@@ -39,6 +39,12 @@ class _FaultInjectingConnection:
             raise InjectedPersistenceFailure("injected persistence failure")
         return self._connection.execute(sql, params, **kwargs)
 
+    def executemany(self, sql, param_sets):
+        rows = list(param_sets)
+        if any(self._fail_when(sql, params) for params in rows):
+            raise InjectedPersistenceFailure("injected persistence failure")
+        return self._connection.executemany(sql, rows)
+
     def __getattr__(self, name):
         return getattr(self._connection, name)
 
@@ -171,7 +177,8 @@ class NupsAtomicCompletionTests(unittest.TestCase):
                 self.assertEqual(report, {"version": "old"})
                 self.assertEqual([row["message"] for row in rows], ["old finding"])
                 legacy_completion.assert_not_called()
-                self.assertNotEqual(run.run_state.status.value, "success")
+                self.assertEqual(run.run_state.status.value, "failed")
+                self.assertEqual(run.run_state.get_task("summary").status.value, "failed")
 
     def test_early_failure_without_a_report_stays_on_legacy_path(self):
         run = self._run()

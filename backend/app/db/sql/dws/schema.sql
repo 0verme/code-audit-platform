@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS dwp.p_audit_run_issue (
     message TEXT NOT NULL
 );
 
+CREATE INDEX IF NOT EXISTS ix_p_audit_run_issue_task_id ON dwp.p_audit_run_issue (task_id);
+
 CREATE TABLE IF NOT EXISTS dwp.fine_report_items (
     id BIGSERIAL PRIMARY KEY,
     title TEXT NOT NULL,

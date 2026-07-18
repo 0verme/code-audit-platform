@@ -58,6 +58,10 @@ def get_audit_task(task_id: int):
 
 def get_task_row_payload(task_id: int) -> dict | None:
     row = get_audit_task(task_id)
+    return _build_task_row_payload(row)
+
+
+def _build_task_row_payload(row) -> dict | None:
     if row is None:
         return None
     payload = dict(row)
@@ -66,6 +70,39 @@ def get_task_row_payload(task_id: int) -> dict | None:
     except (TypeError, ValueError):
         payload["logs"] = []
     return payload
+
+
+def get_task_run_snapshot(task_id: int, *, include_report: bool = True) -> dict | None:
+    """Read task state and report readiness through one runtime DB connection."""
+    with get_connection() as connection:
+        task_row = connection.execute(
+            f"SELECT {TASK_COLUMNS} FROM {{{{table:audit_tasks}}}} WHERE id = ?",
+            (task_id,),
+        ).fetchone()
+        if task_row is None:
+            return None
+        if include_report:
+            report_row = connection.execute(
+                "SELECT report_json FROM {{table:task_reports}} WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        else:
+            report_row = connection.execute(
+                "SELECT 1 AS report_exists FROM {{table:task_reports}} WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+
+    report = None
+    if include_report and report_row is not None:
+        try:
+            report = json.loads(report_row["report_json"])
+        except (TypeError, ValueError):
+            report = None
+    return {
+        "task": _build_task_row_payload(task_row),
+        "report": report,
+        "finalReportReady": report_row is not None and (not include_report or report is not None),
+    }
 
 
 def get_task_report_row(task_id: int):
@@ -209,13 +246,13 @@ def _replace_audit_results_with_connection(connection, task_id: int, grouped_row
     """
     row_payloads = build_audit_result_row_payloads(task_id, grouped_rows)
     connection.execute("DELETE FROM {{table:audit_results}} WHERE task_id = ?", (task_id,))
-    for row_payload in row_payloads:
-        connection.execute(
+    if row_payloads:
+        connection.executemany(
             """
             INSERT INTO {{table:audit_results}} (task_id, category, file_name, rule_name, level, message)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            row_payload,
+            row_payloads,
         )
     return len(row_payloads)
 

@@ -39,6 +39,12 @@ class _FaultInjectingConnection:
             raise InjectedPersistenceFailure("injected persistence failure")
         return self._connection.execute(sql, params, **kwargs)
 
+    def executemany(self, sql, param_sets):
+        rows = list(param_sets)
+        if any(self._fail_when(sql, params) for params in rows):
+            raise InjectedPersistenceFailure("injected persistence failure")
+        return self._connection.executemany(sql, rows)
+
     def __getattr__(self, name):
         return getattr(self._connection, name)
 
@@ -174,7 +180,9 @@ class HcytAtomicCompletionTests(unittest.TestCase):
                 self.assertEqual(report, {"version": "old"})
                 self.assertEqual([row["message"] for row in rows], ["old finding"])
                 self.assertNotIn("finalReport", run.run_state.partial_report)
-                self.assertNotEqual(run.run_state.status.value, "success")
+                self.assertEqual(run.run_state.status.value, "failed")
+                self.assertEqual(run.run_state.get_task("summary").status.value, "failed")
+                self.assertEqual(audit_engine.get_audit_run_status(self.task_id)["status"], "failed")
                 legacy_completion.assert_not_called()
 
     def test_early_failure_without_report_stays_on_legacy_failure_path(self):

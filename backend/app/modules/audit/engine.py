@@ -122,7 +122,7 @@ DEFAULT_AUDIT_TASKS = (
     AuditTask("schedule", "调度表检查", dependencies=("classify_files",), weight=2),
     AuditTask("python_scripts", "Python 脚本检查", dependencies=("schedule",), weight=2),
     AuditTask("lineage", "依赖链分析", dependencies=("schedule", "python_scripts"), weight=2),
-    AuditTask("summary", "汇总审查结果", dependencies=("trunk_conflicts", "dws_sql", "hive_sql", "config_files", "post_scripts", "recv_config", "schedule", "python_scripts", "lineage")),
+    AuditTask("summary", "保存审查报告", dependencies=("trunk_conflicts", "dws_sql", "hive_sql", "config_files", "post_scripts", "recv_config", "schedule", "python_scripts", "lineage")),
 )
 
 
@@ -378,6 +378,14 @@ class TaskRun:
     def finish(self, status, report=None, error=None):
         duration = format_duration(time.time() - self.start_ts)
         finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        completion_entry = {
+            "ts": datetime.now().strftime("%H:%M:%S"),
+            "level": "INFO",
+            "msg": "任务完成",
+        }
+        terminal_logs = [*self.logs, completion_entry]
+        if report is not None:
+            report["logs"] = terminal_logs
 
         def persist(label, fn):
             started = time.perf_counter()
@@ -399,15 +407,20 @@ class TaskRun:
                 if self.workflow == "hcyt"
                 else build_legacy_nups_audit_result_rows(report.get("sqlChecks", []))
             )
+            self.task_running("summary")
             try:
                 persist("task.persistence.atomic", lambda: persist_task_completion_atomic(
                     self.task_id, status=status, duration=duration, finished_at=finished_at,
-                    error=error, progress=100, step="completed", logs=self.logs,
+                    error=error, progress=100, step="completed", logs=terminal_logs,
                     report=report, audit_results=audit_results,
                 ))
-            except Exception:
+            except Exception as exc:
                 # TaskRun.run() must not turn a failed atomic completion into a
                 # legacy, non-atomic completion attempt.
+                summary_state = self._ensure_run_state().get_task("summary")
+                if not summary_state.is_terminal:
+                    summary_state.mark_failed(exc)
+                self._ensure_run_state().mark_finished(error=exc)
                 self._atomic_completion_failed = True
                 raise
 
@@ -415,19 +428,27 @@ class TaskRun:
             self.set_partial("finalReport", report)
             self.task_success("summary", summary={"status": status})
             self._ensure_run_state().mark_finished()
+            self.logs.append(completion_entry)
+            self._ensure_run_state().add_log(completion_entry["msg"], level=completion_entry["level"])
+            print(f"[task {self.task_id}] INFO {completion_entry['msg']}", flush=True)
             return
 
+        persist("task.persistence", lambda: persist_task_run_completion(
+            self.task_id, status=status, duration=duration, finished_at=finished_at,
+            error=error, progress=100 if report else 0,
+            step="completed" if report else "failed",
+            logs=terminal_logs if report is not None else self.logs,
+            report=report,
+        ))
         if report is not None:
             self.set_partial("finalReport", report)
             self.task_success("summary", summary={"status": status})
             self._ensure_run_state().mark_finished()
+            self.logs.append(completion_entry)
+            self._ensure_run_state().add_log(completion_entry["msg"], level=completion_entry["level"])
+            print(f"[task {self.task_id}] INFO {completion_entry['msg']}", flush=True)
         else:
             self._ensure_run_state().mark_finished(error=error or status)
-        persist("task.persistence", lambda: persist_task_run_completion(
-            self.task_id, status=status, duration=duration, finished_at=finished_at,
-            error=error, progress=100 if report else 0,
-            step="completed" if report else "failed", logs=self.logs, report=report,
-        ))
 
     def save_category_rows(self, grouped_rows):
         """Sync audit_results to preserve the legacy /api/audit-results endpoint."""
@@ -530,8 +551,9 @@ class TaskRun:
                 logs=self.logs,
                 build_source_summary=build_source_summary,
             )
-            self.update(progress=100, step="完成")
-            self.log("任务完成")
+            self.task_running("summary")
+            self.update(progress=95, step="保存审查报告")
+            self.log("审查计算完成，正在保存报告")
             self.finish(report["task"]["status"], report=report)
         except Exception as exc:
             if getattr(self, "_atomic_completion_failed", False):

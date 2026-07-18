@@ -26,6 +26,15 @@
         "postgresql": "postgresql/0003_remove_audit_result_line_number.sql",
         "dws": "dws/0003_remove_audit_result_line_number.sql"
       }
+    },
+    {
+      "version": "0004",
+      "name": "index_audit_result_task_id",
+      "files": {
+        "sqlite": "sqlite/0004_index_audit_result_task_id.sql",
+        "postgresql": "postgresql/0004_index_audit_result_task_id.sql",
+        "dws": "dws/0004_index_audit_result_task_id.sql"
+      }
     }
   ]
 }

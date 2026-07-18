@@ -80,9 +80,16 @@ class SchemaTests(unittest.TestCase):
         for db_type in ("postgresql", "dws"):
             runner = CaptureRunner()
             initialize_schema(profile(db_type), runner=runner)
-            self.assertEqual(len(runner.statements), 6)
+            self.assertEqual(len(runner.statements), 7)
             self.assertTrue(runner.statements[0].startswith("CREATE SCHEMA IF NOT EXISTS"))
-            self.assertTrue(all(statement.startswith("CREATE TABLE IF NOT EXISTS") for statement in runner.statements[1:]))
+            self.assertEqual(
+                sum(statement.startswith("CREATE TABLE IF NOT EXISTS") for statement in runner.statements),
+                5,
+            )
+            self.assertEqual(
+                sum(statement.startswith("CREATE INDEX IF NOT EXISTS") for statement in runner.statements),
+                1,
+            )
 
 
 if __name__ == "__main__":

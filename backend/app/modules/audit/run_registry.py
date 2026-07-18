@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 
 from .compat import build_audit_run_partial_result_payload
-from app.db.runtime_store import get_task_report_payload, get_task_row_payload
+from app.db.runtime_store import get_task_run_snapshot
 
 try:
     from .run import AuditRunState
@@ -38,10 +38,14 @@ def status_from_task_status(status: str) -> str:
 
 
 def get_audit_run_status(task_id: int) -> dict | None:
-    task = get_task_row_payload(task_id)
-    if task is None:
+    snapshot = get_task_run_snapshot(task_id, include_report=False)
+    if snapshot is None:
         return None
+    return _build_audit_run_status(task_id, snapshot)
 
+
+def _build_audit_run_status(task_id: int, snapshot: dict) -> dict:
+    task = snapshot["task"]
     run_state = get_audit_run_state(task_id)
     if run_state is not None:
         payload = run_state.to_dict(include_results=False)
@@ -60,16 +64,23 @@ def get_audit_run_status(task_id: int) -> dict | None:
         }
 
     payload["task"] = task
-    payload["status"] = status_from_task_status(task.get("status", ""))
+    if (
+        run_state is not None
+        and run_state.status.value == "failed"
+        and task.get("status") in {"running", "queued"}
+    ):
+        payload["status"] = "failed"
+    else:
+        payload["status"] = status_from_task_status(task.get("status", ""))
     payload["taskStatus"] = task.get("status")
-    payload["finalReportReady"] = get_task_report_payload(task_id) is not None
+    payload["finalReportReady"] = snapshot["finalReportReady"]
     return payload
 
 
 def get_audit_run_partial_result(task_id: int) -> dict | None:
-    status_payload = get_audit_run_status(task_id)
-    if status_payload is None:
+    snapshot = get_task_run_snapshot(task_id, include_report=True)
+    if snapshot is None:
         return None
 
-    final_report = get_task_report_payload(task_id)
-    return build_audit_run_partial_result_payload(task_id, status_payload, final_report)
+    status_payload = _build_audit_run_status(task_id, snapshot)
+    return build_audit_run_partial_result_payload(task_id, status_payload, snapshot["report"])

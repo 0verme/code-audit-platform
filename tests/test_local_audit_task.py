@@ -17,6 +17,7 @@ if str(BACKEND_DIR) not in sys.path:
 import app.modules.audit.engine as audit_engine  # noqa: E402
 from app.modules.audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
 from app.db import connection as db_connection  # noqa: E402
+from app.db import runtime_store  # noqa: E402
 from app.db.runtime_store import upsert_task_report  # noqa: E402
 from app.db.schema import init_db  # noqa: E402
 from app.db.sql_runner import execute_insert  # noqa: E402
@@ -225,12 +226,15 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(status["taskStatus"], "running")
                 self.assertEqual(status["tasks"]["source_load"]["status"], "success")
 
-                partial_response = client.get(
-                    f"/api/audit-runs/{body['run_id']}/partial-result"
-                )
+                with patch.object(runtime_store, "get_connection", wraps=runtime_store.get_connection) as get_connection:
+                    partial_response = client.get(
+                        f"/api/audit-runs/{body['run_id']}/partial-result"
+                    )
                 self.assertEqual(partial_response.status_code, 200)
                 partial = partial_response.get_json()
+                self.assertEqual(get_connection.call_count, 1)
                 self.assertFalse(partial["finalReportReady"])
+                self.assertEqual(partial["task"]["id"], body["id"])
                 self.assertEqual(partial["partialReport"]["changes"], [{"path": "demo.sql"}])
             finally:
                 if body.get("id"):

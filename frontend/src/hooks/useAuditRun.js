@@ -117,6 +117,7 @@ export function useAuditRun(runId) {
     if (!targetRunId) return null;
     const payload = await reviewService.getAuditRunPartialResult(targetRunId);
     setPartialResult(payload);
+    setStatusPayload(payload);
     return payload;
   }, [activeRunId]);
 
@@ -131,9 +132,8 @@ export function useAuditRun(runId) {
     if (stoppedRef.current || !targetRunId) return;
     timerRef.current = setTimeout(async () => {
       try {
-        const status = await pollAuditRunStatus(targetRunId);
         const partial = await loadPartialResult(targetRunId);
-        const terminal = isTerminalAuditRun(status, partial);
+        const terminal = isTerminalAuditRun(null, partial);
         if (terminal) {
           stopPolling();
           return;
@@ -144,7 +144,7 @@ export function useAuditRun(runId) {
         schedulePoll(targetRunId);
       }
     }, POLL_INTERVAL_MS);
-  }, [loadPartialResult, pollAuditRunStatus, stopPolling]);
+  }, [loadPartialResult, stopPolling]);
 
   const startAuditRun = useCallback((payload) => (
     startFlightRef.current.run(async () => {
@@ -162,9 +162,8 @@ export function useAuditRun(runId) {
         setActiveRunId(nextRunId || null);
         setStarting(false);
         if (nextRunId) {
-          await pollAuditRunStatus(nextRunId);
-          await loadPartialResult(nextRunId);
-          schedulePoll(nextRunId);
+          const partial = await loadPartialResult(nextRunId);
+          if (!isTerminalAuditRun(null, partial)) schedulePoll(nextRunId);
         }
         return created;
       } catch (startError) {
@@ -173,7 +172,7 @@ export function useAuditRun(runId) {
         throw startError;
       }
     })
-  ), [loadPartialResult, pollAuditRunStatus, schedulePoll, stopPolling]);
+  ), [loadPartialResult, schedulePoll, stopPolling]);
 
   useEffect(() => {
     stopPolling();
@@ -187,9 +186,8 @@ export function useAuditRun(runId) {
 
     (async () => {
       try {
-        const status = await pollAuditRunStatus(runId);
         const partial = await loadPartialResult(runId);
-        if (!isTerminalAuditRun(status, partial)) {
+        if (!isTerminalAuditRun(null, partial)) {
           schedulePoll(runId);
         }
       } catch (pollError) {
@@ -198,7 +196,7 @@ export function useAuditRun(runId) {
     })();
 
     return stopPolling;
-  }, [loadPartialResult, pollAuditRunStatus, runId, schedulePoll, stopPolling]);
+  }, [loadPartialResult, runId, schedulePoll, stopPolling]);
 
   const pageStatus = deriveAuditRunPageStatus(statusPayload, partialResult, error, starting);
   const running = pageStatus === "starting" || pageStatus === "running";
