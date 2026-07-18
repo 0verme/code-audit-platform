@@ -114,6 +114,7 @@ test("schedule findings render inside their PLAN, SEQ, and JOB table blocks", ()
   assert.match(source, /key !== "cale" \? <ScheduleIssueTable rows=\{issuesByTable\[key\]\} columns=\{columns\} \/>/);
   assert.match(source, /key === "job" \? <CycleDependencyList findings=\{cycleFindings\} \/>/);
   assert.match(source, /toCycleDependencyGraph\(findings\)/);
+  assert.match(source, /<LineageCanvas[\s\S]*?initialFit="view"/);
   assert.match(source, /<LineageCanvas[\s\S]*?showSelfLoops/);
   assert.doesNotMatch(source, /scheduleIssues\.map\(/);
 });

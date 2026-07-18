@@ -707,6 +707,7 @@ function CycleDependencyList({ findings }) {
             graph={graph}
             ariaLabel="调度作业循环依赖血缘图"
             compact
+            initialFit="view"
             showRootControl={false}
             showSelfLoops
           />

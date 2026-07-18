@@ -11,6 +11,7 @@ export const LineageCanvas = React.forwardRef(function LineageCanvas({
   ariaLabel = "Python 上下游血缘图",
   compact = false,
   focusLabel = "定位根节点",
+  initialFit = "root",
   showRootControl = true,
   showSelfLoops = false,
 }, ref) {
@@ -29,23 +30,26 @@ export const LineageCanvas = React.forwardRef(function LineageCanvas({
     if (!host || !graph) return undefined;
     const viewer = document.createElement("lineage-viewer");
     const handleClick = (event) => onSelect?.(event.detail.nodeId);
-    const focusRoot = () => viewer.fitNodes(getRootNeighborhoodNodeIds(graph), ROOT_FIT);
+    const fitInitialView = () => {
+      if (initialFit === "view") viewer.fitView();
+      else viewer.fitNodes(getRootNeighborhoodNodeIds(graph), ROOT_FIT);
+    };
     viewer.options = {
       direction: "LR", fitOnLoad: false, nodeWidth: 220, nodeHeight: 72,
       highlightMode: "connected", validationMode: "strict", showSelfLoops,
     };
     viewer.data = toViewerGraph(graph);
     viewer.addEventListener("lineage-node-click", handleClick);
-    viewer.addEventListener("lineage-ready", focusRoot, { once: true });
+    viewer.addEventListener("lineage-ready", fitInitialView, { once: true });
     host.replaceChildren(viewer);
     viewerRef.current = viewer;
     return () => {
       viewerRef.current = null;
       viewer.removeEventListener("lineage-node-click", handleClick);
-      viewer.removeEventListener("lineage-ready", focusRoot);
+      viewer.removeEventListener("lineage-ready", fitInitialView);
       viewer.destroy?.();
     };
-  }, [graph, onSelect, showSelfLoops]);
+  }, [graph, initialFit, onSelect, showSelfLoops]);
 
   return <div className="lineage-canvas-shell">
     <div className="lineage-view-tools" role="group" aria-label="血缘图视图操作">
