@@ -10,8 +10,6 @@ const EDGE_LABELS = {
 };
 
 export function LineagePage({ taskId, selection, onBack }) {
-  const [direction, setDirection] = React.useState("both");
-  const [depth, setDepth] = React.useState(3);
   const [graph, setGraph] = React.useState(null);
   const [selectedId, setSelectedId] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -22,7 +20,7 @@ export function LineagePage({ taskId, selection, onBack }) {
     setError("");
     try {
       const data = await reviewService.getAuditTaskLineage(taskId, {
-        rootKey: selection.lineageKey, direction, depth, maxNodes: 100,
+        rootKey: selection.lineageKey,
       });
       setGraph(data);
       setSelectedId(data.rootId);
@@ -31,7 +29,7 @@ export function LineagePage({ taskId, selection, onBack }) {
     } finally {
       setLoading(false);
     }
-  }, [depth, direction, selection.lineageKey, taskId]);
+  }, [selection.lineageKey, taskId]);
 
   React.useEffect(() => { void loadGraph(); }, [loadGraph]);
 
@@ -43,19 +41,16 @@ export function LineagePage({ taskId, selection, onBack }) {
     <div className="lineage-page-head">
       <div>
         <button type="button" className="btn ghost sm" onClick={onBack}><Icon name="chevron" size={13} style={{ transform: "rotate(180deg)" }} /> 返回审查结果</button>
-        <h1>Python 上下游血缘</h1>
+        <h1>Python 数据血缘</h1>
         <p className="muted mono">{selection.script} · {selection.job || "未关联作业"}</p>
       </div>
       <div className="lineage-filters">
-        <label>方向<select value={direction} onChange={(event) => setDirection(event.target.value)}><option value="both">上下游</option><option value="upstream">仅上游</option><option value="downstream">仅下游</option></select></label>
-        <label>层级<select value={depth} onChange={(event) => setDepth(Number(event.target.value))}>{[1, 2, 3, 4, 5].map((value) => <option key={value} value={value}>{value} 层</option>)}</select></label>
         <button type="button" className="btn" onClick={loadGraph} disabled={loading}><Icon name="refresh" size={14} />{loading ? "加载中" : "刷新"}</button>
       </div>
     </div>
     {error ? <div className="card lineage-state" role="alert"><b>血缘加载失败</b><p>{error}</p><button className="btn" onClick={loadGraph}>重试</button></div> : null}
-    {loading && !graph ? <div className="card lineage-state">正在合并生产基线与本次修改…</div> : null}
+    {loading && !graph ? <div className="card lineage-state">正在加载当前脚本的直接读写链路…</div> : null}
     {graph ? <>
-      {graph.truncated ? <div className="lineage-notice">节点已达 100 个上限，当前图已截断。</div> : null}
       {(graph.diagnostics || []).map((item) => <div className="lineage-notice" key={item.code}>{item.message}</div>)}
       <div className="lineage-layout">
         <section className="card lineage-graph-card" aria-busy={loading}>

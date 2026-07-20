@@ -108,6 +108,10 @@ test("each HCYT Python row exposes a separate lineage action", () => {
   assert.match(appSource, /setLineageSelection\(script\); setView\("lineage"\)/);
   assert.match(lineagePage, /getAuditTaskLineage/);
   assert.match(lineagePage, /返回审查结果/);
+  assert.match(lineagePage, /Python 数据血缘/);
+  assert.match(lineagePage, /rootKey: selection\.lineageKey/);
+  assert.doesNotMatch(lineagePage, /direction|depth|maxNodes/);
+  assert.doesNotMatch(lineagePage, /节点已达 100 个上限/);
 });
 
 test("inline detail accordion uses distinct light and dark card surfaces", () => {

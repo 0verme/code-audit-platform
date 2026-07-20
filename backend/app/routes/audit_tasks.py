@@ -52,9 +52,6 @@ def task_lineage_subgraph(task_id: int):
         return jsonify(get_task_lineage_subgraph(
             task_id,
             request.args.get("rootKey"),
-            request.args.get("direction", "both"),
-            request.args.get("depth"),
-            request.args.get("maxNodes"),
         ))
     except ServiceError as exc:
         return service_error_response(exc)

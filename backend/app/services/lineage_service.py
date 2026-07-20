@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import deque
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 from urllib.parse import quote
@@ -14,9 +13,6 @@ from app.modules.lineage.identifiers import normalize_registered_table_name
 from app.modules.metadata.services.metadata_model import column_name, table_name
 from app.services import ServiceError
 from app.services.audit_task_service import get_report_json, get_task
-
-
-DIRECTIONS = {"upstream", "downstream", "both"}
 
 
 def _text(value) -> str:
@@ -56,18 +52,6 @@ def _dependency_jobs(raw) -> list[str]:
     if raw is None:
         return []
     return [part[3:].strip() for part in str(raw).split("|") if part.startswith("33:") and part[3:].strip()]
-
-
-def _bounded_int(value, *, default: int, minimum: int, maximum: int, name: str) -> int:
-    if value in (None, ""):
-        return default
-    try:
-        result = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ServiceError(f"{name} must be an integer", status_code=422) from exc
-    if result < minimum or result > maximum:
-        raise ServiceError(f"{name} must be between {minimum} and {maximum}", status_code=422)
-    return result
 
 
 def _baseline_sql(profile: str) -> str:
@@ -175,7 +159,11 @@ def _merge_programs(baseline: list[dict], overlay: dict) -> tuple[list[dict], di
     return sorted(records.items()), aliases
 
 
-def _build_graph(programs: list[tuple[str, dict]]) -> tuple[list[dict], list[dict]]:
+def _build_graph(
+    programs: list[tuple[str, dict]],
+    *,
+    included_task_ids: set[str] | None = None,
+) -> tuple[list[dict], list[dict]]:
     nodes: dict[str, dict] = {}
     edges: dict[tuple[str, str, str], dict] = {}
     result_by_job = {_job_key(item["jobName"]): item["resultTable"] for _, item in programs if item["jobName"] and item["resultTable"]}
@@ -205,6 +193,8 @@ def _build_graph(programs: list[tuple[str, dict]]) -> tuple[list[dict], list[dic
         }
 
     for task_id, program in programs:
+        if included_task_ids is not None and task_id not in included_task_ids:
+            continue
         nodes[task_id] = {
             "id": task_id, "kind": "task", "name": program["scriptName"] or program["jobName"],
             "displayName": program["jobName"] or "未关联调度作业", "namespace": "python",
@@ -229,47 +219,13 @@ def _build_graph(programs: list[tuple[str, dict]]) -> tuple[list[dict], list[dic
     return sorted(nodes.values(), key=lambda node: node["id"]), sorted(edges.values(), key=lambda edge: edge["id"])
 
 
-def _subgraph(nodes: list[dict], edges: list[dict], root_id: str, direction: str, depth: int, max_nodes: int):
-    selected = {root_id}
-    queue = deque([(root_id, 0)])
-    truncated = False
-    while queue:
-        current, level = queue.popleft()
-        if level >= depth:
-            continue
-        neighbors = []
-        for edge in edges:
-            if direction in {"downstream", "both"} and edge["sourceId"] == current:
-                neighbors.append(edge["targetId"])
-            if direction in {"upstream", "both"} and edge["targetId"] == current:
-                neighbors.append(edge["sourceId"])
-        for neighbor in sorted(set(neighbors)):
-            if neighbor in selected:
-                continue
-            if len(selected) >= max_nodes:
-                truncated = True
-                continue
-            selected.add(neighbor)
-            queue.append((neighbor, level + 1))
-    return (
-        [node for node in nodes if node["id"] in selected],
-        [edge for edge in edges if edge["sourceId"] in selected and edge["targetId"] in selected],
-        truncated,
-    )
-
-
-def get_task_lineage_subgraph(task_id: int, root_key: str | None, direction="both", depth=None, max_nodes=None) -> dict:
+def get_task_lineage_subgraph(task_id: int, root_key: str | None) -> dict:
     task = get_task(task_id)
     if task.get("workflow") != "hcyt":
         raise ServiceError("lineage is only available for HCYT audit tasks", status_code=422)
     root_key = _text(root_key)
     if not root_key:
         raise ServiceError("rootKey is required", status_code=422)
-    direction = _text(direction) or "both"
-    if direction not in DIRECTIONS:
-        raise ServiceError("direction must be upstream, downstream, or both", status_code=422)
-    depth_value = _bounded_int(depth, default=3, minimum=1, maximum=5, name="depth")
-    max_nodes_value = _bounded_int(max_nodes, default=100, minimum=1, maximum=200, name="maxNodes")
     try:
         report = json.loads(get_report_json(task_id))
     except ValueError as exc:
@@ -291,13 +247,12 @@ def get_task_lineage_subgraph(task_id: int, root_key: str | None, direction="bot
     root_id = aliases.get(root_key)
     if not root_id:
         raise ServiceError("lineage root was not found in this audit task", status_code=404)
-    nodes, edges = _build_graph(programs)
-    selected_nodes, selected_edges, truncated = _subgraph(nodes, edges, root_id, direction, depth_value, max_nodes_value)
+    nodes, edges = _build_graph(programs, included_task_ids={root_id})
     return {
         "rootId": root_id,
-        "nodes": selected_nodes,
-        "edges": selected_edges,
-        "truncated": truncated,
+        "nodes": nodes,
+        "edges": edges,
+        "truncated": False,
         "diagnostics": diagnostics,
         "baselineGeneratedAt": baseline_generated_at,
         "overlayRevision": _text(overlay.get("revision")),

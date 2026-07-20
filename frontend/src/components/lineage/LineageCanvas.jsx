@@ -8,7 +8,7 @@ const ROOT_FIT = { padding: 48, maxScale: 1 };
 export const LineageCanvas = React.forwardRef(function LineageCanvas({
   graph,
   onSelect,
-  ariaLabel = "Python 上下游血缘图",
+  ariaLabel = "数据血缘图",
   compact = false,
   focusLabel = "定位根节点",
   initialFit = "root",

@@ -47,18 +47,28 @@ class LineageServiceTests(unittest.TestCase):
         ), patch("app.services.lineage_service.load_baseline_programs", return_value=baseline):
             return get_task_lineage_subgraph(7, root, **kwargs)
 
-    def test_task_wide_overlay_connects_changed_programs_to_production_downstream(self):
-        graph = self.call(direction="downstream", depth=5, max_nodes=100)
+    def test_graph_stops_at_the_current_program_result_table(self):
+        graph = self.call()
         names = {node["name"] for node in graph["nodes"]}
-        self.assertTrue({"a.py", "b.py", "c.py", "DM.A", "DM.B", "DM.C"}.issubset(names))
+        self.assertEqual(names, {"a.py", "ODS.SOURCE", "DM.A"})
+        self.assertFalse(graph["truncated"])
         current_edges = [edge for edge in graph["edges"] if edge["evidence"]["type"] == "current_change"]
         self.assertTrue(current_edges)
         self.assertEqual(graph["overlayRevision"], "r42")
 
-    def test_direction_depth_and_node_limit_are_applied(self):
-        graph = self.call(root="job:JOB_B", direction="upstream", depth=1, max_nodes=1)
-        self.assertEqual(len(graph["nodes"]), 1)
-        self.assertTrue(graph["truncated"])
+    def test_direct_input_and_schedule_dependency_share_one_table_node(self):
+        graph = self.call(root="job:JOB_B")
+        dm_a_nodes = [node for node in graph["nodes"] if node["name"] == "DM.A"]
+        dm_a_edges = [edge for edge in graph["edges"] if edge["sourceId"] == dm_a_nodes[0]["id"]]
+        self.assertEqual(len(dm_a_nodes), 1)
+        self.assertEqual(
+            {edge["kind"] for edge in dm_a_edges},
+            {"script_reads_table", "schedule_dependency"},
+        )
+        self.assertEqual(
+            {node["name"] for node in graph["nodes"]},
+            {"b.py", "DM.A", "DM.B"},
+        )
 
     def test_baseline_failure_degrades_to_overlay(self):
         with patch("app.services.lineage_service.get_task", return_value={"id": 7, "workflow": "hcyt"}), patch(
@@ -68,10 +78,28 @@ class LineageServiceTests(unittest.TestCase):
         self.assertEqual(graph["diagnostics"][0]["code"], "BASELINE_UNAVAILABLE")
         self.assertIn("a.py", {node["name"] for node in graph["nodes"]})
 
-    def test_validation_and_unknown_roots_are_stable(self):
-        with self.assertRaises(ServiceError) as direction_error:
-            self.call(direction="sideways")
-        self.assertEqual(direction_error.exception.status_code, 422)
+    def test_unassociated_program_without_inputs_or_result_is_an_isolated_root(self):
+        report = overlay_report()
+        report["lineageOverlay"]["programs"] = [{
+            "lineageKey": "program:jobs/standalone.py",
+            "programPath": "jobs/standalone.py",
+            "scriptName": "standalone.py",
+            "jobName": "",
+            "resultTable": "",
+            "inputTables": [],
+            "dependencyJobs": [],
+            "disabled": False,
+            "changeType": "modified",
+        }]
+        with patch("app.services.lineage_service.get_task", return_value={"id": 7, "workflow": "hcyt"}), patch(
+            "app.services.lineage_service.get_report_json", return_value=json.dumps(report)
+        ), patch("app.services.lineage_service.load_baseline_programs", return_value=[]):
+            graph = get_task_lineage_subgraph(7, "program:jobs/standalone.py")
+        self.assertEqual([node["name"] for node in graph["nodes"]], ["standalone.py"])
+        self.assertEqual(graph["edges"], [])
+        self.assertFalse(graph["truncated"])
+
+    def test_unknown_roots_are_stable(self):
         with self.assertRaises(ServiceError) as missing_error:
             self.call(root="job:MISSING")
         self.assertEqual(missing_error.exception.status_code, 404)
