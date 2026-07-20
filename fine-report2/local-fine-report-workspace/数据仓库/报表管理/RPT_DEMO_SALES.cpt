@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<WorkBook>
-  <Report class="com.fr.report.worksheet.WorkSheet" name="Demo Sales Report">
-    <LayerReportAttr clientPaging="false" engineState="0" />
-  </Report>
-  <Query>select order_id, customer_id, amount from demo_sales where report_date = '2026-07-15'</Query>
-  <DatabaseName>demo_reporting</DatabaseName>
-  <Attributes dsName="表头" columnName="order_id" />
-</WorkBook>

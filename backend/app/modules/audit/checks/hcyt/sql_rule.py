@@ -79,7 +79,7 @@ def rule_dws(dws_url):
         result.add('hcyt.sql.too_many_lines', 'SQL 行数过多', 'err', '行数过多,大批量sql请上线人员操作')
     result.findings.extend(scan_sensitive_sql(data, namespace='hcyt.sql'))
     if 'dwm.'.upper() in data.upper():
-        result.add('hcyt.sql.dwm_operation', 'DWM 模型层操作', 'err', '存在对dwm模型层的操作,请审核重点检查')
+        result.add('hcyt.sql.dwm_operation', 'DWM 模型层操作', 'warn', '存在对dwm模型层的操作,请审核重点检查')
     if 'TO GROUP GROUP_VERSION1'.upper() in data.upper():
         result.add('hcyt.sql.legacy_group_clause', '旧版 GROUP 子句', 'err', '建表脚本不允许带 TO GROUP GROUP_VERSION1')
     result.findings.extend(run_configured_dws_sql_reviews(data, message_style="hcyt"))

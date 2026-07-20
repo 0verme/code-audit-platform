@@ -1,2 +1,0 @@
-数据仓库/报表管理/RPT_DEMO_SALES.cpt,销售报表
-数据仓库/报表管理/RPT_DEMO_CUSTOMER.frm,客户报表

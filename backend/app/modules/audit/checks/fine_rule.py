@@ -270,9 +270,9 @@ def rule_fine(fine_name):
     if ' ' in fine_name:
         result.add('fine.report.name_space', '报表名称空格', 'err', '名称有带空值')
     if 'DISTINCT' in data.upper():
-        result.add('fine.report.distinct_review', 'DISTINCT 审查', 'err', '请审核重点检查脚本中的distinct是否必须添加 有无关联出重复数据')
+        result.add('fine.report.distinct_review', 'DISTINCT 审查', 'warn', '请审核重点检查脚本中的distinct是否必须添加 有无关联出重复数据')
     if '<ATTR DIVIDEMODE="1"/>' in data:
-        result.add('fine.report.group_only', '报表列表展示', 'err', '该报表没有列表展示 全是分组，请确认是否需要分组')
+        result.add('fine.report.group_only', '报表列表展示', 'warn', '该报表没有列表展示 全是分组，请确认是否需要分组')
     if "权限机构树" in data and not has_valid_org_tree_default_sql(data):
         result.add('fine.report.org_tree_default', '机构树默认值', 'err', '机构树默认值不对')
     for i in sstb_name:
@@ -292,13 +292,13 @@ def rule_fine(fine_name):
         datekk = ["'" + item + "'" for item in datekk]
         datekk = list(set(datekk))
         if len(datekk) > 0:
-            result.add('fine.report.hardcoded_date', '写死日期', 'err', "检测到的写死日期 请甄别是否业务需求 (如果是注释日期去掉两头引号): " + " ".join(datekk))
+            result.add('fine.report.hardcoded_date', '写死日期', 'warn', "检测到的写死日期 请甄别是否业务需求 (如果是注释日期去掉两头引号): " + " ".join(datekk))
 
         if '=(SELECT' in reslut:
-            result.add('fine.report.scalar_subquery', '标量子查询', 'err', '存在 = ( select 子查询 注意跑批效率 和 万一数据多条导致程序报错')
+            result.add('fine.report.scalar_subquery', '标量子查询', 'warn', '存在 = ( select 子查询 注意跑批效率 和 万一数据多条导致程序报错')
         reslut = reslut.replace('JOIN(SELECT', '')
         if 'IN(SELECT' in reslut:
-            result.add('fine.report.in_subquery', 'IN 子查询', 'err', '存在 in ( select 子查询 注意跑批效率')
+            result.add('fine.report.in_subquery', 'IN 子查询', 'warn', '存在 in ( select 子查询 注意跑批效率')
         if '.END_DT>=' in reslut:
             result.add('fine.report.end_dt_range', '拉链结束日期范围', 'err', '检测到 END_DT>= 注意拉链数据重复')
         if "D_DATE=TO_DATE('" in data:
@@ -314,7 +314,7 @@ def rule_fine(fine_name):
             if i.upper() in gjz_lists:
                 pass
             elif '.' not in i.upper():
-                result.add('fine.report.missing_schema', '表名缺少 SCHEMA', 'err', f'表名 {i} 没有带SCHAME请注意加上 如果是用with表注意效率')
+                result.add('fine.report.missing_schema', '表名缺少 SCHEMA', 'warn', f'表名 {i} 没有带SCHAME请注意加上 如果是用with表注意效率')
         sql_table = sorted(sql_table)
 
         result.artifacts.update({

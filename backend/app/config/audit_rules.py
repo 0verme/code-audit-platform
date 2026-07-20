@@ -98,6 +98,8 @@ DEFAULT_RULES: dict[str, Any] = {
                 "DWM.M_PUB_CODE_MAP_NEW",
                 "DWM.M_PUB_CODE_INFO_NEW",
                 "DWM.M_PUB_CODE_USE_NEW",
+                "DWF.PARA_CODE_MAP",
+                "DWF.PARA_CODE_STD",
             ],
         },
     },

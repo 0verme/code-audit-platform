@@ -43,7 +43,9 @@ Thumbs.db
 /llm_probe_output/
 
 # Local HCYT test workspace
-hcyt/
+test-hcyt/
+test-fine-report/
+deploy/
 
 # Static prototype workspace
 静态原型代码/
