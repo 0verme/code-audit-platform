@@ -22,23 +22,22 @@ from datetime import datetime
 from pathlib import Path
 
 from .compat import build_legacy_hcyt_audit_result_rows, build_legacy_nups_audit_result_rows
-from .fine_runner import run_fine as _run_fine
-from .hcyt_runner import run_hcyt as _run_hcyt
-from .hcyt_ai_review import run_hcyt_ai_review
-from .hcyt_file_classifier import collect_hcyt_input_files
-from .hcyt_inspection_orchestrator import run_hcyt_inspections
-from .hcyt_rule_runner import run_hcyt_rules
-from .hcyt_progress_events import build_source_classified_progress, publish_hcyt_progress
-from .hcyt_report_builder import build_hcyt_report
-from .hcyt_legacy_result_sync import sync_hcyt_legacy_results
-from .hcyt_subworkflow_runtime import (
+from .workflows.fine_report.runner import run_fine as _run_fine
+from .workflows.hcyt.runner import run_hcyt as _run_hcyt
+from .workflows.hcyt.ai_review import run_hcyt_ai_review
+from .workflows.hcyt.classifier import collect_hcyt_input_files
+from .workflows.hcyt.orchestrator import run_hcyt_inspections
+from .workflows.hcyt.rule_runner import run_hcyt_rules
+from .workflows.hcyt.progress import build_source_classified_progress, publish_hcyt_progress
+from .workflows.hcyt.report import build_hcyt_report
+from .workflows.hcyt.legacy_sync import sync_hcyt_legacy_results
+from .workflows.hcyt.subworkflow_runtime import (
     run_hcyt_programs as _run_hcyt_programs,
     run_hcyt_schedule as _run_hcyt_schedule,
 )
-from .nups_report_builder import build_nups_report
-from .nups_runner import run_nups as _run_nups
-from .lineage_payload import empty_lineage_summary, json_safe, lineage_warning
-from .report_builder import (
+from .workflows.nups.runner import run_nups as _run_nups
+from .shared.lineage_payload import empty_lineage_summary, json_safe, lineage_warning
+from .shared.report_helpers import (
     build_ai as _build_ai,
     build_changes as _build_changes,
     build_config_files as _build_config_files,
@@ -46,35 +45,33 @@ from .report_builder import (
     build_job_table as _build_job_table,
     build_task_meta as _build_task_meta,
 )
-from .result_table_annotations import (
+from .shared.table_annotations import (
     annotate_table as _annotate_table,
     load_result_table_annotations as _load_result_table_annotations,
 )
-from .result_normalizer import (
+from .shared.result_normalizer import (
     dedupe_tables,
     format_duration,
     normalize_table,
 )
-from .run_failure_result import build_engine_load_failure_result, build_failure_result
-from .run_result_finalizer import finalize_run_result
-from .run_registry import (
-    _run_states,
+from .core.failure_result import build_engine_load_failure_result, build_failure_result
+from .core.result_finalizer import finalize_run_result
+from .core.run_registry import (
     create_audit_run_state as _create_audit_run_state,
     get_audit_run_partial_result as _get_audit_run_partial_result,
     get_audit_run_state as _get_audit_run_state,
     get_audit_run_status as _get_audit_run_status,
 )
-from .source_resolver import (
+from .source.resolver import (
     build_source_label,
     build_source_load_step,
     build_source_summary,
-    detect_workflow,
     resolve_workspace,
     resolve_workflow,
 )
-from .source_download import build_source_download_url, source_relative_paths, source_relative_paths_from_changes
-from .workflow_dispatcher import WorkflowRunContext, run_workflow
-from .workflow_runtime import WorkflowRuntimeContext
+from .source.download import build_source_download_url, source_relative_paths, source_relative_paths_from_changes
+from .core.dispatcher import WorkflowRunContext, run_workflow
+from .core.runtime import WorkflowRuntimeContext
 from app.db.profiles import get_metadata_profile
 from app.config.audit_rules import get_audit_rules
 from app.db.runtime_store import (
@@ -90,7 +87,7 @@ _empty_lineage_summary = empty_lineage_summary
 get_active_profile = get_metadata_profile
 
 try:
-    from .run import AuditRunState, AuditTask, AuditTaskStatus
+    from .core.run_state import AuditRunState, AuditTask, AuditTaskStatus
 except ImportError:  # pragma: no cover - direct module execution fallback
     from run import AuditRunState, AuditTask, AuditTaskStatus
 

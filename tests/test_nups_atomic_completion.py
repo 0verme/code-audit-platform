@@ -173,7 +173,8 @@ class NupsAtomicCompletionTests(unittest.TestCase):
                         run.finish("pass", report=self._report())
 
                 task, report, rows = self._state()
-                self.assertEqual(task["status"], "running")
+                self.assertEqual(task["status"], "fail")
+                self.assertEqual(task["step"], "persistence_failed")
                 self.assertEqual(report, {"version": "old"})
                 self.assertEqual([row["message"] for row in rows], ["old finding"])
                 legacy_completion.assert_not_called()

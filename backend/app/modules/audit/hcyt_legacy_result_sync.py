@@ -1,11 +1,6 @@
-from __future__ import annotations
+"""Compatibility alias for HCYT legacy result synchronization."""
 
-from collections.abc import Callable
+import sys
+from .workflows.hcyt import legacy_sync as _implementation
 
-
-def sync_hcyt_legacy_results(save_category_rows: Callable[[dict[str, list[dict]]], None], grouped_rows):
-    save_category_rows(grouped_rows)
-
-
-def save_hcyt_legacy_audit_results(save_category_rows: Callable[[dict[str, list[dict]]], None], grouped_rows):
-    sync_hcyt_legacy_results(save_category_rows, grouped_rows)
+sys.modules[__name__] = _implementation

@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 from app.db.metadata.compat import router as db_router
 from app.db.profiles import get_metadata_profile
-from app.modules.audit.lineage_overlay import build_lineage_overlay
+from app.modules.audit.shared.lineage_overlay import build_lineage_overlay
 from app.modules.lineage.identifiers import normalize_registered_table_name
 from app.modules.metadata.services.metadata_model import column_name, table_name
 from app.services import ServiceError

@@ -1,26 +1,6 @@
-from __future__ import annotations
+"""Compatibility alias for the NUPS report builder."""
 
+import sys
+from .workflows.nups import report as _implementation
 
-def build_nups_report(
-    *,
-    task,
-    svn,
-    changes,
-    conflicts,
-    sql_checks,
-    py_scripts,
-    ai=None,
-):
-    report = {
-        "task": task,
-        "svn": svn,
-        "changes": changes,
-        "conflicts": conflicts,
-        "sqlChecks": sql_checks,
-        "pyScripts": py_scripts,
-        "assetIssues": [],
-        "unifiedAssetIssues": [],
-    }
-    if ai:
-        report["ai"] = ai
-    return report
+sys.modules[__name__] = _implementation

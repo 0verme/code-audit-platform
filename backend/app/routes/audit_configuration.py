@@ -4,7 +4,7 @@ import logging
 from flask import Blueprint, jsonify
 
 from app.config.audit_rules import get_audit_rules
-from app.modules.audit.checks.svn_service import load_svn_config
+from app.modules.audit.source.svn import load_svn_config
 
 audit_configuration_bp = Blueprint("audit_configuration", __name__)
 LOGGER = logging.getLogger(__name__)

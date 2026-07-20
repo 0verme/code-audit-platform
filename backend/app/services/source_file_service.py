@@ -2,7 +2,7 @@ import json
 
 import app.modules.audit.engine as audit_engine
 from app.db.runtime_store import get_audit_task, get_task_report_row
-from app.modules.audit.source_download import resolve_source_download_path
+from app.modules.audit.source.download import resolve_source_download_path
 from . import ServiceError
 
 

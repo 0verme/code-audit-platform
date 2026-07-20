@@ -12,8 +12,8 @@ from app.db.runtime_store import (
     list_audit_tasks,
 )
 from app.db.sql_runner import execute_insert, execute_one
-from app.modules.audit.checks.workspace_service import validate_local_workspace
-from app.modules.audit.source_resolver import (
+from app.modules.audit.source.workspace import validate_local_workspace
+from app.modules.audit.source.resolver import (
     LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE,
     SUPPORTED_LOCAL_WORKFLOWS,
     UnsupportedAuditSourceError,
