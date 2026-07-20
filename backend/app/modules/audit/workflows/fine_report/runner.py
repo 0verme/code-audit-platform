@@ -11,7 +11,7 @@ from ...shared.result_normalizer import dedupe_tables, normalize_table
 from .report import build_fine_report
 
 
-DEFAULT_FINE_REPORT_PREVIEW_URL = "https://fine.example.com/svn_check.html"
+DEFAULT_FINE_REPORT_PREVIEW_URL = "https://fine.example.com/fine/svn_check.html"
 
 
 def get_fine_report_preview_url() -> str:
@@ -125,7 +125,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                 for finding in result.findings
             ]
             detail = result.artifacts
-            viewlet = str(detail.get("viewlet") or "")
+            viewlet = str(detail.get("viewlet") or "").replace("\\", "/")
             title = viewlet or file_name
             conn = str(detail.get("connection") or "-")
             engine_flag = str(detail.get("engine") or "")
@@ -202,6 +202,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
             },
         ),
         svn=context.build_svn_section(svn_result),
+        changes=context.build_changes(svn_result),
         menu_section=menu_section,
         authority_section=authority_section,
         reports=reports,

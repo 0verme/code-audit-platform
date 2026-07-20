@@ -115,7 +115,15 @@ class FineRunnerTests(unittest.TestCase):
                 "branchChanged": svn_result["branch_changed_files"],
                 "trunkConflict": svn_result["trunk_conflict_files"],
             },
-            build_changes=lambda svn_result: [{"path": path} for path in svn_result["branch_changed_files"]],
+            build_changes=lambda svn_result: [
+                {
+                    "type": "M",
+                    "path": path,
+                    "cat": "report",
+                    "downloadUrl": f"download://{Path(path).name}",
+                }
+                for path in svn_result["branch_changed_files"]
+            ],
             build_conflicts=lambda svn_result: list(svn_result["trunk_conflict_files"]),
             build_lineage_summary=lambda *_args, **_kwargs: {},
             build_config_files=lambda _paths: [],
@@ -152,7 +160,12 @@ class FineRunnerTests(unittest.TestCase):
         self.assertEqual(report["authority"]["columns"], ["前台目录", "赋予权限"])
         self.assertEqual(report["authority"]["rows"], [["前台A", "ROLE_USER"]])
         self.assertEqual(report["reports"][0]["title"], "ReportA")
-        self.assertEqual(report["reports"][0]["previewUrl"], "https://fine.example.com/svn_check.html?viewlet=ReportA")
+        self.assertEqual(report["reports"][0]["previewUrl"], "https://fine.example.com/fine/svn_check.html?viewlet=ReportA")
+        self.assertEqual(
+            report["changes"],
+            [{"type": "M", "path": "report.cpt", "cat": "report", "downloadUrl": "download://report.cpt"}],
+        )
+        self.assertEqual(report["reports"][0]["downloadUrl"], report["changes"][0]["downloadUrl"])
         self.assertEqual(
             report["reports"][0]["datasets"],
             [{"name": "数据集 SQL", "sql": "select * from dm.result_a", "rows": "-"}],
@@ -189,12 +202,32 @@ class FineRunnerTests(unittest.TestCase):
     def test_run_fine_uses_configured_preview_endpoint(self):
         context, *_ = self._build_context()
 
-        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "http://10.133.6.11:4388/svn_check.html/"}):
+        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "http://10.133.6.11/fine/svn_check.html/"}):
             report = run_fine(context)
 
         self.assertEqual(
             report["reports"][0]["previewUrl"],
-            "http://10.133.6.11:4388/svn_check.html?viewlet=ReportA",
+            "http://10.133.6.11/fine/svn_check.html?viewlet=ReportA",
+        )
+
+    def test_run_fine_encodes_chinese_viewlet_path(self):
+        context, *_ = self._build_context()
+        context.mods.fine_rule.rule_fine = lambda _path: CheckResult(artifacts={
+            "viewlet": r"数据仓库\数字金融部\信贷新老表对比.cpt",
+            "connection": "",
+            "engine": "",
+            "sheets": [],
+            "sql_tables": [],
+        })
+
+        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "http://10.133.6.11/fine/svn_check.html"}):
+            report = run_fine(context)
+
+        self.assertEqual(
+            report["reports"][0]["previewUrl"],
+            "http://10.133.6.11/fine/svn_check.html"
+            "?viewlet=%E6%95%B0%E6%8D%AE%E4%BB%93%E5%BA%93%2F%E6%95%B0%E5%AD%97%E9%87%91%E8%9E%8D%E9%83%A8"
+            "%2F%E4%BF%A1%E8%B4%B7%E6%96%B0%E8%80%81%E8%A1%A8%E5%AF%B9%E6%AF%94.cpt",
         )
 
 

@@ -17,6 +17,7 @@ from app.modules.audit.source.resolver import (
     LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE,
     SUPPORTED_LOCAL_WORKFLOWS,
     UnsupportedAuditSourceError,
+    resolve_workflow,
     validate_supported_source_type,
 )
 from app.settings import get_runtime_security_settings
@@ -168,11 +169,12 @@ def create_task(payload: dict, *, client_ip: str, idempotency_key: str | None = 
             validate_local_workspace(source_ref, settings)
         except (OSError, ValueError, PermissionError) as exc:
             raise ServiceError("Local workspace path is not allowed.", status_code=400, payload={"errorCode": "local_source_not_allowed", "error": "Local workspace path is not allowed."}) from exc
-    workflow = audit_engine.detect_workflow(source_ref, payload.get("workflow", "hcyt"))
     if source_type == "local":
         workflow = str(payload.get("workflow") or "hcyt").strip().lower()
         if workflow not in SUPPORTED_LOCAL_WORKFLOWS:
             raise ServiceError(LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE, status_code=400)
+    else:
+        workflow = resolve_workflow(source_ref, payload.get("workflow", "hcyt"))
     operator_user = str(payload.get("operator_user") or payload.get("author") or "local-user").strip() or "local-user"
     effective_ip = str(payload.get("client_ip") or client_ip).strip()
     normalized_idempotency_key = str(idempotency_key or "").strip() or None

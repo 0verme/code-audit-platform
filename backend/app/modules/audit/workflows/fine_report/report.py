@@ -5,6 +5,7 @@ def build_fine_report(
     *,
     task,
     svn,
+    changes,
     menu_section,
     authority_section,
     reports,
@@ -15,6 +16,7 @@ def build_fine_report(
     report = {
         "task": task,
         "svn": svn,
+        "changes": changes,
         "menu": menu_section,
         "authority": authority_section,
         "reports": reports,

@@ -17,6 +17,7 @@ from app.modules.audit.source_download import (  # noqa: E402
     resolve_source_download_path,
     source_relative_paths,
 )
+from app.modules.audit.fine_report_builder import build_fine_report  # noqa: E402
 
 
 class SourceDownloadTests(unittest.TestCase):
@@ -84,6 +85,40 @@ class SourceDownloadTests(unittest.TestCase):
                     task={"source_type": "local", "source_ref": str(root)},
                     report=self._report("task-a.sql"),
                     relative_path="task-b.sql",
+                    export_base=root,
+                )
+
+    def test_generated_fine_report_allows_its_changed_template_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            relative = "reportlets/数据仓库/报表.cpt"
+            source_file = root.joinpath(*relative.split("/"))
+            source_file.parent.mkdir(parents=True)
+            source_file.write_text("<Report />", encoding="utf-8")
+            download_url = build_source_download_url(68, relative)
+            report = build_fine_report(
+                task={"status": "pass"},
+                svn={"branchChanged": [relative], "trunkConflict": []},
+                changes=[{"type": "M", "path": relative, "cat": "report", "downloadUrl": download_url}],
+                menu_section=None,
+                authority_section=None,
+                reports=[{"file": relative, "downloadUrl": download_url}],
+                ref_tables=[],
+            )
+
+            result = resolve_source_download_path(
+                task={"source_type": "local", "source_ref": str(root)},
+                report=report,
+                relative_path=relative,
+                export_base=root,
+            )
+
+            self.assertEqual(result, source_file.resolve())
+            with self.assertRaises(FileNotFoundError):
+                resolve_source_download_path(
+                    task={"source_type": "local", "source_ref": str(root)},
+                    report=report,
+                    relative_path="reportlets/数据仓库/其他报表.cpt",
                     export_base=root,
                 )
 

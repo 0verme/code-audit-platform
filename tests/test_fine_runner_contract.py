@@ -113,6 +113,7 @@ class FineRunnerContractTests(unittest.TestCase):
             [
                 "task",
                 "svn",
+                "changes",
                 "menu",
                 "authority",
                 "reports",

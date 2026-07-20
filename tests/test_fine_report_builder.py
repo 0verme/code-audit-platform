@@ -8,6 +8,7 @@ class FineReportBuilderTests(unittest.TestCase):
         return {
             "task": {"status": "warn", "workflow": "FineReport report audit"},
             "svn": {"branchChanged": ["report.cpt"], "trunkConflict": []},
+            "changes": [{"type": "M", "path": "report.cpt", "downloadUrl": "/source-file?path=report.cpt"}],
             "menu_section": {"columns": ["menu"], "rows": [], "messages": []},
             "authority_section": {"columns": ["auth"], "rows": [], "messages": [{"level": "warn"}]},
             "reports": [{"title": "report", "file": "report.cpt", "issues": []}],
@@ -22,6 +23,7 @@ class FineReportBuilderTests(unittest.TestCase):
             [
                 "task",
                 "svn",
+                "changes",
                 "menu",
                 "authority",
                 "reports",
@@ -32,6 +34,7 @@ class FineReportBuilderTests(unittest.TestCase):
         )
         self.assertEqual(report["task"]["status"], "warn")
         self.assertEqual(report["svn"], {"branchChanged": ["report.cpt"], "trunkConflict": []})
+        self.assertEqual(report["changes"][0]["path"], "report.cpt")
         self.assertEqual(report["reports"][0]["file"], "report.cpt")
         self.assertEqual(report["refTables"], [{"name": "DM.TABLE_A", "type": "result"}])
 
