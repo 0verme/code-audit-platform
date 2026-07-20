@@ -25,13 +25,16 @@ test("FineReport dataset SQL cards expose keyboard focus styling", () => {
   assert.match(styleSource, /\.fr-ds\.open \.fr-ds-chevron/);
 });
 
-test("FineReport keeps referenced tables inside CPT drilldown", () => {
+test("FineReport keeps grouped referenced tables inside CPT drilldown", () => {
   assert.doesNotMatch(pageSource, /function FrRefTablesSection/);
   assert.doesNotMatch(pageSource, /id="reftables"/);
+  assert.match(pageSource, /function FineReportReferenceTables\(\{ items \}\)/);
+  assert.match(pageSource, /groupFineReportRefTables\(items\)/);
+  assert.match(pageSource, /FINE_REPORT_REF_TABLE_GROUPS\.map/);
   assert.match(pageSource, /ReferenceTableList/);
   assert.match(pageSource, /report\.type === "cpt"/);
-  assert.match(pageSource, /ReferenceTableList items=\{refTables\} stacked/);
-  assert.match(pageSource, /引[^\n]*表/);
+  assert.match(pageSource, /FineReportReferenceTables items=\{refTables\}/);
+  assert.match(pageSource, /ReferenceTableList items=\{grouped\[group\.key\]\} stacked/);
 });
 
 test("FineReport details use independently expanded inline accordions", () => {

@@ -3,7 +3,11 @@ import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 import { sortAlertRows } from "../utils/alertSorting";
-import { syncAutoOpenReportIds } from "../utils/fineReportPresentation";
+import {
+  FINE_REPORT_REF_TABLE_GROUPS,
+  groupFineReportRefTables,
+  syncAutoOpenReportIds,
+} from "../utils/fineReportPresentation";
 
 const FR_CAT = {
   dataset: { label: "数据集", icon: "db" },
@@ -202,6 +206,24 @@ function DatasetSqlCard({ dataset, index }) {
   );
 }
 
+function FineReportReferenceTables({ items }) {
+  const grouped = groupFineReportRefTables(items);
+
+  return (
+    <>
+      {FINE_REPORT_REF_TABLE_GROUPS.map((group) => (
+        <div className="sd-block" key={group.key}>
+          <div className="subhead">
+            <Icon name={group.icon} size={12} /> {group.label}
+            <span className="sd-num mono">{grouped[group.key].length}</span>
+          </div>
+          <ReferenceTableList items={grouped[group.key]} stacked />
+        </div>
+      ))}
+    </>
+  );
+}
+
 function ReportDetailAccordion({ report, detailId, open, onClose }) {
   const audit = reportAudit(report);
   const type = reportType(report);
@@ -294,10 +316,7 @@ function ReportDetailAccordion({ report, detailId, open, onClose }) {
             </div>
           </div>
 
-          <div className="sd-block">
-            <div className="subhead"><Icon name="db" size={12} /> 引用表 <span className="sd-num mono">{refTables.length}</span></div>
-            {report.type === "cpt" ? <ReferenceTableList items={refTables} stacked /> : null}
-          </div>
+          {report.type === "cpt" ? <FineReportReferenceTables items={refTables} /> : null}
         </div>
       </div>
     </section>

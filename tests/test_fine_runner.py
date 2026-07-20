@@ -48,7 +48,7 @@ class FineRunnerTests(unittest.TestCase):
             "connection": "connA",
             "engine": "spark",
             "sheets": ["Sheet1"],
-            "sql_tables": ["dm.result_a", "src.input_a"],
+            "sql_tables": ["dm.result_a", "src.input_a", "tmp.stage_a"],
         })
         report_result.add("fine.report.demo", "数据集示例", "err", "bad dataset")
         fine_rule = types.SimpleNamespace(
@@ -170,6 +170,13 @@ class FineRunnerTests(unittest.TestCase):
                 {
                     "name": "SRC.INPUT_A",
                     "type": "src",
+                    "disabled": False,
+                    "sysNames": [],
+                    "highlight": False,
+                },
+                {
+                    "name": "TMP.STAGE_A",
+                    "type": "mid",
                     "disabled": False,
                     "sysNames": [],
                     "highlight": False,
