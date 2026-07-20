@@ -8,6 +8,7 @@ from ...compat import build_legacy_fine_audit_result_rows
 from ...core.runtime import WorkflowRuntimeContext
 from ...shared.findings import CheckResult, finding_messages
 from ...shared.result_normalizer import dedupe_tables, normalize_table
+from ...shared.table_annotations import annotate_table, build_result_table_sys_name_map
 from .report import build_fine_report
 
 
@@ -24,7 +25,11 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
     svn_result = context.source_payload
     exported = svn_result["exported_paths"]
 
-    conventions = get_audit_rules()["fine_report"]["file_conventions"]
+    audit_rules = get_audit_rules()
+    conventions = audit_rules["fine_report"]["file_conventions"]
+    highlight_result_source_systems = set(
+        audit_rules["display"].get("highlight_result_source_systems", [])
+    )
     cpt_lists, menu_url, authority_url = [], "", ""
     for path in exported:
         if path.lower().endswith(tuple(conventions["template_extensions"])):
@@ -99,11 +104,10 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                 for row in mods.public_data.all_disabled_result_tables()
                 if row and row[0]
             },
-            {
-                normalize_table(row[0]): str(row[1])
-                for row in mods.public_data.all_result_table_sys_names()
-                if row and row[0]
-            },
+            build_result_table_sys_name_map(
+                mods.public_data.all_result_table_sys_names(),
+                normalize_table=normalize_table,
+            ),
         ),
         (set(), {}),
     )
@@ -136,13 +140,17 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                 datasets = [{"name": "数据集 SQL", "sql": (sql_text or "").strip(), "rows": "-"}]
             for name in sql_tables:
                 table_type = "result" if name in registered else ("src" if name in para_tables else "mid")
+                annotation = annotate_table(
+                    name,
+                    disabled,
+                    sys_name_map,
+                    normalize_table=normalize_table,
+                    highlight_result_source_systems=highlight_result_source_systems,
+                )
                 ref_tables.append(
                     {
-                        "name": name,
                         "type": table_type,
-                        "disabled": name in disabled,
-                        "sysNames": [sys_name_map[name]] if name in sys_name_map else [],
-                        "highlight": (name in disabled) or (name in sys_name_map),
+                        **annotation,
                     }
                 )
         preview_url = f"{get_fine_report_preview_url()}?viewlet={quote(viewlet, safe='')}" if viewlet else ""

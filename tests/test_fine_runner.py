@@ -199,6 +199,66 @@ class FineRunnerTests(unittest.TestCase):
         self.assertEqual(report["refTables"], report["reports"][0]["refTables"])
         self.assertEqual(saved_groups[0]["fine"][0]["file"], "rel/report.cpt")
 
+    def test_run_fine_only_highlights_disabled_or_configured_source_system_tables(self):
+        context, *_ = self._build_context()
+        context.mods.fine_rule.rule_fine = lambda _path: CheckResult(artifacts={
+            "viewlet": "ReportA",
+            "connection": "",
+            "engine": "",
+            "sheets": [],
+            "sql_tables": [
+                "dwf.f_ordinary",
+                "dwf.f_configured",
+                "dwf.f_disabled",
+                "dwm.m_normal",
+            ],
+        })
+        context.mods.load_registered_result_tables = lambda *, profile: {
+            "DWF.F_ORDINARY",
+            "DWF.F_CONFIGURED",
+            "DWF.F_DISABLED",
+            "DWM.M_NORMAL",
+        }
+        context.mods.public_data.all_disabled_result_tables = lambda: [("dwf.f_disabled",)]
+        context.mods.public_data.all_result_table_sys_names = lambda: [
+            ("dwf.f_ordinary", "核心系统"),
+            ("dwf.f_ordinary", "核心系统"),
+            ("dwf.f_configured", "普通系统"),
+            ("DWF.F_CONFIGURED", "CONFIG_SYS"),
+        ]
+        configured_rules = {
+            "display": {"highlight_result_source_systems": ["CONFIG_SYS"]},
+            "fine_report": {
+                "file_conventions": {
+                    "template_extensions": [".cpt", ".frm"],
+                    "menu_filename": "menu.txt",
+                    "authority_filename": "authority.txt",
+                }
+            },
+        }
+
+        with patch(
+            "app.modules.audit.workflows.fine_report.runner.get_audit_rules",
+            return_value=configured_rules,
+        ):
+            report = run_fine(context)
+
+        tables = {item["name"]: item for item in report["reports"][0]["refTables"]}
+        self.assertEqual(
+            tables["DWF.F_ORDINARY"],
+            {
+                "name": "DWF.F_ORDINARY",
+                "type": "result",
+                "disabled": False,
+                "sysNames": ["核心系统"],
+                "highlight": False,
+            },
+        )
+        self.assertEqual(tables["DWF.F_CONFIGURED"]["sysNames"], ["普通系统", "CONFIG_SYS"])
+        self.assertTrue(tables["DWF.F_CONFIGURED"]["highlight"])
+        self.assertTrue(tables["DWF.F_DISABLED"]["highlight"])
+        self.assertFalse(tables["DWM.M_NORMAL"]["highlight"])
+
     def test_run_fine_uses_configured_preview_endpoint(self):
         context, *_ = self._build_context()
 
