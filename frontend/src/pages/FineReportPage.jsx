@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
 import { sortAlertRows } from "../utils/alertSorting";
+import { syncAutoOpenReportIds } from "../utils/fineReportPresentation";
 
 const FR_CAT = {
   dataset: { label: "数据集", icon: "db" },
@@ -335,28 +336,40 @@ function mergeFineReportItems(baseData, items) {
 }
 
 export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
-  const [openReportIds, setOpenReportIds] = useState(() => new Set(
-    (Array.isArray(d.reports) ? d.reports : [])
-      .filter((report) => {
-        const audit = reportAudit(report);
-        return audit.err || audit.warn;
-      })
-      .map((report) => report.file),
+  const dismissedReportIds = useRef(new Set());
+  const [openReportIds, setOpenReportIds] = useState(() => (
+    syncAutoOpenReportIds(new Set(), d.reports, dismissedReportIds.current)
   ));
   const mergedData = useMemo(() => mergeFineReportItems(d, apiState?.data), [d, apiState?.data]);
 
   const toggleReport = (reportId) => {
     setOpenReportIds((current) => {
       const next = new Set(current);
-      if (next.has(reportId)) next.delete(reportId);
-      else next.add(reportId);
+      if (next.has(reportId)) {
+        next.delete(reportId);
+        dismissedReportIds.current.add(reportId);
+      } else {
+        next.add(reportId);
+        dismissedReportIds.current.delete(reportId);
+      }
       return next;
     });
   };
 
   useEffect(() => {
+    setOpenReportIds((current) => (
+      syncAutoOpenReportIds(current, mergedData.reports, dismissedReportIds.current)
+    ));
+  }, [mergedData.reports]);
+
+  useEffect(() => {
     const closeAll = (event) => {
-      if (event.key === "Escape") setOpenReportIds(new Set());
+      if (event.key === "Escape") {
+        setOpenReportIds((current) => {
+          current.forEach((reportId) => dismissedReportIds.current.add(reportId));
+          return new Set();
+        });
+      }
     };
     window.addEventListener("keydown", closeAll);
     return () => window.removeEventListener("keydown", closeAll);
