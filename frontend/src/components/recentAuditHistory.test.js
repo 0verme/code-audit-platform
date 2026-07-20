@@ -83,11 +83,11 @@ test("app loads runtime source display rules with workflow configuration", () =>
 test("recent audit styles keep source flexible and type narrow", () => {
   assert.match(
     homeStylesSource,
-    /\.home-wrap\s*\{[\s\S]*max-width:\s*1100px;[\s\S]*margin:\s*0 auto;[\s\S]*padding:\s*48px 16px 80px;/,
+    /\.home-wrap\s*\{[\s\S]*max-width:\s*960px;[\s\S]*margin:\s*0 auto;[\s\S]*padding:\s*48px 16px 80px;/,
   );
   assert.match(
     homeStylesSource,
-    /\.home-hero,\s*\.home-card\s*\{[\s\S]*width:\s*100%;[\s\S]*max-width:\s*708px;[\s\S]*margin-inline:\s*auto;/,
+    /\.home-hero,\s*\.home-card\s*\{[\s\S]*width:\s*100%;[\s\S]*max-width:\s*928px;[\s\S]*margin-inline:\s*auto;/,
   );
   assert.match(
     homeStylesSource,
