@@ -32,8 +32,6 @@ def build_portal_link(issue):
     if issue_type == "ROOT_MISSING":
         return build_root_management_link(getattr(issue, "root_word", ""))
     if issue_type == "ASSET_TABLE_REVIEW":
-        schema_name = getattr(issue, "schema_name", "")
         table_name = getattr(issue, "table_name", "")
-        qualified_table_name = ".".join([value for value in (schema_name, table_name) if value]) or table_name
-        return build_data_warehouse_link(qualified_table_name)
+        return build_data_warehouse_link(table_name)
     return get_portal_base_url().rstrip("/")

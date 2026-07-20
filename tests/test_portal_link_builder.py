@@ -44,7 +44,7 @@ class PortalLinkBuilderTests(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {"ASSET_PORTAL_BASE_URL": "https://portal.example.test"}, clear=True)
-    def test_build_portal_link_uses_qualified_table_name_for_review(self):
+    def test_build_portal_link_uses_simple_table_name_for_review(self):
         issue = create_audit_asset_issue(
             issue_type="asset_table_review",
             issue_title="资产表待核对",
@@ -62,7 +62,28 @@ class PortalLinkBuilderTests(unittest.TestCase):
 
         self.assertEqual(
             build_portal_link(issue),
-            "https://portal.example.test/data-warehouse?q=DWM.M_DEMO",
+            "https://portal.example.test/data-warehouse?q=M_DEMO",
+        )
+
+    @patch.dict(os.environ, {"ASSET_PORTAL_BASE_URL": "https://portal.example.test"}, clear=True)
+    def test_build_portal_link_uses_table_name_when_schema_is_missing(self):
+        issue = create_audit_asset_issue(
+            issue_type="asset_table_review",
+            issue_title="资产表待核对",
+            issue_desc="SQL中引用了待核对资产表",
+            asset_type="table",
+            source_module="hcyt",
+            source_file="demo.py",
+            severity="warning",
+            suggestion="去核对",
+            portal_module="data-warehouse",
+            action_label="去核对资产表",
+            table_name="m_demo",
+        )
+
+        self.assertEqual(
+            build_portal_link(issue),
+            "https://portal.example.test/data-warehouse?q=M_DEMO",
         )
 
 
