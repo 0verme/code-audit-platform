@@ -10,17 +10,21 @@ from app.modules.audit.findings import CheckResult
 
 gjz_lists = ['DATETIME', 'DUAL', 'AGE','LAST_DAY']
 
-SENSITIVE_FIELD_RULES = {
-    '证件类型': ['证件类型', 'CERT_TYPE', 'ID_TYPE'],
+SENSITIVE_FIELD_ERROR_RULES = {
     '身份证': ['身份证', '身份证号', '证件号码', 'ID_CARD', 'IDCARD', 'ID_NO', 'CERT_NO','SFZ','ZJH','CERT_ID'],
     '地址': ['地址', '开户地址', '家庭地址', '住址', 'ADDRESS', 'ADDR'],
     '手机号': ['手机号', '手机号码', '联系电话', '移动电话', 'MOBILE', 'PHONE_NO', 'TEL_NO', 'PHONE'],
-    '卡号': ['卡号', '银行卡号', '借记卡号', '贷记卡号', '信用卡号', '卡片号码', '卡号码', 'CARD_NO', 'CARDNO', 'CARD_NUM', 'CARD_NUMBER', 'BANK_CARD_NO', 'BANKCARD_NO', 'CARD_ID', 'PAN'],
-    '账号': ['账号', '帐号', '账户', '帐户', '账户号', '帐户号', '银行账号', '银行帐号', '客户账号', '客户帐号', '结算账号', '结算帐号', 'ACCT_NO', 'ACCTNO', 'ACCOUNT_NO', 'ACCOUNTNO', 'ACC_NO', 'ACCNO', 'ACCOUNT', 'ACCT', 'BANK_ACCT_NO', 'BANK_ACCOUNT_NO', 'CUST_ACCT_NO'],
-    '邮箱': ['邮箱', '电子邮箱', '电子邮件', '邮件地址', '邮箱地址', 'E_MAIL', 'EMAIL', 'MAIL', 'EMAIL_ADDR', 'EMAIL_ADDRESS', 'MAIL_ADDR', 'MAIL_ADDRESS'],
     '座机': ['座机', '座机号', '座机号码', '固定电话', '固话', '办公电话', '公司电话', '家庭电话', '住宅电话', 'LANDLINE', 'FIXED_PHONE', 'FIXED_TEL', 'OFFICE_TEL', 'OFFICE_PHONE', 'HOME_TEL', 'HOME_PHONE', 'TELEPHONE'],
 }
 
+SENSITIVE_FIELD_WARNING_RULES = {
+    '证件类型': ['证件类型', 'CERT_TYPE', 'ID_TYPE'],
+    '卡号': ['卡号', '银行卡号', '借记卡号', '贷记卡号', '信用卡号', '卡片号码', '卡号码', 'CARD_NO', 'CARDNO', 'CARD_NUM', 'CARD_NUMBER', 'BANK_CARD_NO', 'BANKCARD_NO', 'CARD_ID', 'PAN'],
+    '账号': ['账号', '帐号', '账户', '帐户', '账户号', '帐户号', '银行账号', '银行帐号', '客户账号', '客户帐号', '结算账号', '结算帐号', 'ACCT_NO', 'ACCTNO', 'ACCOUNT_NO', 'ACCOUNTNO', 'ACC_NO', 'ACCNO', 'ACCOUNT', 'ACCT', 'BANK_ACCT_NO', 'BANK_ACCOUNT_NO', 'CUST_ACCT_NO'],
+    '邮箱': ['邮箱', '电子邮箱', '电子邮件', '邮件地址', '邮箱地址', 'E_MAIL', 'EMAIL', 'MAIL', 'EMAIL_ADDR', 'EMAIL_ADDRESS', 'MAIL_ADDR', 'MAIL_ADDRESS'],
+}
+
+SENSITIVE_FIELD_ERROR_NAMES = frozenset(SENSITIVE_FIELD_ERROR_RULES)
 
 
 
@@ -39,10 +43,9 @@ def get_cpt_sql(fine_name):
     return reslut
 
 
-def find_sensitive_fields(text):
+def _find_sensitive_fields(text, rules):
     upper_text = text.upper()
     hit_fields = []
-    rules = get_audit_rules()["fine_report"]["sensitive_field_rules"] or SENSITIVE_FIELD_RULES
     for field_name, keywords in rules.items():
         matched_keywords = []
         for keyword in keywords:
@@ -51,6 +54,28 @@ def find_sensitive_fields(text):
         if matched_keywords:
             hit_fields.append(f"{field_name}(命中关键字: {', '.join(matched_keywords)})")
     return hit_fields
+
+
+def find_sensitive_fields(text):
+    configured_rules = get_audit_rules()["fine_report"]["sensitive_field_rules"]
+    if configured_rules:
+        error_rules = {
+            field_name: keywords
+            for field_name, keywords in configured_rules.items()
+            if field_name in SENSITIVE_FIELD_ERROR_NAMES
+        }
+        warning_rules = {
+            field_name: keywords
+            for field_name, keywords in configured_rules.items()
+            if field_name not in SENSITIVE_FIELD_ERROR_NAMES
+        }
+    else:
+        error_rules = SENSITIVE_FIELD_ERROR_RULES
+        warning_rules = SENSITIVE_FIELD_WARNING_RULES
+    return (
+        _find_sensitive_fields(text, error_rules),
+        _find_sensitive_fields(text, warning_rules),
+    )
 
 
 
@@ -243,9 +268,11 @@ def rule_fine(fine_name):
         sheets = find_report(fine_name)
         reslut = get_cpt_sql(fine_name).upper()
         yq = find_clientPaging(fine_name)
-        sensitive_fields = find_sensitive_fields(reslut)
-        if sensitive_fields:
-            result.add('fine.report.sensitive_fields', '敏感信息字段', 'err', f"检测到敏感信息字段: {','.join(sensitive_fields)}，请重点确认是否涉及证件或个人隐私信息展示")
+        sensitive_error_fields, sensitive_warning_fields = find_sensitive_fields(reslut)
+        if sensitive_error_fields:
+            result.add('fine.report.sensitive_fields', '敏感信息字段', 'err', f"检测到敏感信息字段: {','.join(sensitive_error_fields)}，请重点确认是否涉及证件或个人隐私信息展示")
+        if sensitive_warning_fields:
+            result.add('fine.report.sensitive_fields', '敏感信息字段', 'warn', f"检测到敏感信息字段: {','.join(sensitive_warning_fields)}，请重点确认是否涉及证件或个人隐私信息展示")
         datekk = find_hardcoded_dates(reslut)
         datekk = ["'" + item + "'" for item in datekk]
         datekk = list(set(datekk))
