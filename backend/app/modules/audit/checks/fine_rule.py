@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # !/bin/python
 from pathlib import Path
+import re
 import xml.etree.ElementTree as ET
 
 from app.modules.metadata.services.public_data import all_role, all_fine
@@ -211,6 +212,20 @@ def normalize_fine_entry_name(value):
     return text.strip()
 
 
+ORG_TREE_DEFAULT_SQL_PATTERN = re.compile(
+    r"""
+    SELECT\s+MIN\s*\(\s*T\s*\.\s*NBJGH\s*\)
+    \s+FROM\s+DWP\s*\.\s*P_SYS_USER_INFO\s+T
+    \s+WHERE\s+T\s*\.\s*GH\s*=\s*'\$\{FINE_USERNAME\}'
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def has_valid_org_tree_default_sql(data):
+    return ORG_TREE_DEFAULT_SQL_PATTERN.search(data) is not None
+
+
 def rule_authority(authority_name,memu_url):
     print('===========rule_authority==========')
     role_lists, fine_lists = all_role(), all_fine()
@@ -258,7 +273,7 @@ def rule_fine(fine_name):
         result.add('fine.report.distinct_review', 'DISTINCT 审查', 'err', '请审核重点检查脚本中的distinct是否必须添加 有无关联出重复数据')
     if '<ATTR DIVIDEMODE="1"/>' in data:
         result.add('fine.report.group_only', '报表列表展示', 'err', '该报表没有列表展示 全是分组，请确认是否需要分组')
-    if "权限机构树" in data and "SELECT MIN(T.NBJGH)  FROM DWP.P_SYS_USER_INFO T WHERE T.GH ='${FINE_USERNAME}" not in data.upper():
+    if "权限机构树" in data and not has_valid_org_tree_default_sql(data):
         result.add('fine.report.org_tree_default', '机构树默认值', 'err', '机构树默认值不对')
     for i in sstb_name:
         if i.upper() in data.upper():
