@@ -143,7 +143,7 @@ export function RecentAuditHistoryPanel({
                               size={12}
                               style={{ color: workflow.color }}
                             />{" "}
-                            {workflow.name}
+                            {workflow.shortName}
                           </span>
                           <span className="rr-who recent-audits-ip-cell">{item.who}</span>
                           <span className="rr-when recent-audits-time-cell">

@@ -71,6 +71,7 @@ test("recent audit panel keeps badge display and raw source title while truncati
     panelSource,
     /className="rr-wf recent-audits-type-cell"\s+title=\{workflow\.name\}/,
   );
+  assert.match(panelSource, /\{workflow\.shortName\}/);
   assert.match(panelSource, /className="rr-who recent-audits-ip-cell"/);
   assert.match(panelSource, /className="rr-when recent-audits-time-cell"/);
 });
@@ -82,7 +83,7 @@ test("app loads runtime source display rules with workflow configuration", () =>
 test("recent audit styles keep source flexible and type narrow", () => {
   assert.match(
     homeStylesSource,
-    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*52px minmax\(220px,\s*1fr\) 132px 104px 156px;[\s\S]*gap:\s*10px;/,
+    /\.recent-head,\s*\.recent-row\s*\{[\s\S]*grid-template-columns:\s*52px minmax\(220px,\s*1fr\) 96px 104px 156px;[\s\S]*gap:\s*10px;/,
   );
   assert.match(
     homeStylesSource,
@@ -98,7 +99,7 @@ test("recent audit styles keep source flexible and type narrow", () => {
   );
   assert.match(
     homeStylesSource,
-    /\.recent-audits-type-cell\s*\{[\s\S]*width:\s*132px;[\s\S]*max-width:\s*132px;[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
+    /\.recent-audits-type-cell\s*\{[\s\S]*width:\s*96px;[\s\S]*max-width:\s*96px;[\s\S]*min-width:\s*0;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;[\s\S]*white-space:\s*nowrap;/,
   );
   assert.match(
     homeStylesSource,

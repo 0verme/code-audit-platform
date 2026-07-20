@@ -512,7 +512,7 @@
 .recent-head,
 .recent-row {
   display: grid;
-  grid-template-columns: 52px minmax(220px, 1fr) 132px 104px 156px;
+  grid-template-columns: 52px minmax(220px, 1fr) 96px 104px 156px;
   gap: 10px;
   align-items: center;
   padding: 9px 12px;
@@ -572,8 +572,8 @@
   white-space: nowrap;
 }
 .recent-audits-type-cell {
-  width: 132px;
-  max-width: 132px;
+  width: 96px;
+  max-width: 96px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
