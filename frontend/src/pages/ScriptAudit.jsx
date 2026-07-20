@@ -1,6 +1,9 @@
 import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
-import { formatSqlReference } from "../utils/resultTablePresentation";
+import {
+  formatSqlReference,
+  sortReferenceTableNames,
+} from "../utils/resultTablePresentation";
 import { scriptAudit } from "../utils/scriptAuditPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
 
@@ -208,7 +211,7 @@ export function ScriptDetailAccordion({ script, detailId, open, onClose }) {
           </div>
 
           <ListBlock title="码值参数表" items={script.codeval} icon="grid" />
-          <ListBlock title="中间临时表" items={script.temp} icon="layers" />
+          <ListBlock title="中间临时表" items={sortReferenceTableNames(script.temp)} icon="layers" />
         </div>
       </div>
     </section>
