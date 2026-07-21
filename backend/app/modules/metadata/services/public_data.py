@@ -2,7 +2,7 @@ import re
 import logging
 import time
 
-from app.db.profiles import DatabaseProfile, get_active_profile, get_metadata_profile
+from app.db.profiles import DatabaseProfile, get_active_profile, get_metadata_profile, get_partition_profile
 from app.modules.lineage.registered_tables import load_result_table_catalog_snapshot
 
 from .audit_metadata_service import (
@@ -144,6 +144,9 @@ def _supports_partition_catalog(profile: DatabaseProfile) -> bool:
 
 def _partition_query_profile() -> tuple[DatabaseProfile, DatabaseProfile, bool]:
     metadata_profile = get_metadata_profile()
+    partition_profile = get_partition_profile()
+    if partition_profile is not None:
+        return metadata_profile, partition_profile, True
     if _supports_partition_catalog(metadata_profile):
         return metadata_profile, metadata_profile, False
     runtime_profile = get_active_profile()
@@ -178,17 +181,25 @@ def _select_partition_sql(sql: str, *, strategy: str):
         )
 
 
+def _is_partition_query_postgres() -> bool:
+    _, query_profile, _ = _partition_query_profile()
+    return query_profile.type == 'postgresql'
+
+
 def all_tab_partitions(tb_name):
     schema_name, table_name = tb_name.upper().split('.', 1)
-    sql = f"""SELECT count(*)
+    if _is_partition_query_postgres():
+        sql = f"""SELECT count(*)
+FROM pg_catalog.pg_inherits i
+JOIN pg_catalog.pg_class p ON i.inhparent = p.oid
+JOIN pg_catalog.pg_namespace n ON p.relnamespace = n.oid
+WHERE n.nspname = '{schema_name.lower()}' AND p.relname = '{table_name.lower()}'"""
+    else:
+        sql = f"""SELECT count(*)
 FROM dba_tab_partitions t
 WHERE SCHEMA IN ('{schema_name}', '{schema_name.lower()}')
 AND TABLE_NAME IN ('{table_name}', '{table_name.lower()}')"""
-    partitions_lists = _select_partition_sql(sql, strategy="single")
-    # partitions_lists_r=[]
-    # for i in partitions_lists:
-    #     partitions_lists_r.append(i[0])
-    return partitions_lists
+    return _select_partition_sql(sql, strategy="single")
 
 
 def all_tab_partition_counts(tb_names):
@@ -204,21 +215,37 @@ def all_tab_partition_counts(tb_names):
     if not normalized_names:
         return {}
 
-    tables_by_schema = {}
-    for schema_name, table_name in normalized_names:
-        tables_by_schema.setdefault(schema_name, []).append(table_name)
-    conditions = ' OR '.join(
-        f"(SCHEMA IN ('{schema_name}', '{schema_name.lower()}') AND TABLE_NAME IN ("
-        f"{', '.join(repr(name) for name in table_names + [name.lower() for name in table_names])}))"
-        for schema_name, table_names in tables_by_schema.items()
-    )
-    sql = f"""
+    counts = {f'{schema_name}.{table_name}': 0 for schema_name, table_name in normalized_names}
+
+    if _is_partition_query_postgres():
+        value_rows = ', '.join(
+            f"('{schema_name.lower()}', '{table_name.lower()}')"
+            for schema_name, table_name in normalized_names
+        )
+        sql = f"""
+SELECT upper(n.nspname), upper(p.relname), count(i.inhrelid)
+FROM pg_catalog.pg_class p
+JOIN pg_catalog.pg_namespace n ON n.oid = p.relnamespace
+LEFT JOIN pg_catalog.pg_inherits i ON i.inhparent = p.oid
+WHERE (n.nspname, p.relname) IN ({value_rows})
+GROUP BY upper(n.nspname), upper(p.relname)
+"""
+    else:
+        tables_by_schema = {}
+        for schema_name, table_name in normalized_names:
+            tables_by_schema.setdefault(schema_name, []).append(table_name)
+        conditions = ' OR '.join(
+            f"(SCHEMA IN ('{schema_name}', '{schema_name.lower()}') AND TABLE_NAME IN ("
+            f"{', '.join(repr(name) for name in table_names + [name.lower() for name in table_names])}))"
+            for schema_name, table_names in tables_by_schema.items()
+        )
+        sql = f"""
 SELECT upper(SCHEMA), upper(TABLE_NAME), count(*)
 FROM dba_tab_partitions
 WHERE {conditions}
 GROUP BY upper(SCHEMA), upper(TABLE_NAME)
 """
-    counts = {f'{schema_name}.{table_name}': 0 for schema_name, table_name in normalized_names}
+
     for row in _select_partition_sql(sql, strategy="batch") or []:
         if len(row) >= 3 and row[0] and row[1]:
             counts[f'{str(row[0]).upper()}.{str(row[1]).upper()}'] = int(row[2] or 0)
