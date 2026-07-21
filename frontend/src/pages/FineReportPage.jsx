@@ -168,13 +168,23 @@ function TxtTableSection({ id, icon, title, section, reg }) {
           </div>
         ) : null}
         {messages.length ? (
-          <div className="fr-issue-list">
-            {sortedMessages.map((msg, index) => (
-              <div key={index} className={`ai-finding ${msg.level}`} style={{ marginBottom: 6 }}>
-                <Sev level={msg.level} />
-                <div className="aif-body"><div className="aif-text">{msg.msg}</div></div>
-              </div>
-            ))}
+          <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th style={{ width: 80 }}>级别</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedMessages.map((msg, index) => (
+                  <tr key={index} className={msg.level === "err" ? "err-row" : msg.level === "warn" ? "warn-row" : ""}>
+                    <td className="severity-cell"><Sev level={msg.level} /></td>
+                    <td>{msg.msg}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : <OkState>校验通过</OkState>}
       </div>

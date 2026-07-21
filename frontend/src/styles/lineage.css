@@ -1,6 +1,6 @@
 .lineage-page { min-width: 0; }
 .lineage-page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: var(--gap); }
-.lineage-page-head h1 { margin: 14px 0 4px; font-size: 24px; }
+.lineage-page-head h1 { margin: 14px 0 4px; font-size: 26px; }
 .lineage-page-head p { margin: 0; }
 .lineage-filters { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .lineage-filters label { display: grid; gap: 5px; color: var(--text-3); font-size: var(--fs-xs); }
@@ -17,7 +17,7 @@
 .cycle-dependency-fallback { padding: 10px 12px; border: 1px solid var(--warn-bd); border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: var(--fs-sm); }
 .lineage-detail { display: flex; flex-direction: column; min-width: 0; max-height: clamp(520px, 76vh, 820px); }
 .lineage-detail-content { min-height: 0; overflow: auto; }
-.lineage-detail h2 { margin: 16px 16px 5px; font-family: var(--font-mono); font-size: 15px; overflow-wrap: anywhere; }
+.lineage-detail h2 { margin: 16px 16px 5px; font-family: var(--font-mono); font-size: 17px; overflow-wrap: anywhere; }
 .lineage-detail-content > p { margin: 0 16px 16px; color: var(--text-2); }
 .lineage-detail dl { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 9px; margin: 16px; font-size: var(--fs-sm); }
 .lineage-detail dt { color: var(--text-3); }

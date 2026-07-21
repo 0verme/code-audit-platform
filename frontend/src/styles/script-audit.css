@@ -21,7 +21,7 @@
 /* combined check + dependency status tags on a row */
 .pas-tags { display: flex; align-items: center; gap: 10px; flex: none; }
 .pas-grp { display: inline-flex; align-items: center; gap: 7px; }
-.pas-grp-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); font-weight: 600; }
+.pas-grp-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); font-weight: 600; }
 .pas-div { width: 1px; height: 16px; background: var(--border); flex: none; }
 
 .pas-chev { color: var(--text-3); flex: none; }
@@ -56,7 +56,7 @@
 .sd-head-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .sd-kicker { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); }
 .sd-head-actions { display: flex; align-items: center; gap: 8px; }
-.sd-script { font-size: 15px; font-weight: 600; color: var(--text); word-break: break-all; line-height: 1.35; }
+.sd-script { font-size: 17px; font-weight: 600; color: var(--text); word-break: break-all; line-height: 1.35; }
 
 .sd-meta { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 13px 0 0; }
 .sd-meta > div { display: grid; grid-template-columns: 72px 1fr; gap: 12px; align-items: baseline; }
@@ -78,7 +78,7 @@
 /* blocks */
 .sd-block { margin-bottom: 22px; }
 .sd-block:last-child { margin-bottom: 0; }
-.sd-num { display: inline-grid; place-items: center; min-width: 18px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--surface-3); color: var(--text-2); font-size: 10px; }
+.sd-num { display: inline-grid; place-items: center; min-width: 18px; height: 17px; padding: 0 5px; border-radius: 9px; background: var(--surface-3); color: var(--text-2); font-size: 11px; }
 .subhead .sd-tally { margin-left: auto; display: inline-flex; gap: 12px; }
 .subhead .sd-tally::before { content: none; }
 /* keep tally on the right, before the trailing rule */
@@ -89,7 +89,7 @@
 .sd-cmp .tbl tbody td { height: auto; padding: 9px 12px; }
 .cmp-val { display: inline-flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .cmp-val .mono { font-size: var(--fs-xs); color: var(--text); }
-.cmp-note { font-size: 10px; padding: 1px 6px; border-radius: 5px; background: var(--surface-3); color: var(--text-3); }
+.cmp-note { font-size: 11px; padding: 1px 6px; border-radius: 5px; background: var(--surface-3); color: var(--text-3); }
 .cmp-empty { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); font-style: normal; }
 .err-row .cmp-empty { color: var(--err-fg); }
 .warn-row .cmp-empty { color: var(--warn-fg); }

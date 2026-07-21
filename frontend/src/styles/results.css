@@ -13,7 +13,7 @@
 .sh-badge.warn { background: var(--warn); box-shadow: 0 4px 14px color-mix(in oklab, var(--warn) 40%, transparent); }
 .sh-text { flex: 1; min-width: 0; }
 .sh-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.sh-title { font-size: 19px; font-weight: 700; margin: 0; letter-spacing: -.3px; white-space: nowrap; }
+.sh-title { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: -.3px; white-space: nowrap; }
 .sh-desc { font-size: var(--fs-sm); color: var(--text-2); margin: 5px 0 10px; }
 .sh-meta { display: flex; align-items: center; gap: 9px; font-size: var(--fs-xs); color: var(--text-2); flex-wrap: wrap; }
 .sh-meta span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -107,7 +107,7 @@
   /* Status hero: stack badge and text vertically */
   .sh-main { flex-direction: column; gap: 10px; padding: var(--pad-card); }
   .sh-badge { width: 42px; height: 42px; border-radius: 10px; }
-  .sh-title { font-size: 16px; }
+  .sh-title { font-size: 18px; }
   .sh-meta { gap: 6px; }
 
   /* Category board: 2-up minimum */
