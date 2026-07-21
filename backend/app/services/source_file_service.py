@@ -14,7 +14,7 @@ def resolve_source_file(task_id: int, relative_path: str):
     try:
         report = json.loads(report_row["report_json"])
         re_service = getattr(audit_engine._mods, "re_service", None) or __import__(
-            "app.modules.audit.checks.re_service", fromlist=["get_export_base"]
+            "app.modules.audit.shared.file_analysis", fromlist=["get_export_base"]
         )
         return resolve_source_download_path(
             task=dict(task), report=report, relative_path=relative_path, export_base=re_service.get_export_base()

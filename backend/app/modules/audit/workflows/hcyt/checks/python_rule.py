@@ -109,15 +109,20 @@ def get_program_table_name(py_url):
     return f'{schame}.{table_name}'
 
 
+_PARTITION_OP_PATTERNS = tuple(
+    re.compile(pattern) for pattern in (
+        r'\bTRUNCATE\s+PARTITION\b',
+        r'\bADD\s+PARTITION\b',
+        r'\bDROP\s+PARTITION\b',
+        r'\bSPLIT\s+PARTITION\b',
+    )
+)
+
+
 def has_partition_rollback_step(text):
     upper_text = text.upper()
     has_rollback_func = re.search(r'\bDEF\s+ROLLBACK_DEAL\s*\(', upper_text) is not None
-    has_partition_op = any(keyword in upper_text for keyword in (
-        'TRUNCATE PARTITION',
-        'ADD PARTITION',
-        'DROP PARTITION',
-        'SPLIT PARTITION',
-    ))
+    has_partition_op = any(pattern.search(upper_text) for pattern in _PARTITION_OP_PATTERNS)
     return has_rollback_func and has_partition_op
 
 
@@ -126,10 +131,11 @@ def rule_sbin(sbin_url):
     result = CheckResult()
     for i in sbin_url:
         data = read_data_from_file(i)
+        name = Path(i).name
         if i.endswith('.py') and '\t' in data:
-            result.add('hcyt.sbin.tab_character', '脚本 TAB 字符', 'err', f'{i}脚本含有TAB键，请替换成空格', file=i)
+            result.add('hcyt.sbin.tab_character', '脚本 TAB 字符', 'err', f'{name}脚本含有TAB键，请替换成空格', file=name)
         if detect_file_format(i) == 'DOS':
-            result.add('hcyt.sbin.dos_format', '脚本文件格式', 'err', f'{i}编码是DOS不是UNIX请修改', file=i)
+            result.add('hcyt.sbin.dos_format', '脚本文件格式', 'err', f'{name}编码是DOS不是UNIX请修改', file=name)
     return result
 
 
@@ -137,13 +143,13 @@ def rule_config(config_names):
     print('===================================rule_config=================================')
     result = CheckResult()
     for i in config_names:
-        yuan = i.split('/')[-1]
+        yuan = Path(i).name
         result.add(
             'hcyt.config.production_source',
             '上下游生产配置',
             'warn',
             f'新增修改上下游源配置: {yuan} 请确认svn配置是否改成生产信息',
-            file=i,
+            file=yuan,
         )
     return result
 
@@ -154,6 +160,7 @@ def rule_recv_json(recv_lists):
     for recv_url in recv_lists:
         data = read_data_from_file(recv_url)
         recv_url = safe_remove_prefix(recv_url)
+        name = Path(recv_url).name
         if '003.DLK_DLO.' in recv_url or '010.DWS_DWF.' in recv_url or 'LOCAL_' in recv_url:
             pass
         elif '"sql" : ""'.upper() not in data.upper():
@@ -161,8 +168,8 @@ def rule_recv_json(recv_lists):
                 'hcyt.recv.custom_export',
                 '自定义卸数配置',
                 'err',
-                f' {recv_url}  是自定义卸数，请重点检查SCHAME是否是生产',
-                file=recv_url,
+                f' {name}  是自定义卸数，请重点检查SCHAME是否是生产',
+                file=name,
             )
     return result
 

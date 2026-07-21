@@ -2,9 +2,9 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from app.modules.audit.checks import re_service
+from app.modules.audit.shared import file_analysis as re_service
 from app.modules.audit.engine import _build_lineage_summary_payload
-from app.modules.audit.hcyt_program_runner import _load_lineage_metadata
+from app.modules.audit.workflows.hcyt.program_runner import _load_lineage_metadata
 
 
 def _row(job, dependency, path):

@@ -3,8 +3,8 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from app.modules.audit.checks.hcyt.schedule_rule import rule_excle_seq
-from app.modules.audit.hcyt_schedule_runner import run_hcyt_schedule
+from app.modules.audit.workflows.hcyt.checks.schedule_rule import rule_excle_seq
+from app.modules.audit.workflows.hcyt.schedule_runner import run_hcyt_schedule
 
 
 def _seq_frame(seq_name):
@@ -16,7 +16,7 @@ def _seq_frame(seq_name):
 
 def test_real_sequence_from_database_row_produces_warning():
     with patch(
-        "app.modules.audit.checks.hcyt.schedule_rule.all_real_seq",
+        "app.modules.audit.workflows.hcyt.checks.schedule_rule.all_real_seq",
         return_value=[("SEQ_REAL_X",)],
     ):
         result = rule_excle_seq(_seq_frame("SEQ_REAL_X"))
@@ -29,7 +29,7 @@ def test_real_sequence_from_database_row_produces_warning():
 
 def test_non_real_sequence_does_not_produce_warning():
     with patch(
-        "app.modules.audit.checks.hcyt.schedule_rule.all_real_seq",
+        "app.modules.audit.workflows.hcyt.checks.schedule_rule.all_real_seq",
         return_value=[("SEQ_REAL_X",)],
     ):
         assert rule_excle_seq(_seq_frame("SEQ_BATCH_X")).count == 0
@@ -37,7 +37,7 @@ def test_non_real_sequence_does_not_produce_warning():
 
 def test_empty_sequence_name_does_not_raise_or_produce_warning():
     with patch(
-        "app.modules.audit.checks.hcyt.schedule_rule.all_real_seq",
+        "app.modules.audit.workflows.hcyt.checks.schedule_rule.all_real_seq",
         return_value=[("SEQ_REAL_X",)],
     ):
         assert rule_excle_seq(_seq_frame(None)).count == 0
@@ -51,7 +51,7 @@ def test_real_sequence_warning_is_added_to_schedule_report():
     )
 
     with patch(
-        "app.modules.audit.checks.hcyt.schedule_rule.all_real_seq",
+        "app.modules.audit.workflows.hcyt.checks.schedule_rule.all_real_seq",
         return_value=[("SEQ_REAL_X",)],
     ):
         report = run_hcyt_schedule(

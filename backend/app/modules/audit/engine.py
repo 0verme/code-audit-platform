@@ -136,19 +136,19 @@ def _load_real_modules():
         try:
             import types as _types
 
-            from app.modules.audit.checks.svn_service import svn_main
-            from app.modules.audit.checks.ai_service import call_sql_llm
-            from app.modules.audit.checks import re_service
+            from app.modules.audit.source.svn import svn_main
+            from app.modules.audit.integrations.ai import call_sql_llm
+            from app.modules.audit.shared import file_analysis as re_service
             from app.modules.metadata.services import audit_metadata_service
-            from app.modules.audit.checks.workspace_service import load_local_workspace
-            from app.modules.audit.checks import hcyt
-            from app.modules.audit.checks import nups_rule
-            from app.modules.audit.checks import fine_rule
+            from app.modules.audit.source.workspace import load_local_workspace
+            from app.modules.audit.workflows.hcyt import checks as hcyt
+            from app.modules.audit.workflows.nups import checks as nups_rule
+            from app.modules.audit.workflows.fine_report import checks as fine_rule
             from app.modules.metadata.services import public_data
             from app.modules.audit.rules.asset_issue import asset_issues_to_unified_issues, dedupe_issues
-            from app.modules.audit.checks.hcyt import ddl_rule as hcyt_ddl_rule
-            from app.modules.audit.checks.hcyt import python_rule as hcyt_python_rule
-            from app.modules.audit.checks.hcyt import sql_rule as hcyt_sql_rule
+            from app.modules.audit.workflows.hcyt.checks import ddl_rule as hcyt_ddl_rule
+            from app.modules.audit.workflows.hcyt.checks import python_rule as hcyt_python_rule
+            from app.modules.audit.workflows.hcyt.checks import sql_rule as hcyt_sql_rule
             from app.modules.lineage.mapping_compat import (
                 load_registered_result_tables,
                 load_result_table_catalog_snapshot,
