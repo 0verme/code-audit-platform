@@ -14,10 +14,7 @@ if str(BACKEND_DIR) not in sys.path:
 from app.db.profiles import (  # noqa: E402
     CONFIG_PATH_ENV,
     DEFAULT_CONFIG_PATH,
-    DEPLOYMENT_MODE_ENV,
     LEGACY_CONFIG_PATH_ENV,
-    METADATA_PROFILE_ENV,
-    PROFILE_ENV,
     ProfileConfigError,
     load_database_config,
     resolve_config_path,
@@ -100,57 +97,169 @@ profiles:
         self.assertIn("connectTimeout=4000", profile.config["jdbc_url"])
         self.assertIn("socketTimeout=99", profile.config["jdbc_url"])
 
-    def test_environment_profile_override(self):
+    def test_explicit_profile_argument_overrides_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
-            with patch.dict(os.environ, {PROFILE_ENV: "local_dws"}, clear=False):
-                profile = resolve_profile(config_path=config_path)
+            profile = resolve_profile("local_dws", config_path=config_path)
         self.assertEqual(profile.name, "local_dws")
 
-    def test_metadata_profile_defaults_to_runtime_profile(self):
+    def test_metadata_profile_defaults_to_runtime_when_not_configured(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp)
-            with patch.dict(
-                os.environ,
-                {PROFILE_ENV: "local_dws", METADATA_PROFILE_ENV: ""},
-                clear=False,
-            ):
-                profile = resolve_metadata_profile(config_path=config_path)
-        self.assertEqual(profile.name, "local_dws")
+            metadata = resolve_metadata_profile(config_path=config_path)
+        # No metadata_profile key → falls back to default_profile (local_pg)
+        self.assertEqual(metadata.name, "local_pg")
 
-    def test_inner_runtime_allows_local_pg_read_only_metadata(self):
-        content = CONFIG_TEXT.replace("local_dws:", "inner_dws:")
+    def test_metadata_profile_from_yaml_key(self):
+        content = """
+default_profile: local_dws
+metadata_profile: local_pg
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  local_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  inner_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+"""
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp, content)
-            with patch.dict(
-                os.environ,
-                {
-                    DEPLOYMENT_MODE_ENV: "production",
-                    PROFILE_ENV: "inner_dws",
-                    METADATA_PROFILE_ENV: "local_pg",
-                },
-                clear=False,
-            ):
-                runtime = resolve_profile(config_path=config_path)
-                metadata = resolve_metadata_profile(config_path=config_path)
+            runtime = resolve_profile(config_path=config_path)
+            metadata = resolve_metadata_profile(config_path=config_path)
+        self.assertEqual((runtime.name, runtime.type), ("local_dws", "dws"))
+        self.assertEqual((metadata.name, metadata.type), ("local_pg", "postgresql"))
+
+    def test_deployment_mode_requires_inner_dws(self):
+        content = """
+default_profile: inner_dws
+deployment_mode: production
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  inner_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            runtime = resolve_profile(config_path=config_path)
+            metadata = resolve_metadata_profile(config_path=config_path)
+        self.assertEqual((runtime.name, runtime.type), ("inner_dws", "dws"))
+        self.assertEqual((metadata.name, metadata.type), ("inner_dws", "dws"))
+
+    def test_deployment_mode_with_metadata_override(self):
+        content = """
+default_profile: inner_dws
+metadata_profile: local_pg
+deployment_mode: production
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  inner_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            runtime = resolve_profile(config_path=config_path)
+            metadata = resolve_metadata_profile(config_path=config_path)
         self.assertEqual((runtime.name, runtime.type), ("inner_dws", "dws"))
         self.assertEqual((metadata.name, metadata.type), ("local_pg", "postgresql"))
 
-    def test_metadata_profile_does_not_bypass_runtime_deployment_validation(self):
-        content = CONFIG_TEXT.replace("local_dws:", "inner_dws:")
+    def test_deployment_mode_rejects_non_inner_dws_runtime(self):
+        content = """
+default_profile: local_pg
+deployment_mode: inner
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  inner_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+"""
         with tempfile.TemporaryDirectory() as tmp:
             config_path = self.write_config(tmp, content)
-            with patch.dict(
-                os.environ,
-                {
-                    DEPLOYMENT_MODE_ENV: "inner",
-                    PROFILE_ENV: "local_pg",
-                    METADATA_PROFILE_ENV: "inner_dws",
-                },
-                clear=False,
-            ):
-                with self.assertRaisesRegex(ProfileConfigError, "requires database profile 'inner_dws'"):
-                    resolve_metadata_profile(config_path=config_path)
+            with self.assertRaisesRegex(ProfileConfigError, "requires database profile 'inner_dws'"):
+                resolve_profile(config_path=config_path)
+
+    def test_metadata_validation_does_not_bypass_runtime_deployment_check(self):
+        content = """
+default_profile: local_pg
+metadata_profile: inner_dws
+deployment_mode: inner
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  inner_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config_path = self.write_config(tmp, content)
+            with self.assertRaisesRegex(ProfileConfigError, "requires database profile 'inner_dws'"):
+                resolve_metadata_profile(config_path=config_path)
 
     def test_default_path_is_backend_configs_database_yaml_independent_of_cwd(self):
         expected = BACKEND_DIR / "configs" / "database.yaml"
@@ -242,14 +351,33 @@ profiles:
                 resolve_profile(config_path=config_path)
 
     def test_missing_profile_error_includes_source_and_available_profiles(self):
+        content = """
+default_profile: nonexistent
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+  local_dws:
+    type: dws
+    host: 127.0.0.1
+    port: 8000
+    database: code_audit
+    username: change_me
+    password: change_me
+    schema: dwp
+"""
         with tempfile.TemporaryDirectory() as tmp:
-            config_path = self.write_config(tmp)
-            with patch.dict(os.environ, {PROFILE_ENV: "profiles"}, clear=False):
-                with self.assertRaisesRegex(
-                    ProfileConfigError,
-                    r"Database profile not found: profiles \(source: CODE_AUDIT_DB_PROFILE; available: local_dws, local_pg; supported types: \[postgresql, dws\]\)",
-                ):
-                    resolve_profile(config_path=config_path)
+            config_path = self.write_config(tmp, content)
+            with self.assertRaisesRegex(
+                ProfileConfigError,
+                r"Database profile not found: nonexistent \(source: default_profile; available: local_dws, local_pg; supported types: \[postgresql, dws\]\)",
+            ):
+                resolve_profile(config_path=config_path)
 
     def test_missing_default_config_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -257,7 +385,7 @@ profiles:
             with patch("app.db.profiles.DEFAULT_CONFIG_PATH", missing_path):
                 with patch.dict(
                     os.environ,
-                    {CONFIG_PATH_ENV: "", LEGACY_CONFIG_PATH_ENV: "", PROFILE_ENV: ""},
+                    {CONFIG_PATH_ENV: "", LEGACY_CONFIG_PATH_ENV: ""},
                     clear=False,
                 ):
                     with self.assertRaisesRegex(ProfileConfigError, rf"does not exist: {re.escape(str(missing_path))}"):
@@ -295,13 +423,6 @@ profiles:
                 profile = resolve_profile(config_path=config_path)
         self.assertEqual(profile.name, "inner_dws")
         self.assertEqual(profile.config["host"], "dws.example.internal")
-
-    def test_inner_mode_rejects_non_dws_or_non_inner_profile(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            config_path = self.write_config(tmp)
-            with patch.dict(os.environ, {DEPLOYMENT_MODE_ENV: "inner"}, clear=False):
-                with self.assertRaisesRegex(ProfileConfigError, "requires database profile 'inner_dws'"):
-                    resolve_profile(config_path=config_path)
 
 
 if __name__ == "__main__":

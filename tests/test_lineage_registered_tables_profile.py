@@ -148,8 +148,7 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
             "workspace_root": "",
         }
 
-        with patch.dict(os.environ, {"CODE_AUDIT_DB_PROFILE": "local_pg"}, clear=False):
-            with patch.object(audit_engine, "get_active_profile", return_value=types.SimpleNamespace(name="local_pg")):
+        with patch.object(audit_engine, "get_active_profile", return_value=types.SimpleNamespace(name="local_pg")):
                 report = run.run_fine(svn_result)
 
         self.assertEqual(report["task"]["status"], "pass")

@@ -1,7 +1,6 @@
 from .profiles import (
     CONFIG_PATH_ENV,
     LEGACY_CONFIG_PATH_ENV,
-    PROFILE_ENV,
     DatabaseProfile,
     ProfileConfigError,
     get_active_profile,
@@ -53,7 +52,6 @@ __all__ = [
     "CONFIG_PATH_ENV",
     "LEGACY_CONFIG_PATH_ENV",
     "DB_PATH",
-    "PROFILE_ENV",
     "DatabaseProfile",
     "ProfileConfigError",
     "TASK_COLUMNS",

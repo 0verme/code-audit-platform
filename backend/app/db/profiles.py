@@ -15,9 +15,6 @@ DEFAULT_CONFIG_PATH = DEFAULT_DATABASE_CONFIG
 
 CONFIG_PATH_ENV = "AUDIT_DATABASE_CONFIG"
 LEGACY_CONFIG_PATH_ENV = "CODE_AUDIT_DB_CONFIG_PATH"
-PROFILE_ENV = "CODE_AUDIT_DB_PROFILE"
-METADATA_PROFILE_ENV = "CODE_AUDIT_METADATA_DB_PROFILE"
-DEPLOYMENT_MODE_ENV = "CODE_AUDIT_DEPLOYMENT_MODE"
 SUPPORTED_TYPES = {"postgresql", "dws"}
 POSTGRES_REQUIRED_PROFILE_FIELDS = ("type", "host", "port", "database", "username", "password", "schema")
 DWS_CONNECTION_FIELDS = ("host", "port", "database", "schema")
@@ -113,7 +110,7 @@ def _normalize_dws_config(config: dict[str, Any]) -> None:
     config.setdefault("connect_timeout", 30)
     config.setdefault("statement_timeout_ms", 120000)
     config.setdefault("socket_timeout", max(1, int(config["statement_timeout_ms"]) // 1000))
-    jar_path = Path(config.get("jar_path") or os.getenv("AUDIT_DWS_JAR_PATH") or DEFAULT_DWS_JAR_PATH)
+    jar_path = Path(config.get("jar_path") or DEFAULT_DWS_JAR_PATH)
     if not jar_path.is_absolute():
         jar_path = PROJECT_ROOT / jar_path
     config["jar_path"] = str(jar_path)
@@ -134,13 +131,13 @@ def _normalize_dws_config(config: dict[str, Any]) -> None:
     )
 
 
-def _validate_deployment_profile(profile: DatabaseProfile) -> None:
-    deployment_mode = os.getenv(DEPLOYMENT_MODE_ENV, "").strip().lower()
+def _validate_deployment_profile(profile: DatabaseProfile, config: dict[str, Any]) -> None:
+    deployment_mode = str(config.get("deployment_mode") or "").strip().lower()
     if deployment_mode not in {"inner", "production"}:
         return
     if profile.name != "inner_dws" or profile.type != "dws":
         raise ProfileConfigError(
-            f"{DEPLOYMENT_MODE_ENV}={deployment_mode} requires database profile 'inner_dws' with type 'dws'; "
+            f"deployment_mode={deployment_mode} requires database profile 'inner_dws' with type 'dws'; "
             "refusing to start with another profile."
         )
 
@@ -176,13 +173,11 @@ def _resolve_profile(
     profile_name: str | None = None,
     *,
     config_path: str | os.PathLike[str] | None = None,
-    env_name: str = PROFILE_ENV,
     validate_deployment: bool = True,
 ) -> DatabaseProfile:
     data = load_database_config(config_path)
     profiles = data["profiles"]
-    env_profile_name = os.getenv(env_name)
-    selected_name = profile_name or env_profile_name or data.get("default_profile")
+    selected_name = profile_name or data.get("default_profile")
     if not selected_name:
         if len(profiles) == 1:
             selected_name = next(iter(profiles))
@@ -191,16 +186,10 @@ def _resolve_profile(
     selected_name = str(selected_name).strip()
     if selected_name not in profiles:
         available_profiles = ", ".join(sorted(str(name) for name in profiles)) or "<none>"
-        source = "argument" if profile_name else env_name if env_profile_name else "default_profile"
-        hint = ""
-        if selected_name == "profiles":
-            hint = (
-                f" Hint: '{selected_name}' is the YAML section name, not a profile name. "
-                f"Set {env_name} to one of: {available_profiles}"
-            )
+        source = "argument" if profile_name else "default_profile"
         raise ProfileConfigError(
             f"Database profile not found: {selected_name} (source: {source}; available: {available_profiles}; "
-            f"supported types: [{SUPPORTED_TYPES_TEXT}]).{hint}"
+            f"supported types: [{SUPPORTED_TYPES_TEXT}])."
         )
 
     raw_config = profiles[selected_name]
@@ -237,7 +226,7 @@ def _resolve_profile(
             ) from exc
     profile = DatabaseProfile(name=selected_name, type=db_type, config=config)
     if validate_deployment:
-        _validate_deployment_profile(profile)
+        _validate_deployment_profile(profile, data)
     return profile
 
 
@@ -257,12 +246,12 @@ def resolve_metadata_profile(
 ) -> DatabaseProfile:
     """Resolve the read-only audit metadata profile without weakening runtime validation."""
     runtime_profile = resolve_profile(config_path=config_path)
-    configured_name = profile_name or os.getenv(METADATA_PROFILE_ENV)
+    data = load_database_config(config_path)
+    configured_name = profile_name or data.get("metadata_profile")
     if configured_name:
         metadata_profile = _resolve_profile(
-            configured_name,
+            str(configured_name),
             config_path=config_path,
-            env_name=METADATA_PROFILE_ENV,
             validate_deployment=False,
         )
     else:
@@ -288,3 +277,17 @@ def get_active_profile() -> DatabaseProfile:
 
 def get_metadata_profile() -> DatabaseProfile:
     return resolve_metadata_profile()
+
+
+def get_partition_profile() -> DatabaseProfile | None:
+    """Resolve the dedicated partition-metadata profile when configured.
+
+    Returns the profile named by ``partition_profile`` in *database.yaml*,
+    or ``None`` when the key is absent.  Callers should fall back to the
+    standard metadata / runtime chain in that case.
+    """
+    config = load_database_config()
+    name = config.get("partition_profile")
+    if not name:
+        return None
+    return resolve_profile(str(name))

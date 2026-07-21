@@ -1,17 +1,38 @@
-# Inner-network DWS JDBC template. Copy to backend/configs/database.yaml on the deployment host.
-# ${NAME} values are expanded from the process environment; do not commit actual credentials.
+# Database configuration template. Copy to backend/configs/database.yaml on the
+# deployment host and fill in real values.  Do not commit backend/configs/database.yaml.
+#
+# All database roles are configured here — no environment variables needed.
+#   default_profile   — runtime (read/write) database
+#   metadata_profile  — read-only audit metadata (optional; defaults to runtime)
+#   partition_profile — partition-metadata queries (optional; defaults to metadata
+#                        then runtime)
+#
+# Each named profile under `profiles` can be any supported type:
+#   postgresql | dws
+
 default_profile: inner_dws
+
+# Optional: override with a different profile for read-only audit metadata.
+# metadata_profile: local_pg
+
+# Optional: dedicated profile for partition-metadata queries (dba_tab_partitions).
+# partition_profile: dev_partition_dws
+
+# Optional: restrict startup to a specific database profile.
+#   inner      — inner-network DWS (requires profile "inner_dws" with type "dws")
+#   production — production DWS (requires profile "inner_dws" with type "dws")
+# deployment_mode: inner
 
 profiles:
   inner_dws:
     type: dws
-    host: ${AUDIT_DWS_HOST}
-    port: ${AUDIT_DWS_PORT}
-    database: ${AUDIT_DWS_DATABASE}
-    username: ${AUDIT_DWS_USER}
-    password: ${AUDIT_DWS_PASSWORD}
-    schema: ${AUDIT_DWS_SCHEMA}
-    # jdbc_url is optional when the legacy host/port/database/schema values above are set.
+    host: 10.1.1.123
+    port: 25308
+    database: dws_db
+    username: audit_app
+    password: change_me
+    schema: dwp
+    # jdbc_url is optional when host/port/database/schema above are set.
     # jdbc_url: jdbc:gaussdb://dws.example.internal:8000/code_audit?currentSchema=dwp
     driver: com.huawei.gauss200.jdbc.Driver
     jar_path: backend/resources/jars/gaussdb200.jar
@@ -36,17 +57,17 @@ profiles:
   # Optional read-only PostgreSQL metadata mirror. Runtime writes remain on inner_dws.
   local_pg:
     type: postgresql
-    host: ${AUDIT_METADATA_PG_HOST}
-    port: ${AUDIT_METADATA_PG_PORT}
-    database: ${AUDIT_METADATA_PG_DATABASE}
-    username: ${AUDIT_METADATA_PG_USER}
-    password: ${AUDIT_METADATA_PG_PASSWORD}
-    schema: ${AUDIT_METADATA_PG_SCHEMA}
+    host: 127.0.0.1
+    port: 5432
+    database: code_audit
+    username: audit_app
+    password: change_me
+    schema: dwp
     connect_timeout: 5
     statement_timeout_ms: 30000
     metadata:
       schema: dwp
-      # This mirror has no dba_tab_partitions; only partition queries fall back to runtime DWS.
+      # This mirror has no dba_tab_partitions; partition queries fall back.
       partition_catalog: false
       tables:
         jobs: p_job_hjj
