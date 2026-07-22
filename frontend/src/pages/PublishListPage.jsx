@@ -113,7 +113,11 @@ export default function PublishListPage() {
                       <td><span className={`publish-list-badge ${statusMeta.tone}`}>{statusMeta.label}</span></td>
                       <td>{item.date || selectedDate}{item.time ? ` ${item.time}` : ""}</td>
                       <td>{item.source || "-"}</td>
-                      <td>{item.detailUrl ? <a className="publish-list-link" href={item.detailUrl} target="_blank" rel="noreferrer">查看</a> : <span className="muted">-</span>}</td>
+                      <td>
+                        {item.detailUrl ? <a className="publish-list-link" href={item.detailUrl} target="_blank" rel="noreferrer">查看</a> : item.remark ? (
+                          <details className="publish-list-detail"><summary>查看</summary><div>{item.remark}</div></details>
+                        ) : <span className="muted">-</span>}
+                      </td>
                     </tr>
                   );
                 })}

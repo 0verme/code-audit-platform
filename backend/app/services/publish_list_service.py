@@ -9,17 +9,18 @@ from app.db.sql_runner import SQLRunner
 
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_FIELDS = ("id", "type", "owner", "title", "status", "date", "time", "source", "detail_url")
+_FIELDS = ("id", "type", "owner", "title", "status", "date", "time", "source", "remark", "detail_url")
 _REQUIRED_FIELDS = ("id", "title", "status", "date")
 _COLUMN_CANDIDATES = {
-    "id": ("requirement_id", "requirementid", "req_id", "reqid", "demand_id", "id"),
-    "type": ("requirement_type", "req_type", "demand_type", "type"),
-    "owner": ("developer", "developer_name", "owner", "creator", "created_by", "submitter"),
-    "title": ("requirement_title", "req_title", "demand_title", "title", "name"),
-    "status": ("publish_status", "review_status", "status", "state"),
-    "date": ("planned_publish_date", "plan_publish_date", "publish_date", "release_date", "online_date"),
+    "id": ("taskid", "requirement_id", "requirementid", "req_id", "reqid", "demand_id", "id"),
+    "type": ("tasktype", "requirement_type", "req_type", "demand_type", "type"),
+    "owner": ("taskuer", "taskuser", "developer", "developer_name", "owner", "creator", "created_by", "submitter"),
+    "title": ("tasktitle", "requirement_title", "req_title", "demand_title", "title", "name"),
+    "status": ("taskstatus", "publish_status", "review_status", "status", "state"),
+    "date": ("taskdate", "planned_publish_date", "plan_publish_date", "publish_date", "release_date", "online_date"),
     "time": ("planned_publish_time", "plan_publish_time", "publish_time", "release_time", "online_time"),
-    "source": ("source", "source_system", "origin"),
+    "source": ("tasksource", "source", "source_system", "origin"),
+    "remark": ("taskremark", "remark", "remarks", "description"),
     "detail_url": ("detail_url", "url", "link"),
 }
 _STATUS_ALIASES = {
@@ -133,6 +134,7 @@ def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRun
             "date": _iso_value(row.get("date"))[:10],
             "time": _iso_value(row.get("time")),
             "source": _iso_value(row.get("source")),
+            "remark": _iso_value(row.get("remark")),
             "detailUrl": _safe_detail_url(row.get("detail_url")),
         }
         for row in rows

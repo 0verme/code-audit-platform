@@ -29,6 +29,10 @@ class FakeProfile:
     }
 
 
+class AutoMappedProfile:
+    config = {"schema": "dwp"}
+
+
 class FakeRunner:
     def __init__(self, columns, rows):
         self.columns = columns
@@ -43,13 +47,25 @@ class FakeRunner:
 
 
 class PublishListServiceTests(unittest.TestCase):
+    def test_auto_maps_task_columns_from_test_table_schema(self):
+        columns = ["taskid", "tasktype", "taskuer", "tasktitle", "taskstatus", "taskdate", "tasksource", "taskremark"]
+        runner = FakeRunner(columns, [])
+
+        get_publish_list(date(2026, 7, 22), profile=AutoMappedProfile(), runner=runner)
+
+        sql = runner.queries[1][0]
+        self.assertIn("taskid AS id", sql)
+        self.assertIn("taskuer AS owner", sql)
+        self.assertIn("taskremark AS remark", sql)
+        self.assertIn("CAST(taskdate AS DATE)", sql)
+
     def test_maps_profile_columns_and_normalizes_rows(self):
         runner = FakeRunner(
-            ["req_id", "req_title", "publish_status", "publish_date", "developer"],
+            ["req_id", "req_title", "publish_status", "publish_date", "developer", "taskremark"],
             [{
                 "id": "REQ-1", "type": None, "owner": "张三", "title": "上线需求",
                 "status": "已通过", "date": date(2026, 7, 22), "time": None,
-                "source": None, "detail_url": "javascript:alert(1)",
+                "source": None, "remark": "测试备注", "detail_url": "javascript:alert(1)",
             }],
         )
         payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
@@ -57,6 +73,7 @@ class PublishListServiceTests(unittest.TestCase):
         self.assertEqual(payload["items"][0]["status"], "passed")
         self.assertEqual(payload["items"][0]["date"], "2026-07-22")
         self.assertEqual(payload["items"][0]["detailUrl"], "")
+        self.assertEqual(payload["items"][0]["remark"], "测试备注")
         self.assertEqual(payload["summary"]["passed"], 1)
         self.assertIn("FROM dwp.p_publishlist", runner.queries[1][0])
         self.assertEqual(runner.queries[1][1], ("2026-07-22",))

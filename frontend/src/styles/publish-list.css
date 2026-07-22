@@ -44,6 +44,11 @@
 .publish-list-badge.launched { background: var(--accent-weak); color: var(--accent); }
 .publish-list-link { display: inline-flex; padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--text-2); text-decoration: none; }
 .publish-list-link:hover { border-color: var(--accent-line); color: var(--accent); }
+.publish-list-detail { position: relative; }
+.publish-list-detail summary { display: inline-flex; padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--text-2); cursor: pointer; list-style: none; }
+.publish-list-detail summary::-webkit-details-marker { display: none; }
+.publish-list-detail[open] summary { border-color: var(--accent-line); color: var(--accent); }
+.publish-list-detail div { position: absolute; right: 0; z-index: 20; width: min(320px, 70vw); margin-top: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--raised); box-shadow: var(--shadow-pop); color: var(--text); line-height: 1.55; white-space: normal; }
 .publish-list-message { min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 32px; color: var(--text-3); text-align: center; }
 .publish-list-message strong { color: var(--text-2); }
 .publish-list-message.error strong { color: var(--err-fg); }
