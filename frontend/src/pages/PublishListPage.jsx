@@ -110,7 +110,7 @@ export default function PublishListPage() {
                       <td>{item.type || "-"}</td>
                       <td><span className="publish-list-owner"><i>{ownerInitial(item.owner)}</i>{item.owner || "-"}</span></td>
                       <td><strong className="publish-list-title">{item.title || "-"}</strong></td>
-                      <td><span className={`publish-list-badge ${statusMeta.tone}`}>{statusMeta.label}</span></td>
+                      <td><span className={`publish-list-badge ${statusMeta.tone}`}>{item.statusLabel || statusMeta.label}</span></td>
                       <td>{item.date || selectedDate}{item.time ? ` ${item.time}` : ""}</td>
                       <td>{item.source || "-"}</td>
                       <td>

@@ -83,6 +83,25 @@ class PublishListServiceTests(unittest.TestCase):
         with self.assertRaises(PublishListConfigurationError):
             get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
 
+    def test_normalizes_business_status_codes(self):
+        rows = []
+        for index, status in enumerate(("生产待审", "运行待审", "开发待审", "等待上线"), start=1):
+            rows.append({
+                "id": f"REQ-{index}", "type": None, "owner": None, "title": "演示",
+                "status": status, "date": date(2026, 7, 22), "time": None,
+                "source": None, "remark": None, "detail_url": None,
+            })
+        runner = FakeRunner(
+            ["req_id", "req_title", "publish_status", "publish_date", "developer"],
+            rows,
+        )
+
+        payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
+
+        self.assertEqual([item["status"] for item in payload["items"]], ["pending", "pending", "pending", "passed"])
+        self.assertEqual(payload["summary"]["pending"], 3)
+        self.assertEqual(payload["summary"]["passed"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

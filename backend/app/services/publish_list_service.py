@@ -24,9 +24,9 @@ _COLUMN_CANDIDATES = {
     "detail_url": ("detail_url", "url", "link"),
 }
 _STATUS_ALIASES = {
-    "pending": "pending", "待审核": "pending", "待审查": "pending", "0": "pending",
+    "pending": "pending", "待审核": "pending", "待审查": "pending", "生产待审": "pending", "运行待审": "pending", "开发待审": "pending", "0": "pending",
     "reviewing": "reviewing", "审核中": "reviewing", "审查中": "reviewing", "1": "reviewing",
-    "passed": "passed", "approved": "passed", "已通过": "passed", "2": "passed",
+    "passed": "passed", "approved": "passed", "已通过": "passed", "等待上线": "passed", "2": "passed",
     "rejected": "rejected", "已驳回": "rejected", "驳回": "rejected", "3": "rejected",
     "launched": "launched", "published": "launched", "已上线": "launched", "已发布": "launched", "4": "launched",
 }
