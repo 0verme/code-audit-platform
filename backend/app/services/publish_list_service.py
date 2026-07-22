@@ -30,6 +30,8 @@ _STATUS_ALIASES = {
     "rejected": "rejected", "已驳回": "rejected", "驳回": "rejected", "3": "rejected",
     "launched": "launched", "published": "launched", "已上线": "launched", "已发布": "launched", "4": "launched",
 }
+_STATUS_SORT_ORDER = {"等待上线": 0, "审核中": 1}
+_TYPE_SORT_ORDER = {"开发维护": 0, "数据修改": 1, "运行维护": 2}
 
 
 class PublishListConfigurationError(RuntimeError):
@@ -139,6 +141,12 @@ def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRun
             "remark": _iso_value(row.get("remark")),
             "detailUrl": _safe_detail_url(row.get("detail_url")),
         })
+    items.sort(
+        key=lambda item: (
+            _STATUS_SORT_ORDER.get(item["statusLabel"], len(_STATUS_SORT_ORDER)),
+            _TYPE_SORT_ORDER.get(item["type"], len(_TYPE_SORT_ORDER)),
+        )
+    )
     summary = {key: 0 for key in ("pending", "reviewing", "passed", "rejected", "launched", "unknown")}
     for item in items:
         summary[item["status"]] += 1

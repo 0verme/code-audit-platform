@@ -98,17 +98,36 @@ class PublishListServiceTests(unittest.TestCase):
 
         payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
 
+        statuses_by_id = {item["id"]: item["status"] for item in payload["items"]}
+        self.assertEqual(statuses_by_id, {
+            "REQ-1": "reviewing", "REQ-2": "reviewing", "REQ-3": "reviewing",
+            "REQ-4": "reviewing", "REQ-5": "reviewing", "REQ-6": "passed",
+        })
         self.assertEqual(
-            [item["status"] for item in payload["items"]],
-            ["reviewing", "reviewing", "reviewing", "reviewing", "reviewing", "passed"],
-        )
-        self.assertEqual(
-            [item["statusLabel"] for item in payload["items"][:-1]],
+            [item["statusLabel"] for item in payload["items"] if item["status"] == "reviewing"],
             ["审核中"] * 5,
         )
         self.assertEqual(payload["summary"]["pending"], 0)
         self.assertEqual(payload["summary"]["reviewing"], 5)
         self.assertEqual(payload["summary"]["passed"], 1)
+
+    def test_sorts_by_business_status_then_requirement_type(self):
+        rows = [
+            {"id": "REQ-1", "type": "运行维护", "owner": None, "title": "演示", "status": "审核中", "date": date(2026, 7, 22), "time": None, "source": None, "remark": None, "detail_url": None},
+            {"id": "REQ-2", "type": "数据修改", "owner": None, "title": "演示", "status": "等待上线", "date": date(2026, 7, 22), "time": None, "source": None, "remark": None, "detail_url": None},
+            {"id": "REQ-3", "type": "开发维护", "owner": None, "title": "演示", "status": "等待上线", "date": date(2026, 7, 22), "time": None, "source": None, "remark": None, "detail_url": None},
+            {"id": "REQ-4", "type": "数据修改", "owner": None, "title": "演示", "status": "开发待审", "date": date(2026, 7, 22), "time": None, "source": None, "remark": None, "detail_url": None},
+            {"id": "REQ-5", "type": "开发维护", "owner": None, "title": "演示", "status": "开发待审", "date": date(2026, 7, 22), "time": None, "source": None, "remark": None, "detail_url": None},
+            {"id": "REQ-6", "type": "开发维护", "owner": None, "title": "演示", "status": "已上线", "date": date(2026, 7, 22), "time": None, "source": None, "remark": None, "detail_url": None},
+        ]
+        runner = FakeRunner(
+            ["req_id", "req_title", "publish_status", "publish_date", "developer", "requirement_type"],
+            rows,
+        )
+
+        payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
+
+        self.assertEqual([item["id"] for item in payload["items"]], ["REQ-3", "REQ-2", "REQ-5", "REQ-4", "REQ-1", "REQ-6"])
 
 
 if __name__ == "__main__":
