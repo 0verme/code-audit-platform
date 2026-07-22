@@ -45,4 +45,8 @@ export const reviewService = {
   getAuditWorkflows() {
     return apiClient.get(API_PATHS.auditWorkflows);
   },
+  getPublishList(date) {
+    const query = new URLSearchParams({ date });
+    return apiClient.get(`${API_PATHS.publishList}?${query}`);
+  },
 };

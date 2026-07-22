@@ -17,6 +17,7 @@ const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({
 const FineReportResultsPage = lazy(() => import("./pages/FineReportPage").then((module) => ({ default: module.FineReportResultsPage })));
 const NupsResultsPage = lazy(() => import("./pages/NupsPage").then((module) => ({ default: module.NupsResultsPage })));
 const LineagePage = lazy(() => import("./pages/LineagePage").then((module) => ({ default: module.LineagePage })));
+const PublishListPage = lazy(() => import("./pages/PublishListPage"));
 const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
   { id: "changes", label: "变更文件", icon: "git", get: (data) => getNupsChanges(data), neutral: true },
@@ -384,6 +385,9 @@ export default function App() {
     );
 
   const page = useMemo(() => {
+    if (view === "publish") {
+      return <Suspense fallback={<PageFallback />}><PublishListPage /></Suspense>;
+    }
     if (view === "home") {
       return (
         <Suspense fallback={<PageFallback />}>
@@ -470,7 +474,12 @@ export default function App() {
       ) : null}
       <div className="main">
         <header className="topbar">
-          {view !== "home" ? (
+          {view === "publish" ? (
+            <>
+              <button className="btn ghost sm" onClick={() => setView("home")}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 提交审查</button>
+              <div className="crumb"><span className="seg cur">首页 / 当日上线清单</span></div>
+            </>
+          ) : view !== "home" ? (
             <>
               <button className="iconbtn mobile-menu-btn" title="导航菜单" onClick={() => setRailOpen((o) => !o)}>
                 <Icon name="menu" size={16} />
@@ -487,6 +496,7 @@ export default function App() {
             <div className="crumb"><span className="seg cur">首页 / 提交审查</span></div>
           )}
           <span className="topbar-spacer" />
+          {view !== "publish" ? <button className="btn ghost sm" onClick={() => setView("publish")}><Icon name="calendar" size={14} /> 当日上线</button> : null}
           <ThemeToggle
             theme={theme}
             onToggle={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
@@ -494,7 +504,7 @@ export default function App() {
         </header>
 
         <div className={`content${isTaskStateView ? " content-task-state" : ""}`} ref={contentRef}>
-          {view === "home"
+          {view === "home" || view === "publish"
             ? page
             : view === "lineage"
               ? <div className="content-inner">{page}</div>

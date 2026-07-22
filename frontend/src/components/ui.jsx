@@ -33,6 +33,9 @@ export const Ic = {
   shield: <path d="M12 3l8 3v5.5c0 4.6-3.2 7.7-8 9.2-4.8-1.5-8-4.6-8-9.2V6z" />,
   screen: <><rect x="3" y="4" width="18" height="13" rx="1.5" /><path d="M8 21h8M12 17v4" /><path d="M7 13l3-3 2 2 4-4" /></>,
   menu: <><path d="M3 6h18M3 12h18M3 18h18" /></>,
+  calendar: <><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M8 2v4M16 2v4M3 10h18" /></>,
+  refresh: <><path d="M20 6v5h-5" /><path d="M4 18v-5h5" /><path d="M18.4 9A7 7 0 0 0 6.2 6.2L4 8M5.6 15A7 7 0 0 0 17.8 17.8L20 16" /></>,
+  list: <><path d="M9 6h12M9 12h12M9 18h12" /><path d="M4 6h.01M4 12h.01M4 18h.01" /></>,
 };
 
 export function Icon({ name, size = 16, stroke = 1.8, className = "", style }) {
