@@ -85,7 +85,7 @@ class PublishListServiceTests(unittest.TestCase):
 
     def test_normalizes_business_status_codes(self):
         rows = []
-        for index, status in enumerate(("生产待审", "运行待审", "开发待审", "等待上线"), start=1):
+        for index, status in enumerate(("生产待审", "运行待审", "开发待审", "待审核", "待审查", "等待上线"), start=1):
             rows.append({
                 "id": f"REQ-{index}", "type": None, "owner": None, "title": "演示",
                 "status": status, "date": date(2026, 7, 22), "time": None,
@@ -98,8 +98,16 @@ class PublishListServiceTests(unittest.TestCase):
 
         payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
 
-        self.assertEqual([item["status"] for item in payload["items"]], ["pending", "pending", "pending", "passed"])
-        self.assertEqual(payload["summary"]["pending"], 3)
+        self.assertEqual(
+            [item["status"] for item in payload["items"]],
+            ["reviewing", "reviewing", "reviewing", "reviewing", "reviewing", "passed"],
+        )
+        self.assertEqual(
+            [item["statusLabel"] for item in payload["items"][:-1]],
+            ["审核中"] * 5,
+        )
+        self.assertEqual(payload["summary"]["pending"], 0)
+        self.assertEqual(payload["summary"]["reviewing"], 5)
         self.assertEqual(payload["summary"]["passed"], 1)
 
 

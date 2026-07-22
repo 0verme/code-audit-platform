@@ -24,7 +24,7 @@ _COLUMN_CANDIDATES = {
     "detail_url": ("detail_url", "url", "link"),
 }
 _STATUS_ALIASES = {
-    "pending": "pending", "待审核": "pending", "待审查": "pending", "生产待审": "pending", "运行待审": "pending", "开发待审": "pending", "0": "pending",
+    "pending": "pending", "待审核": "reviewing", "待审查": "reviewing", "生产待审": "reviewing", "运行待审": "reviewing", "开发待审": "reviewing", "0": "reviewing",
     "reviewing": "reviewing", "审核中": "reviewing", "审查中": "reviewing", "1": "reviewing",
     "passed": "passed", "approved": "passed", "已通过": "passed", "等待上线": "passed", "2": "passed",
     "rejected": "rejected", "已驳回": "rejected", "驳回": "rejected", "3": "rejected",
@@ -123,22 +123,22 @@ def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRun
         f"WHERE CAST({columns['date']} AS DATE) = ? ORDER BY {order_column}, {columns['id']} LIMIT 1000"
     )
     rows = runner.query_all(sql, (selected_date.isoformat(),))
-    items = [
-        {
+    items = []
+    for row in rows:
+        normalized_status = _normalize_status(row.get("status"))
+        items.append({
             "id": _iso_value(row.get("id")),
             "type": _iso_value(row.get("type")),
             "owner": _iso_value(row.get("owner")),
             "title": _iso_value(row.get("title")),
-            "status": _normalize_status(row.get("status")),
-            "statusLabel": _iso_value(row.get("status")),
+            "status": normalized_status,
+            "statusLabel": "审核中" if normalized_status == "reviewing" else _iso_value(row.get("status")),
             "date": _iso_value(row.get("date"))[:10],
             "time": _iso_value(row.get("time")),
             "source": _iso_value(row.get("source")),
             "remark": _iso_value(row.get("remark")),
             "detailUrl": _safe_detail_url(row.get("detail_url")),
-        }
-        for row in rows
-    ]
+        })
     summary = {key: 0 for key in ("pending", "reviewing", "passed", "rejected", "launched", "unknown")}
     for item in items:
         summary[item["status"]] += 1
