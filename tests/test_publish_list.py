@@ -57,7 +57,9 @@ class PublishListServiceTests(unittest.TestCase):
         self.assertIn("taskid AS id", sql)
         self.assertIn("taskuer AS owner", sql)
         self.assertIn("taskremark AS remark", sql)
-        self.assertIn("CAST(taskdate AS DATE)", sql)
+        self.assertIn("WHERE taskdate = ?", sql)
+        self.assertNotIn("CAST(", sql)
+        self.assertIn("ORDER BY taskid LIMIT 1000", sql)
 
     def test_maps_profile_columns_and_normalizes_rows(self):
         runner = FakeRunner(

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import re
+import threading
+import time
 from datetime import date, datetime
 from typing import Any
 
 from app.db.profiles import get_metadata_profile
-from app.db.sql_runner import SQLRunner
+from app.db.sql_runner import SQLRunner, TransactionRunner
+from app.services.publish_list_pool import publish_list_connection
 
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -34,6 +37,9 @@ _STATUS_ALIASES = {
 }
 _STATUS_SORT_ORDER = {"等待上线": 0, "审核中": 1, "处理中": 2, "处理完成": 3}
 _TYPE_SORT_ORDER = {"开发维护": 0, "数据修改": 1, "运行维护": 2}
+_COLUMN_CACHE_TTL_SECONDS = 300.0
+_column_cache_lock = threading.Lock()
+_column_cache: dict[tuple[Any, ...], tuple[float, dict[str, str]]] = {}
 
 
 class PublishListConfigurationError(RuntimeError):
@@ -89,6 +95,40 @@ def _resolve_columns(runner: SQLRunner, schema: str, table: str, configured: dic
     return resolved
 
 
+def _column_cache_key(profile: Any, schema: str, table: str, configured: dict[str, str]) -> tuple[Any, ...]:
+    return (
+        str(getattr(profile, "name", "")),
+        str(getattr(profile, "type", "")),
+        schema,
+        table,
+        tuple(sorted(configured.items())),
+    )
+
+
+def _cached_columns(profile: Any, runner: Any, schema: str, table: str, configured: dict[str, str]) -> dict[str, str]:
+    key = _column_cache_key(profile, schema, table, configured)
+    now = time.monotonic()
+    with _column_cache_lock:
+        cached = _column_cache.get(key)
+        if cached and cached[0] > now:
+            return dict(cached[1])
+    resolved = _resolve_columns(runner, schema, table, configured)
+    with _column_cache_lock:
+        _column_cache[key] = (now + _COLUMN_CACHE_TTL_SECONDS, dict(resolved))
+    return resolved
+
+
+def _invalidate_column_cache(profile: Any, schema: str, table: str, configured: dict[str, str]) -> None:
+    key = _column_cache_key(profile, schema, table, configured)
+    with _column_cache_lock:
+        _column_cache.pop(key, None)
+
+
+def clear_publish_list_column_cache() -> None:
+    with _column_cache_lock:
+        _column_cache.clear()
+
+
 def _iso_value(value: Any) -> str:
     if value is None:
         return ""
@@ -111,22 +151,42 @@ def _safe_detail_url(value: Any) -> str:
     return ""
 
 
-def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRunner | None = None) -> dict[str, Any]:
-    profile = profile or get_metadata_profile()
-    runner = runner or SQLRunner(profile)
-    schema, table, configured = _configured_model(profile)
-    columns = _resolve_columns(runner, schema, table, configured)
-
+def _query_rows(runner: Any, selected_date: date, schema: str, table: str, columns: dict[str, str]) -> list[dict[str, Any]]:
     select_parts = []
     for field in _FIELDS:
         column = columns.get(field)
         select_parts.append(f"{column} AS {field}" if column else f"NULL AS {field}")
-    order_column = columns.get("time") or columns["id"]
     sql = (
         f"SELECT {', '.join(select_parts)} FROM {schema}.{table} "
-        f"WHERE CAST({columns['date']} AS DATE) = ? ORDER BY {order_column}, {columns['id']} LIMIT 1000"
+        f"WHERE {columns['date']} = ? ORDER BY {columns['id']} LIMIT 1000"
     )
-    rows = runner.query_all(sql, (selected_date.isoformat(),))
+    return runner.query_all(sql, (selected_date.isoformat(),))
+
+
+def _load_rows(selected_date: date, profile: Any, schema: str, table: str, configured: dict[str, str]) -> list[dict[str, Any]]:
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            with publish_list_connection(profile) as connection:
+                runner = TransactionRunner(profile, connection)
+                columns = _cached_columns(profile, runner, schema, table, configured)
+                return _query_rows(runner, selected_date, schema, table, columns)
+        except Exception as exc:
+            last_error = exc
+            _invalidate_column_cache(profile, schema, table, configured)
+            if attempt:
+                raise
+    raise last_error or RuntimeError("publish-list query failed")
+
+
+def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRunner | None = None) -> dict[str, Any]:
+    profile = profile or get_metadata_profile()
+    schema, table, configured = _configured_model(profile)
+    if runner is None:
+        rows = _load_rows(selected_date, profile, schema, table, configured)
+    else:
+        columns = _resolve_columns(runner, schema, table, configured)
+        rows = _query_rows(runner, selected_date, schema, table, columns)
     items = []
     for row in rows:
         normalized_status = _normalize_status(row.get("status"))
