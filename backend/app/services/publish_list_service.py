@@ -29,8 +29,10 @@ _STATUS_ALIASES = {
     "passed": "passed", "approved": "passed", "已通过": "passed", "等待上线": "passed", "2": "passed",
     "rejected": "rejected", "已驳回": "rejected", "驳回": "rejected", "3": "rejected",
     "launched": "launched", "published": "launched", "已上线": "launched", "已发布": "launched", "4": "launched",
+    "processing": "processing", "处理中": "processing",
+    "completed": "completed", "处理完成": "completed",
 }
-_STATUS_SORT_ORDER = {"等待上线": 0, "审核中": 1}
+_STATUS_SORT_ORDER = {"等待上线": 0, "审核中": 1, "处理中": 2, "处理完成": 3}
 _TYPE_SORT_ORDER = {"开发维护": 0, "数据修改": 1, "运行维护": 2}
 
 
@@ -147,7 +149,7 @@ def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRun
             _TYPE_SORT_ORDER.get(item["type"], len(_TYPE_SORT_ORDER)),
         )
     )
-    summary = {key: 0 for key in ("pending", "reviewing", "passed", "rejected", "launched", "unknown")}
+    summary = {key: 0 for key in ("pending", "reviewing", "passed", "rejected", "launched", "processing", "completed", "unknown")}
     for item in items:
         summary[item["status"]] += 1
     summary["total"] = len(items)

@@ -9,6 +9,8 @@ const STATUS = {
   passed: { label: "已通过", tone: "passed" },
   rejected: { label: "已驳回", tone: "rejected" },
   launched: { label: "已上线", tone: "launched" },
+  processing: { label: "处理中", tone: "reviewing" },
+  completed: { label: "处理完成", tone: "passed" },
   unknown: { label: "未知状态", tone: "unknown" },
 };
 
@@ -73,7 +75,7 @@ export default function PublishListPage() {
         <div><span>计划上线</span><strong>{summary.total || 0}<small>项</small></strong></div>
         <div><span>已通过 / 待上线</span><strong>{summary.passed || 0}<small>项</small></strong></div>
         <div><span>审核中</span><strong>{summary.reviewing || 0}<small>项</small></strong></div>
-        <div><span>已上线</span><strong>{summary.launched || 0}<small>项</small></strong></div>
+        <div><span>处理中</span><strong>{summary.processing || 0}<small>项</small></strong></div>
       </section>
 
       <section className="publish-list-card">
