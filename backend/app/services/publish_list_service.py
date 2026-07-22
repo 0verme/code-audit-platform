@@ -139,7 +139,7 @@ def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRun
             "time": _iso_value(row.get("time")),
             "source": _iso_value(row.get("source")),
             "remark": _iso_value(row.get("remark")),
-            "detailUrl": _safe_detail_url(row.get("detail_url")),
+            "detailUrl": _safe_detail_url(row.get("detail_url")) or _safe_detail_url(row.get("remark")),
         })
     items.sort(
         key=lambda item: (

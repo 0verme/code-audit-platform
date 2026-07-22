@@ -83,6 +83,20 @@ class PublishListServiceTests(unittest.TestCase):
         with self.assertRaises(PublishListConfigurationError):
             get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
 
+    def test_uses_http_detail_field_as_new_window_link(self):
+        runner = FakeRunner(
+            ["req_id", "req_title", "publish_status", "publish_date", "developer", "taskremark"],
+            [{
+                "id": "REQ-1", "type": None, "owner": None, "title": "演示",
+                "status": "审核中", "date": date(2026, 7, 22), "time": None,
+                "source": None, "remark": "https://example.com/detail/REQ-1", "detail_url": None,
+            }],
+        )
+
+        payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
+
+        self.assertEqual(payload["items"][0]["detailUrl"], "https://example.com/detail/REQ-1")
+
     def test_normalizes_business_status_codes(self):
         rows = []
         for index, status in enumerate(("生产待审", "运行待审", "开发待审", "待审核", "待审查", "等待上线"), start=1):
