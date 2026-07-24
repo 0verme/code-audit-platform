@@ -78,13 +78,13 @@ def build_conflicts(svn_result):
     ]
 
 
-def build_ai(*, ai_enabled, targets, errors, warnings, safe, call_sql_llm):
+def build_ai(*, ai_enabled, targets, errors, warnings, safe, call_sql_llm, workflow="generic"):
     if not ai_enabled:
         return None
     findings = []
     summaries = []
     for path in (targets or [])[:10]:
-        result = safe("AI 大模型", lambda p=path: call_sql_llm(p), None)
+        result = safe("AI 大模型", lambda p=path: call_sql_llm(p, workflow=workflow), None)
         if result:
             if isinstance(result, dict):
                 summaries.append(str(result.get("summary") or ""))

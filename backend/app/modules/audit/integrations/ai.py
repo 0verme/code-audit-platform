@@ -21,10 +21,23 @@ def _read_prompt(path: Path) -> str:
         return ""
 
 
-def _prompt_for(path: Path) -> str:
+def _prompt_for(path: Path, workflow: str) -> str:
     suffix = path.suffix.lower()
-    name = "python_review.txt" if suffix == ".py" else "sql_review.txt" if suffix in {".sql", ".hql"} else "generic_review.txt"
+    prefix = "hcyt_" if workflow == "hcyt" else ""
+    name = f"{prefix}python_review.txt" if suffix == ".py" else f"{prefix}sql_review.txt" if suffix in {".sql", ".hql"} else "generic_review.txt"
     return _read_prompt(PROMPTS_DIR / name) or _read_prompt(PROMPTS_DIR / "generic_review.txt")
+
+
+def _number_source(source: str) -> str:
+    return "\n".join(f"{index:04d}: {line}" for index, line in enumerate(source.splitlines(), start=1))
+
+
+def _file_type(path: Path) -> str:
+    if path.suffix.lower() == ".py":
+        return "Python"
+    if path.suffix.lower() in {".sql", ".hql"}:
+        return "SQL/HQL"
+    return "Other"
 
 
 def _extract_json(content: str) -> dict[str, Any] | None:
@@ -40,7 +53,7 @@ def _extract_json(content: str) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
-def _normalise_result(value: dict[str, Any]) -> dict[str, Any] | None:
+def _normalise_result(value: dict[str, Any], *, line_count: int | None = None) -> dict[str, Any] | None:
     findings = []
     raw_findings = value.get("findings", [])
     if not isinstance(raw_findings, list):
@@ -49,17 +62,24 @@ def _normalise_result(value: dict[str, Any]) -> dict[str, Any] | None:
         if not isinstance(item, dict):
             continue
         severity = str(item.get("severity", "info")).lower()
+        line_start = item.get("line_start")
+        try:
+            line_start = int(line_start) if line_start is not None else None
+        except (TypeError, ValueError):
+            line_start = None
+        if line_count is not None and (line_start is None or not 1 <= line_start <= line_count):
+            line_start = None
         findings.append({
             "sev": severity if severity in {"info", "warn", "err"} else "info",
             "title": str(item.get("title") or "AI review finding")[:200],
             "body": str(item.get("suggestion") or item.get("evidence") or "")[:2_000],
-            "lineStart": item.get("line_start"),
+            "lineStart": line_start,
             "confidence": item.get("confidence"),
         })
     return {"summary": str(value.get("summary") or "No AI findings.")[:1_000], "findings": findings}
 
 
-def call_sql_llm(source_path: str) -> dict[str, Any] | None:
+def call_sql_llm(source_path: str, *, workflow: str = "generic") -> dict[str, Any] | None:
     """Review one local source file through an OpenAI-compatible chat endpoint.
 
     Set LOCAL_LLM_BASE_URL and LOCAL_LLM_MODEL to enable it.  The API key is
@@ -77,13 +97,21 @@ def call_sql_llm(source_path: str) -> dict[str, Any] | None:
     if not source.strip():
         return None
 
-    system_prompt = _prompt_for(path)
+    numbered_source = _number_source(source)
+    system_prompt = _prompt_for(path, workflow)
     payload = {
         "model": settings.model,
         "temperature": 0,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": f"File: {path.name}\n\n<source>\n{source}\n</source>"},
+            {"role": "user", "content": (
+                f"Workflow: {workflow}\n"
+                f"File: {path.name}\n"
+                f"File type: {_file_type(path)}\n\n"
+                "<source>\n"
+                f"{numbered_source}\n"
+                "</source>"
+            )},
         ],
     }
     headers = {"Content-Type": "application/json"}
@@ -105,4 +133,4 @@ def call_sql_llm(source_path: str) -> dict[str, Any] | None:
     except (KeyError, IndexError, TypeError):
         return None
     parsed = _extract_json(str(content))
-    return _normalise_result(parsed) if parsed else None
+    return _normalise_result(parsed, line_count=len(source.splitlines())) if parsed else None

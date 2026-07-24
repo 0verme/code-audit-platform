@@ -32,7 +32,7 @@ class LocalLlmAiServiceTests(unittest.TestCase):
                 "LOCAL_LLM_API_KEY": "test-key",
                 "LOCAL_LLM_TIMEOUT_SECONDS": "10",
             }, clear=False), patch("urllib.request.urlopen", return_value=response) as urlopen:
-                result = call_sql_llm(str(source))
+                result = call_sql_llm(str(source), workflow="hcyt")
 
             self.assertEqual(result["summary"], "发现风险")
             self.assertEqual(result["findings"][0]["sev"], "warn")
@@ -41,6 +41,21 @@ class LocalLlmAiServiceTests(unittest.TestCase):
             self.assertEqual(request.full_url, "http://llm.internal/v1/chat/completions")
             self.assertEqual(json.loads(request.data.decode("utf-8"))["model"], "internal-model")
             self.assertEqual(request.headers["Authorization"], "Bearer test-key")
+            user_prompt = json.loads(request.data.decode("utf-8"))["messages"][1]["content"]
+            self.assertIn("Workflow: hcyt", user_prompt)
+            self.assertIn("File type: Python", user_prompt)
+            self.assertIn("0001: print('hello')", user_prompt)
+
+    def test_invalid_line_number_is_removed_from_normalised_findings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "job.sql"
+            source.write_text("select 1", encoding="utf-8")
+            response = MagicMock()
+            response.read.return_value = b'{"choices":[{"message":{"content":"{\\"summary\\":\\"risk\\",\\"findings\\":[{\\"severity\\":\\"warn\\",\\"line_start\\":99,\\"evidence\\":\\"x\\"}]}"}}]}'
+            response.__enter__.return_value = response
+            with patch.dict(os.environ, {"LOCAL_LLM_BASE_URL": "http://llm/v1", "LOCAL_LLM_MODEL": "m"}, clear=True), patch("urllib.request.urlopen", return_value=response):
+                result = call_sql_llm(str(source))
+            self.assertIsNone(result["findings"][0]["lineStart"])
 
     def test_uses_default_timeout_when_not_configured(self):
         with tempfile.TemporaryDirectory() as directory:

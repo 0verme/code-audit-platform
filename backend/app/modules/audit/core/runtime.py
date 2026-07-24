@@ -28,7 +28,7 @@ class WorkflowRuntimeContext:
     build_lineage_summary: Callable[..., dict]
     build_config_files: Callable[[list[str]], list[dict]]
     build_job_table: Callable[[Any, Any], Any]
-    build_ai: Callable[[list[str], int, int], Any]
+    build_ai: Callable[..., Any]
     get_active_profile_name: Callable[[], str]
     collect_hcyt_input_files: Callable[..., Any]
     build_source_classified_progress: Callable[..., Any]

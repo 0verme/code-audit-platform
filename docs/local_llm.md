@@ -17,9 +17,21 @@ $env:LOCAL_LLM_TIMEOUT_SECONDS = "30"        # 可省略，默认 30 秒
 
 如果地址、模型、文件读取、网络请求或模型 JSON 输出任一环节不可用，AI 阶段会降级为空结果，主审计不会失败。
 
+## HCYT 首发审查范围
+
+当前首版优先优化 HCYT 工作流。规则审查完成后，平台最多选择 10 个 Python 或 SQL/HQL 候选文件交给本地模型补充分析；规则引擎的 `pass`、`warn`、`fail` 结果不会被 AI 改写。
+
+HCYT 使用专用提示词：
+
+- `backend/app/modules/audit/prompts/hcyt_sql_review.txt`：DWS SQL/HQL 的全表操作、分区过滤、危险 DDL、动态 SQL、笛卡尔积和幂等性。
+- `backend/app/modules/audit/prompts/hcyt_python_review.txt`：Python 批处理脚本的凭据、SQL 拼接、异常处理、资源释放、重复执行和危险副作用。
+- `backend/app/modules/audit/prompts/generic_review.txt`：其他工作流或未知文件类型的兜底提示词。
+
+发送给模型的源码会附带工作流、文件名、文件类型和行号。模型必须只返回 JSON，并且 `line_start` 必须对应源码真实行号；无证据的问题应返回空 findings。
+
 ## Prompt 与输出约束
 
-固定 Prompt 位于 `backend/audit/prompts/`：
+兜底 Prompt 位于 `backend/app/modules/audit/prompts/`：
 
 - `python_review.txt`：Python 数据加工脚本；
 - `sql_review.txt`：SQL/HQL 脚本；

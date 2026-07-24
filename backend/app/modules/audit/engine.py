@@ -671,7 +671,7 @@ class TaskRun:
         warnings = sum(1 for rows in rows_groups for row in rows if row.get("level") == "warn")
         return errors, warnings
 
-    def build_ai(self, targets, errors, warnings):
+    def build_ai(self, targets, errors, warnings, workflow="generic"):
         return _build_ai(
             ai_enabled=self.ai_enabled,
             targets=targets,
@@ -679,6 +679,7 @@ class TaskRun:
             warnings=warnings,
             safe=self.safe,
             call_sql_llm=_mods.call_sql_llm,
+            workflow=workflow,
         )
 
     @staticmethod
