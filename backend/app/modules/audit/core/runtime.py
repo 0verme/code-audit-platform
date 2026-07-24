@@ -42,3 +42,4 @@ class WorkflowRuntimeContext:
     run_hcyt_programs: Callable[..., Any]
     status_of: Callable[[int, int], str]
     count_levels: Callable[[list[list[dict]]], tuple[int, int]]
+    build_source_file: Callable[..., dict | None] | None = None

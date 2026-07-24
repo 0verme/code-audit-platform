@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Dot, Icon, levelOf, Metric, OkState, Panel, Sev, ViolationTable } from "../components/ui";
 import { LineageCanvas } from "../components/lineage/LineageCanvas";
 import { toCycleDependencyGraph } from "../components/lineage/lineageAdapter";
+import { getSourceFiles, SourceFileLinks } from "../components/SourceFileLinks";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
@@ -24,30 +25,36 @@ export const STATUS_META = {
 STATUS_META.running = { tone: "info", icon: "clock", label: "审查执行中", desc: "审查结果正在异步生成，已完成模块会逐步填充到报告中。" };
 STATUS_META.taskFailed = { tone: "err", icon: "x", label: "任务异常", desc: "审查任务异常结束，已完成模块仍可查看。" };
 
+const rowsWithSourceFiles = (data, rows, section) => [
+  ...(Array.isArray(rows) ? rows : []),
+  ...getSourceFiles(data, section),
+];
+
 export const SECTION_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
   { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
   { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
-  { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
-  { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
-  { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
-  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
-  { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
+  { id: "dws", label: "DWS SQL", icon: "db", get: (data) => rowsWithSourceFiles(data, data.dws, "dws") },
+  { id: "hive", label: "Hive SQL", icon: "db", get: (data) => rowsWithSourceFiles(data, data.hive, "hive") },
+  { id: "config", label: "配置文件", icon: "cog", get: (data) => rowsWithSourceFiles(data, data.config, "config") },
+  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => rowsWithSourceFiles(data, data.sbin, "sbin") },
+  { id: "recv", label: "收卸配置", icon: "download", get: (data) => rowsWithSourceFiles(data, data.recv, "recv") },
   {
     id: "schedule",
     label: "调度表检查",
     icon: "grid",
-    get: getScheduleIssueRows,
+    get: (data) => rowsWithSourceFiles(data, getScheduleIssueRows(data), "schedule"),
   },
   {
     id: "python",
     label: "Python 脚本",
     icon: "python",
     get: (data) => {
-      return getPythonIssueRows(data);
+      return rowsWithSourceFiles(data, getPythonIssueRows(data), "python");
     },
     neutral: true,
   },
+  { id: "other-files", label: "其他审计文件", icon: "file", get: (data) => getSourceFiles(data, "other-files"), neutral: true },
 ];
 
 function StatusHeader({ d }) {
@@ -284,7 +291,10 @@ function ConflictSection({ d, reg }) {
       <div className="panel-body">
         {hasConflicts ? (
           <div className="flist conflict-list">
-            {d.conflicts.map((conflict) => (
+            {d.conflicts.map((conflict) => {
+              const source = d.changes.find((change) => change.path === conflict.path)
+                || (d.sourceFiles || []).find((file) => file.path === conflict.path);
+              return (
               <div key={conflict.path} className="frow conflict" style={{ height: "auto", padding: "10px 12px" }}>
                 <Icon name="conflict" size={15} style={{ color: "var(--err)", flex: "none" }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -295,8 +305,14 @@ function ConflictSection({ d, reg }) {
                   <span className="mono" style={{ color: "var(--text-3)" }}>trunk {conflict.trunkRev}</span>
                   <span className="mono" style={{ color: "var(--err-fg)" }}>本次 {conflict.mineRev}</span>
                 </div>
+                {source?.downloadUrl ? (
+                  <a className="dl-link" href={source.downloadUrl} target="_blank" rel="noreferrer">
+                    <Icon name="download" size={12} /> 下载
+                  </a>
+                ) : null}
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : <OkState>未检测到与 trunk 主干的重叠冲突</OkState>}
       </div>
@@ -304,8 +320,8 @@ function ConflictSection({ d, reg }) {
   );
 }
 
-function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
-  if (!rows.length) return null;
+function CheckSection({ id, icon, title, rows = [], reg, okMsg, scriptMeta, sourceFiles = [] }) {
+  if (!rows.length && !scriptMeta?.script && !sourceFiles.length) return null;
 
   const severity = levelOf(rows);
   const errs = rows.filter((row) => row.level === "err").length;
@@ -345,6 +361,7 @@ function CheckSection({ id, icon, title, rows, reg, okMsg, scriptMeta }) {
           ) : null}
         </div>
       ) : null}
+      <SourceFileLinks files={sourceFiles} />
       <div className={rows.length ? "panel-body flush" : "panel-body"}>
         {rows.length ? <ViolationTable rows={rows} /> : <OkState>{okMsg || "未发现违规项"}</OkState>}
       </div>
@@ -382,9 +399,9 @@ function ConfigFilesDetail({ files, detailId }) {
   );
 }
 
-export function ConfigCheckSection({ rows = [], files = [], reg }) {
+export function ConfigCheckSection({ rows = [], files = [], sourceFiles = [], reg }) {
   const [openRowIndex, setOpenRowIndex] = useState(null);
-  if (!rows.length && !files.length) return null;
+  if (!rows.length && !files.length && !sourceFiles.length) return null;
 
   const displayRows = rows.length ? sortAlertRows(rows) : [{
     file: "SCHEMA_CONFIG",
@@ -415,6 +432,7 @@ export function ConfigCheckSection({ rows = [], files = [], reg }) {
         ) : null
       }
     >
+      <SourceFileLinks files={sourceFiles} label="配置文件" />
       <div className="panel-body flush">
         <div className="table-wrap">
           <table className="tbl config-check-table">
@@ -723,11 +741,12 @@ function CycleDependencyList({ findings }) {
   );
 }
 
-function ScheduleListTables({ tables, issuesByTable, cycleFindings, columns }) {
+function ScheduleListTables({ tables, issuesByTable, cycleFindings, columns, sourceFiles }) {
   const present = SCHED_TABLE_ORDER.filter((key) => (
     tables[key]?.rows?.length
     || issuesByTable[key]?.length
     || (key === "job" && cycleFindings.length)
+    || sourceFiles.some((file) => file.kind === key)
   ));
   if (!present.length) return null;
   return (
@@ -737,6 +756,7 @@ function ScheduleListTables({ tables, issuesByTable, cycleFindings, columns }) {
         const entries = getScheduleTableRows(key, table);
         return (
           <div key={key} className="sched-table-block">
+            <SourceFileLinks files={sourceFiles.filter((file) => file.kind === key)} label="原始文件" />
             <div className="subhead" style={{ marginBottom: 7 }}>{table.title || SCHED_TABLE_TITLES[key]}</div>
             {entries.length ? (
               <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
@@ -770,7 +790,8 @@ function ScheduleSection({ d, reg }) {
   const scheduleIssues = getScheduleIssueRows(d);
   const issuesByTable = getScheduleIssuesByTable(d);
   const cycleFindings = getCycleDependencyFindings(d);
-  if (!hasScheduleTables(d) && !scheduleIssues.length && !cycleFindings.length) return null;
+  const sourceFiles = getSourceFiles(d, "schedule");
+  if (!hasScheduleTables(d) && !scheduleIssues.length && !cycleFindings.length && !sourceFiles.length) return null;
 
   const severity = levelOf(scheduleIssues);
   const columns = [
@@ -805,8 +826,19 @@ function ScheduleSection({ d, reg }) {
           issuesByTable={issuesByTable}
           cycleFindings={cycleFindings}
           columns={columns}
+          sourceFiles={sourceFiles}
         />
       </div>
+    </Panel>
+  );
+}
+
+function OtherSourceFilesSection({ d, reg }) {
+  const files = getSourceFiles(d, "other-files");
+  if (!files.length) return null;
+  return (
+    <Panel id="other-files" icon="file" title="其他审计文件" registerRef={reg} count={files.length} countTone="info">
+      <SourceFileLinks files={files} label="审计输入" />
     </Panel>
   );
 }
@@ -1017,11 +1049,12 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState, onVi
       <ConflictSection d={mergedData} reg={reg} />
       <CheckSection id="dws" icon="db" title="DWS SQL 检查结果" rows={mergedData.dws} reg={reg} scriptMeta={mergedData.sqlChecks?.dws} />
       <CheckSection id="hive" icon="db" title="Hive SQL 检查结果" rows={mergedData.hive} reg={reg} scriptMeta={mergedData.sqlChecks?.hive} />
-      <ConfigCheckSection rows={mergedData.config} files={mergedData.configFiles} reg={reg} />
-      <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} />
-      <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" />
+      <ConfigCheckSection rows={mergedData.config} files={mergedData.configFiles} sourceFiles={getSourceFiles(mergedData, "config")} reg={reg} />
+      <CheckSection id="sbin" icon="terminal" title="后置脚本检查（sbin）" rows={mergedData.sbin} reg={reg} sourceFiles={getSourceFiles(mergedData, "sbin")} />
+      <CheckSection id="recv" icon="download" title="收卸配置检查" rows={mergedData.recv} reg={reg} okMsg="recv_json 配置校验通过" sourceFiles={getSourceFiles(mergedData, "recv")} />
       <ScheduleSection d={mergedData} reg={reg} />
       <PyScriptAuditSection d={mergedData} reg={reg} openScriptIds={openScriptIds} onToggle={toggleScript} onViewLineage={onViewLineage} lineageEnabled={lineageEnabled} />
+      <OtherSourceFilesSection d={mergedData} reg={reg} />
       <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
     </div>

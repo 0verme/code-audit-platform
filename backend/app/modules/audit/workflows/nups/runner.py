@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ...core.runtime import WorkflowRuntimeContext
 from ...shared.findings import CheckResult, finding_messages
+from ...shared.report_helpers import build_source_file
 from ...shared.result_normalizer import dedupe_tables
 from .report import build_nups_report
 
@@ -11,6 +12,26 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
     svn_result = context.source_payload
     exported = svn_result["exported_paths"]
     sql_lists, py_lists = mods.nups_rule.get_nups_type(exported)
+
+    def source_file(path, section, kind):
+        if callable(context.build_source_file):
+            return context.build_source_file(path, section=section, kind=kind)
+        return build_source_file(
+            path,
+            section=section,
+            kind=kind,
+            download_url=context.download_url,
+            relative_path=mods.re_service.safe_remove_prefix,
+        )
+
+    source_files = [
+        descriptor
+        for path, section, kind in (
+            *((path, "nups-sql", "sql") for path in (sql_lists or [])),
+            *((path, "nups-py", "python") for path in (py_lists or [])),
+        )
+        if (descriptor := source_file(path, section, kind))
+    ]
 
     context.update(progress=45, step="NUPS SQL 检查")
     sql_checks = []
@@ -71,5 +92,6 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
         conflicts=conflicts,
         sql_checks=sql_checks,
         py_scripts=py_scripts,
+        source_files=source_files,
         ai=ai,
     )

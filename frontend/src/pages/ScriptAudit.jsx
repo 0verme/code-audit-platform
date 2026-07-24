@@ -1,5 +1,6 @@
 import { Badge, Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
+import { getSourceFiles, SourceFileLinks } from "../components/SourceFileLinks";
 import {
   formatSqlReference,
   sortReferenceTableNames,
@@ -23,6 +24,7 @@ export function getScriptLineageKey(script) {
 
 export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLineage, lineageEnabled }) {
   const scripts = Array.isArray(d.pyScripts) ? d.pyScripts : [];
+  const auxiliaryScripts = getSourceFiles(d, "python", ["dwo", "dwf"]);
   const flagged = scripts.filter((script) => {
     const audit = scriptAudit(script);
     return audit.err || audit.warn;
@@ -40,6 +42,7 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLi
       count={totalCount || "全部通过"}
       countTone={totalCount ? (anyErr ? "err" : "warn") : "ok"}
     >
+      <SourceFileLinks files={auxiliaryScripts} label="DWO / DWF 脚本" />
       <div className="panel-body flush">
         <div className="pas-list">
           {scripts.map((script) => {

@@ -57,13 +57,14 @@ def svn_export_root(source_ref: str, export_base: Path) -> Path:
 
 def allowed_report_paths(report: dict) -> set[str]:
     paths = set()
-    for change in report.get("changes", []) or []:
-        if not isinstance(change, dict):
-            continue
-        try:
-            paths.add(normalize_relative_path(change.get("path", "")))
-        except ValueError:
-            continue
+    for collection in (report.get("changes", []), report.get("sourceFiles", [])):
+        for item in collection or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                paths.add(normalize_relative_path(item.get("path", "")))
+            except ValueError:
+                continue
     return paths
 
 

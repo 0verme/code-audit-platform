@@ -19,6 +19,7 @@ def build_hcyt_final_report(
     asset_issues,
     unified_asset_issues,
     lineage_summary,
+    source_files=None,
     metadata_profile="",
     ai=None,
 ):
@@ -42,6 +43,7 @@ def build_hcyt_final_report(
         "assetIssues": asset_issues,
         "unifiedAssetIssues": unified_asset_issues,
         "lineageSummary": lineage_summary,
+        "sourceFiles": list(source_files or []),
         "lineageOverlay": build_lineage_overlay(
             py_scripts,
             revision=task.get("revision", "") if isinstance(task, dict) else "",
@@ -72,6 +74,7 @@ def build_hcyt_partial_report(
     asset_issues,
     unified_asset_issues,
     lineage_summary,
+    source_files=None,
 ):
     return {
         "changes": changes,
@@ -90,5 +93,6 @@ def build_hcyt_partial_report(
         "assetIssues": asset_issues,
         "unifiedAssetIssues": unified_asset_issues,
         "lineageSummary": lineage_summary,
+        "sourceFiles": list(source_files or []),
         "lineageOverlay": build_lineage_overlay(py_scripts, changes=changes),
     }

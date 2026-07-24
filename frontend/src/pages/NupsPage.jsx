@@ -17,6 +17,7 @@ const NUPS_MESSAGE_COLUMNS = [
 export const NUPS_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
   { id: "changes", label: "变更文件", icon: "git", get: (data) => getNupsChanges(data), neutral: true },
+  { id: "conflict", label: "冲突文件", icon: "conflict", get: (data) => data.conflicts, neutral: true },
   { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => getNupsSqlChecks(data), neutral: true },
   { id: "nups-py", label: "加工程序", icon: "python", get: (data) => getNupsPyScripts(data), neutral: true },
 ];
@@ -89,6 +90,36 @@ function ChangesSection({ d, reg }) {
   );
 }
 
+function ConflictSection({ d, reg }) {
+  const conflicts = Array.isArray(d.conflicts) ? d.conflicts : [];
+  const changes = getNupsChanges(d);
+  if (!conflicts.length) return null;
+  return (
+    <Panel id="conflict" icon="conflict" title="trunk 重叠冲突文件" registerRef={reg} count={conflicts.length} countTone="err" defaultOpen>
+      <div className="panel-body flush">
+        <div className="flist">
+          {conflicts.map((conflict) => {
+            const path = typeof conflict === "string" ? conflict : conflict.path;
+            const source = changes.find((change) => change.path === path)
+              || (d.sourceFiles || []).find((file) => file.path === path);
+            return (
+              <div key={path} className="frow conflict">
+                <Icon name="conflict" size={14} />
+                <span className="fpath">{path}</span>
+                {source?.downloadUrl ? (
+                  <a className="dl-link" href={source.downloadUrl} target="_blank" rel="noreferrer">
+                    <Icon name="download" size={12} /> 下载
+                  </a>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function MessageList({ messages }) {
   const rows = normalizeNupsMessageRows(messages);
   if (!rows.length) return <OkState>未发现违规项</OkState>;
@@ -150,6 +181,7 @@ export function NupsResultsPage({ d, aiEnabled, reg }) {
     <div className="results-page fade-in">
       <NupsStatusHeader d={d} />
       <ChangesSection d={d} reg={reg} />
+      <ConflictSection d={d} reg={reg} />
       <NupsSqlSection d={d} reg={reg} />
       <NupsPySection d={d} reg={reg} />
       <AssetIssuesSection d={d} reg={reg} />

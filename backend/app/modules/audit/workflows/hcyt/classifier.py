@@ -13,6 +13,8 @@ class HcytInputFiles:
     recv_lists: list
     dwo_lists: list
     dwf_lists: list
+    dlo_meta_lists: list
+    dlo_lists: list
     py_lists: list
     plan_xls: str | None
     seq_xls: str | None
@@ -42,8 +44,8 @@ def collect_hcyt_input_files(*, svn_result, re_service, hcyt, build_changes, bui
         recv_lists,
         dwo_lists,
         dwf_lists,
-        _dlo_meta,
-        _dlo,
+        dlo_meta_lists,
+        dlo_lists,
         py_lists,
         plan_xls,
         seq_xls,
@@ -60,6 +62,8 @@ def collect_hcyt_input_files(*, svn_result, re_service, hcyt, build_changes, bui
         recv_lists=recv_lists,
         dwo_lists=dwo_lists,
         dwf_lists=dwf_lists,
+        dlo_meta_lists=dlo_meta_lists,
+        dlo_lists=dlo_lists,
         py_lists=py_lists,
         plan_xls=plan_xls,
         seq_xls=seq_xls,

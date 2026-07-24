@@ -10,6 +10,7 @@ def build_fine_report(
     authority_section,
     reports,
     ref_tables,
+    source_files=None,
     metadata_profile="",
     ai=None,
 ):
@@ -21,6 +22,7 @@ def build_fine_report(
         "authority": authority_section,
         "reports": reports,
         "refTables": ref_tables,
+        "sourceFiles": list(source_files or []),
         "assetIssues": [],
         "unifiedAssetIssues": [],
     }

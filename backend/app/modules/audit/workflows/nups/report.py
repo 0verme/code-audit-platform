@@ -9,6 +9,7 @@ def build_nups_report(
     conflicts,
     sql_checks,
     py_scripts,
+    source_files=None,
     ai=None,
 ):
     report = {
@@ -18,6 +19,7 @@ def build_nups_report(
         "conflicts": conflicts,
         "sqlChecks": sql_checks,
         "pyScripts": py_scripts,
+        "sourceFiles": list(source_files or []),
         "assetIssues": [],
         "unifiedAssetIssues": [],
     }

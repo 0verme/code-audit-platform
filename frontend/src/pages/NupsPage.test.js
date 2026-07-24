@@ -18,3 +18,9 @@ test("NUPS findings keep the existing empty state and table severity styling", (
   assert.match(pageSource, /<OkState>未发现违规项<\/OkState>/);
   assert.match(pageSource, /className="sd-cmp"/);
 });
+
+test("NUPS conflict files reuse task-scoped download URLs", () => {
+  assert.match(pageSource, /function ConflictSection/);
+  assert.match(pageSource, /changes\.find\(\(change\) => change\.path === path\)/);
+  assert.match(pageSource, /<ConflictSection d=\{d\} reg=\{reg\} \/>/);
+});

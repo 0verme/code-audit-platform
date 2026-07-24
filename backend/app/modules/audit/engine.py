@@ -43,6 +43,7 @@ from .shared.report_helpers import (
     build_config_files as _build_config_files,
     build_conflicts as _build_conflicts,
     build_job_table as _build_job_table,
+    build_source_file as _build_source_file,
     build_task_meta as _build_task_meta,
 )
 from .shared.table_annotations import (
@@ -69,7 +70,12 @@ from .source.resolver import (
     resolve_workspace,
     resolve_workflow,
 )
-from .source.download import build_source_download_url, source_relative_paths, source_relative_paths_from_changes
+from .source.download import (
+    build_source_download_url,
+    source_relative_paths,
+    source_relative_paths_from_changes,
+    svn_export_root,
+)
 from .core.dispatcher import WorkflowRunContext, run_workflow
 from .core.runtime import WorkflowRuntimeContext
 from app.db.profiles import get_metadata_profile
@@ -318,6 +324,7 @@ class TaskRun:
         self.run_state.mark_running()
         self._source_download_paths = {}
         self._source_download_by_relative = {}
+        self._source_download_root = None
 
     # ---- 日志 / 进度 ----
 
@@ -511,6 +518,7 @@ class TaskRun:
             run_hcyt_programs=self.run_hcyt_programs,
             status_of=self.status_of,
             count_levels=self.count_levels,
+            build_source_file=self.build_source_file,
         )
 
     def run(self):
@@ -587,10 +595,29 @@ class TaskRun:
     # ---- 公共构建 ----
 
     def download_url(self, path):
-        relative_path = getattr(self, "_source_download_paths", {}).get(str(Path(path).resolve()))
+        resolved = Path(path).resolve()
+        relative_path = getattr(self, "_source_download_paths", {}).get(str(resolved))
+        root = getattr(self, "_source_download_root", None)
+        if not relative_path and root is not None and resolved.is_file():
+            try:
+                relative_path = resolved.relative_to(root).as_posix()
+            except ValueError:
+                relative_path = ""
+            if relative_path:
+                self._source_download_paths[str(resolved)] = relative_path
+                self._source_download_by_relative[relative_path] = str(resolved)
         if not relative_path:
             return ""
         return build_source_download_url(self.task_id, relative_path)
+
+    def build_source_file(self, path, *, section, kind):
+        return _build_source_file(
+            path,
+            section=section,
+            kind=kind,
+            download_url=self.download_url,
+            relative_path=lambda value: getattr(_mods.re_service, "safe_remove_prefix")(value),
+        )
 
     def build_task_meta(self, svn_result, status, extra):
         return _build_task_meta(
@@ -620,8 +647,10 @@ class TaskRun:
     def _configure_source_downloads(self, svn_result):
         if self.source_type == "local":
             root = svn_result.get("workspace_root") or self.repo
+            self._source_download_root = Path(root).resolve()
             self._source_download_paths = source_relative_paths(svn_result.get("exported_paths", []), root)
         else:
+            self._source_download_root = svn_export_root(self.repo, _mods.re_service.get_export_base())
             self._source_download_paths = source_relative_paths_from_changes(
                 svn_result.get("exported_paths", []), svn_result.get("branch_changed_files", [])
             )

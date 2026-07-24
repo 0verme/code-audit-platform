@@ -93,3 +93,11 @@ test("shared referenced table list renders FineReport table metadata", () => {
   assert.match(sharedStyleSource, /\.chip\.highlight \{[^}]*var\(--err-bg\)[^}]*var\(--err-bd\)[^}]*var\(--err-fg\)/);
   assert.match(sharedStyleSource, /\.chip\.highlight \.cdot \{[^}]*var\(--err\)/);
 });
+
+test("FineReport exposes changed files plus menu and authority downloads", () => {
+  assert.match(pageSource, /function FineChangesSection/);
+  assert.match(pageSource, /<FineChangesSection d=\{mergedData\} reg=\{reg\} \/>/);
+  assert.match(pageSource, /section\.downloadUrl/);
+  assert.match(pageSource, /<SourceFileLinks/);
+  assert.match(pageSource, /const existing = baseReports\.get\(item\.file_path\) \|\| \{\}/);
+});

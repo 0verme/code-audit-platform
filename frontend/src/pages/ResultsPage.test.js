@@ -150,7 +150,7 @@ test("asset issues are available from the HCYT result navigation", () => {
 });
 
 test("SCHEMA_CONFIG details expand inline instead of using a separate panel", () => {
-  assert.match(source, /<ConfigCheckSection rows=\{mergedData\.config\} files=\{mergedData\.configFiles\} reg=\{reg\} \/>/);
+  assert.match(source, /<ConfigCheckSection rows=\{mergedData\.config\} files=\{mergedData\.configFiles\} sourceFiles=\{getSourceFiles\(mergedData, "config"\)\} reg=\{reg\} \/>/);
   assert.doesNotMatch(source, /id="configjson"|function ConfigJsonSection/);
   assert.match(source, /const \[openRowIndex, setOpenRowIndex\] = useState\(null\)/);
   assert.match(source, /aria-expanded=\{isOpen\}/);
@@ -159,6 +159,14 @@ test("SCHEMA_CONFIG details expand inline instead of using a separate panel", ()
   assert.match(source, /rows\.length \? sortAlertRows\(rows\) : \[\{[\s\S]*?file: "SCHEMA_CONFIG"[\s\S]*?level: "ok"/);
   assert.match(source, /files\.map\(\(file, fileIndex\)/);
   assert.match(resultsStyleSource, /\.config-check-row\.open \.config-row-chev \{ transform: rotate\(90deg\); \}/);
+});
+
+test("HCYT file-backed sections expose source downloads even without findings", () => {
+  assert.match(source, /!rows\.length && !scriptMeta\?\.script && !sourceFiles\.length/);
+  assert.match(source, /sourceFiles=\{getSourceFiles\(mergedData, "sbin"\)\}/);
+  assert.match(source, /sourceFiles=\{getSourceFiles\(mergedData, "recv"\)\}/);
+  assert.match(source, /function OtherSourceFilesSection/);
+  assert.match(source, /source\?\.downloadUrl/);
 });
 
 test("audit result tables do not expose line-number fields", () => {

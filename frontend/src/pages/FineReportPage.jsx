@@ -1,7 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
+import { SourceFileLinks } from "../components/SourceFileLinks";
 import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
+import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
 import {
   FINE_REPORT_REF_TABLE_GROUPS,
@@ -21,6 +23,9 @@ const FR_CAT = {
 
 export const FR_NAV = [
   { id: "overview", label: "概览", icon: "layers" },
+  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
+  { id: "menu", label: "目录", icon: "folder", get: (data) => data.menu?.rows, neutral: true },
+  { id: "authority", label: "权限", icon: "shield", get: (data) => data.authority?.rows, neutral: true },
   { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
 ];
 
@@ -140,6 +145,39 @@ function ReportListSection({ d, reg, openReportIds, onToggle }) {
   );
 }
 
+function FineChangesSection({ d, reg }) {
+  const changes = Array.isArray(d.changes) ? d.changes : [];
+  if (!changes.length) return null;
+  return (
+    <Panel
+      id="changes"
+      icon="git"
+      title="变更文件列表"
+      registerRef={reg}
+      count={changes.length}
+      countTone="info"
+      defaultOpen={shouldDefaultOpenChangeList(changes.length)}
+    >
+      <div className="panel-body flush">
+        <div className="flist">
+          {changes.map((change) => (
+            <div key={change.path} className="frow">
+              <span className={`chg-tag ${change.type}`}>{change.type}</span>
+              <span className="fpath">{change.path}</span>
+              <Badge>{change.cat}</Badge>
+              {change.downloadUrl ? (
+                <a className="dl-link" href={change.downloadUrl} target="_blank" rel="noreferrer">
+                  <Icon name="download" size={12} /> 下载
+                </a>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function TxtTableSection({ id, icon, title, section, reg }) {
   if (!section) return null;
   const messages = section.messages || [];
@@ -155,6 +193,14 @@ function TxtTableSection({ id, icon, title, section, reg }) {
       countTone={severity}
       defaultOpen={messages.length > 0}
     >
+      <SourceFileLinks
+        files={section.downloadUrl ? [{
+          kind: id,
+          path: section.file,
+          name: section.file,
+          downloadUrl: section.downloadUrl,
+        }] : []}
+      />
       <div className="panel-body">
         {section.rows?.length ? (
           <div className="table-wrap" style={{ border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden", marginBottom: messages.length ? 12 : 0 }}>
@@ -448,17 +494,22 @@ function ReportDetailAccordion({ report, detailId, open, onClose }) {
 
 function mergeFineReportItems(baseData, items) {
   if (!items?.length) return baseData;
-  const reports = items.map((item) => ({
-    title: item.title,
-    file: item.file_path,
-    type: item.report_type,
-    change: item.change_type,
-    conn: item.connection_name,
-    focus: item.focus,
-    datasets: [{ name: "api_dataset", sql: item.dataset_sql || "SELECT ...", rows: item.dataset_rows || "about 1k" }],
-    issues: item.issues || [],
-    refTables: item.ref_tables || [],
-  }));
+  const baseReports = new Map((baseData.reports || []).map((report) => [report.file, report]));
+  const reports = items.map((item) => {
+    const existing = baseReports.get(item.file_path) || {};
+    return {
+      ...existing,
+      title: item.title,
+      file: item.file_path,
+      type: item.report_type,
+      change: item.change_type,
+      conn: item.connection_name,
+      focus: item.focus,
+      datasets: [{ name: "api_dataset", sql: item.dataset_sql || "SELECT ...", rows: item.dataset_rows || "about 1k" }],
+      issues: item.issues || [],
+      refTables: item.ref_tables || [],
+    };
+  });
 
   const errors = reports.flatMap((report) => report.issues).filter((issue) => issue.level === "err").length;
   const warnings = reports.flatMap((report) => report.issues).filter((issue) => issue.level === "warn").length;
@@ -522,6 +573,7 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
       {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>正在加载报表检查数据...</div> : null}
       {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--err)" }}>FineReport API 不可用，请检查任务接口配置。</div> : null}
       <FrStatusHeader d={mergedData} />
+      <FineChangesSection d={mergedData} reg={reg} />
       <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
       <ReportListSection d={mergedData} reg={reg} openReportIds={openReportIds} onToggle={toggleReport} />

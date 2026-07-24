@@ -4,8 +4,10 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from .result_normalizer import format_duration
+from ..source.download import normalize_relative_path
 from ..source.resolver import classify_change
 
 
@@ -40,6 +42,28 @@ def build_changes(svn_result, download_url, path_map=None):
             "downloadUrl": download_url(local) if local else "",
         })
     return rows
+
+
+def build_source_file(path, *, section, kind, download_url, relative_path):
+    """Build a task-scoped source-file descriptor from an audited input path."""
+    if not path:
+        return None
+    url = download_url(path)
+    if not url:
+        return None
+    query_path = parse_qs(urlsplit(url).query).get("path", [""])[0]
+    candidate = unquote(query_path) if query_path else relative_path(path)
+    try:
+        normalized = normalize_relative_path(candidate)
+    except ValueError:
+        return None
+    return {
+        "section": section,
+        "kind": kind,
+        "name": Path(path).name,
+        "path": normalized,
+        "downloadUrl": url,
+    }
 
 
 def build_conflicts(svn_result):

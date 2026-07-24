@@ -3,6 +3,7 @@ from __future__ import annotations
 import time
 
 from ...core.runtime import WorkflowRuntimeContext
+from ...shared.report_helpers import build_source_file
 
 
 def build_sql_analysis_message(*, dws_url, hive_url):
@@ -91,8 +92,46 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         changes,
         conflicts,
     ) = input_files.as_run_inputs()
+    dlo_meta_lists = getattr(input_files, "dlo_meta_lists", []) or []
+    dlo_lists = getattr(input_files, "dlo_lists", []) or []
     has_schedule = any((plan_xls, seq_xls, cale_xls, job_xls))
     has_programs = bool(py_lists)
+
+    def source_file(path, section, kind):
+        if not path:
+            return None
+        if callable(context.build_source_file):
+            return context.build_source_file(path, section=section, kind=kind)
+        return build_source_file(
+            path,
+            section=section,
+            kind=kind,
+            download_url=context.download_url,
+            relative_path=mods.re_service.safe_remove_prefix,
+        )
+
+    source_specs = [
+        (dws_url, "dws", "dws"),
+        (hive_url, "hive", "hive"),
+        *((path, "python", "python") for path in py_lists),
+        *((path, "python", "dwo") for path in dwo_lists),
+        *((path, "python", "dwf") for path in dwf_lists),
+        *((path, "sbin", "sbin") for path in sbin_lists),
+        *((path, "config", "schema-config") for path in schame_config_lists),
+        *((path, "recv", "recv-config") for path in recv_lists),
+        *((path, "other-files", "dlo-meta") for path in dlo_meta_lists),
+        *((path, "other-files", "dlo") for path in dlo_lists),
+        (plan_xls, "schedule", "plan"),
+        (seq_xls, "schedule", "seq"),
+        (job_xls, "schedule", "job"),
+        (cale_xls, "schedule", "cale"),
+        (program_xls, "other-files", "program"),
+    ]
+    source_files = [
+        descriptor
+        for path, section, kind in source_specs
+        if (descriptor := source_file(path, section, kind))
+    ]
 
     def log_timing(label, phase, **fields):
         suffix = " ".join(f"{key}={value}" for key, value in fields.items())
@@ -111,6 +150,7 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         context.set_partial,
         context.build_source_classified_progress(changes=changes, conflicts=conflicts),
     )
+    context.set_partial("sourceFiles", source_files)
     context.task_success("classify_files", summary={"changedFiles": len(changes)})
     context.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
 
@@ -252,6 +292,7 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         asset_issues=asset_issues,
         unified_asset_issues=unified_asset_issues,
         lineage_summary=lineage_summary,
+        source_files=source_files,
         metadata_profile=context.get_active_profile_name(),
         ai=ai,
     ))

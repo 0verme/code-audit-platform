@@ -7,6 +7,7 @@ from app.config.audit_rules import get_audit_rules
 from ...compat import build_legacy_fine_audit_result_rows
 from ...core.runtime import WorkflowRuntimeContext
 from ...shared.findings import CheckResult, finding_messages
+from ...shared.report_helpers import build_source_file
 from ...shared.result_normalizer import dedupe_tables, normalize_table
 from ...shared.table_annotations import annotate_table, build_result_table_sys_name_map
 from .report import build_fine_report
@@ -39,6 +40,29 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         elif conventions["authority_filename"] in path:
             authority_url = path
 
+    def source_file(path, section, kind):
+        if not path:
+            return None
+        if callable(context.build_source_file):
+            return context.build_source_file(path, section=section, kind=kind)
+        return build_source_file(
+            path,
+            section=section,
+            kind=kind,
+            download_url=context.download_url,
+            relative_path=mods.re_service.safe_remove_prefix,
+        )
+
+    source_files = [
+        descriptor
+        for path, section, kind in (
+            (menu_url, "menu", "menu"),
+            (authority_url, "authority", "authority"),
+            *((path, "reports", "template") for path in cpt_lists),
+        )
+        if (descriptor := source_file(path, section, kind))
+    ]
+
     context.update(progress=40, step="目录与权限检查")
     menu_section = authority_section = None
     menu_lists = []
@@ -51,6 +75,8 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         result = context.safe("目录规则(rule_menu)", lambda: mods.fine_rule.rule_menu(menu_url), CheckResult())
         menu_lists = result.artifacts.get("menu_entries", [])
         menu_section = {
+            "file": mods.re_service.get_filename(menu_url),
+            "downloadUrl": context.download_url(menu_url),
             "columns": ["后台目录", "前台目录", "预览方式"],
             "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
             "messages": finding_messages(result.findings),
@@ -67,6 +93,8 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
             CheckResult(),
         )
         authority_section = {
+            "file": mods.re_service.get_filename(authority_url),
+            "downloadUrl": context.download_url(authority_url),
             "columns": ["前台目录", "赋予权限"],
             "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
             "messages": finding_messages(result.findings),
@@ -215,6 +243,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         authority_section=authority_section,
         reports=reports,
         ref_tables=all_ref_tables,
+        source_files=source_files,
         metadata_profile=metadata_profile,
         ai=ai,
     )

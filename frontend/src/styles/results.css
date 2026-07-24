@@ -135,6 +135,8 @@
   padding: 9px 14px; border-bottom: 1px solid var(--border);
   font-size: var(--fs-xs); color: var(--text-2);
 }
+.source-file-links .dl-link { margin-left: 0; }
+.source-file-links .dl-link:first-of-type { margin-left: auto; }
 
 .sched-tables { display: flex; flex-direction: column; gap: 14px; margin-bottom: var(--gap); }
 .sched-table-block .tbl td { white-space: nowrap; }
