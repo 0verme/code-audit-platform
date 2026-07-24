@@ -28,6 +28,7 @@ def test_description_validation_rules_can_be_overridden(tmp_path: Path):
         "  schedule:\n"
         "    description_validation:\n"
         "      min_meaningful_chinese_chars: 4\n"
+        "      reference_url: https://docs.example.test/job-description\n"
         "      noise_phrases: [自定义模板]\n"
         "      invalid_values: [自定义占位]\n",
         encoding="utf-8",
@@ -37,6 +38,7 @@ def test_description_validation_rules_can_be_overridden(tmp_path: Path):
     description_rules = rules["hcyt"]["schedule"]["description_validation"]
 
     assert description_rules["min_meaningful_chinese_chars"] == 4
+    assert description_rules["reference_url"] == "https://docs.example.test/job-description"
     assert description_rules["noise_phrases"] == ["自定义模板"]
     assert description_rules["invalid_values"] == ["自定义占位"]
 

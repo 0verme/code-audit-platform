@@ -25,6 +25,7 @@ hcyt:
     realtime_priority_values: ["99", "99.0"]
     description_validation:
       min_meaningful_chinese_chars: 2
+      reference_url: "https://your.example/docs/schedule-description"
       noise_phrases:
         - 数据装载加工作业
         - 数据预处理作业

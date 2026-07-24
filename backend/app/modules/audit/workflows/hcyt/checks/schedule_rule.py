@@ -41,6 +41,14 @@ def _normalize_dependency_value(value):
     return str(value).strip().upper()
 
 
+def _job_description_error_message(job_name, description_rules):
+    message = f'{job_name} 第四列作业描述必须要明确加工作用'
+    reference_url = str(description_rules.get("reference_url", "") or "").strip()
+    if reference_url:
+        message = f'{message} 参考：{reference_url}'
+    return message
+
+
 def _collect_online_job_dependencies(job_records):
     online_jobs = {}
     for row in job_records:
@@ -299,7 +307,12 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
             job_name,
             rules["description_validation"],
         ):
-            result.add('hcyt.schedule.job.description', '作业描述', 'err', f'{job_name} 第四列作业描述必须要明确加工作用 参考： https://example.com/docs/schedule-description')
+            result.add(
+                'hcyt.schedule.job.description',
+                '作业描述',
+                'err',
+                _job_description_error_message(job_name, rules["description_validation"]),
+            )
         if plan_name in rules["realtime_calendar_plans"] and cale != rules["realtime_calendar_value"]:
             result.add('hcyt.schedule.job.realtime_calendar', '实时作业日历', 'err', f'{job_name} 的执行日历 {cale} 不对  实际应该是每日跑批 SYS_EVERYDAY_CALENDAR')
         if rules["forbidden_domain_plan_keywords"][0] in plan_name and domain == rules["forbidden_domain"]:

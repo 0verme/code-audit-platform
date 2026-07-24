@@ -62,6 +62,7 @@ DEFAULT_RULES: dict[str, Any] = {
         "required_predecessors": {"JOB_DWS_DWS_DWUPRR_GJYW_ACCT_OPEN_INFO_R_00_DAY": ["JOB_DWS_DWS_DWF_F_AGT_SAVB_BASICINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_AGT_SAVB_ACCTINFO_R_ACC_DAY", "JOB_DWS_DWS_DWF_F_EVT_SAVR_OPENBOOK_R_00_DAY", "JOB_DWS_DWS_DWF_F_PTY_TABLE_R_00_DAY"]},
         "description_validation": {
             "min_meaningful_chinese_chars": 2,
+            "reference_url": "",
             "noise_phrases": [
                 "数据装载加工作业", "数据预处理作业", "实时数据供应", "数据采集作业",
                 "数据加工作业", "数据装载作业", "数据供应作业", "国结模型表",
