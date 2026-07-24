@@ -1,28 +1,62 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { countSqlLines } from "../utils/sqlPresentation.js";
 
 const pageSource = readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/fine-report.css", import.meta.url), "utf8");
 const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
 
-test("FineReport dataset SQL cards default to collapsed", () => {
+test("FineReport dataset cards render summaries without inline SQL", () => {
   assert.match(pageSource, /function DatasetSqlCard\(\{ dataset, index \}\)/);
-  assert.match(pageSource, /const \[open, setOpen\] = useState\(false\)/);
-  assert.match(pageSource, /className="fr-ds-top fr-ds-trigger"/);
-  assert.match(pageSource, /aria-expanded=\{open\}/);
+  assert.match(pageSource, /SQL \{sqlLineCount\} 行/);
+  assert.match(pageSource, /结果约 \{dataset\.rows\} 行/);
+  assert.match(pageSource, />\s*查看完整 SQL\s*<\/button>/);
+  assert.match(pageSource, /\{viewerOpen \? \(\s*<dialog/);
+  assert.doesNotMatch(pageSource, /className="fr-ds-sql"|aria-expanded=\{open\}|const \[open, setOpen\]/);
 });
 
-test("FineReport dataset SQL cards toggle independently and render SQL only when open", () => {
-  assert.match(pageSource, /onClick=\{\(\) => setOpen\(\(current\) => !current\)\}/);
-  assert.match(pageSource, /\{open \? <pre id=\{sqlId\} className="fr-ds-sql mono">\{dataset\.sql\}<\/pre> : null\}/);
-  assert.match(pageSource, /report\.datasets\.map\(\(dataset, index\) =>/);
-  assert.match(pageSource, /key=\{`\$\{dataset\.name\}-\$\{index\}`\}/);
+test("FineReport SQL viewer exposes accessible copy and close actions", () => {
+  assert.match(pageSource, /className="fr-sql-viewer"/);
+  assert.match(pageSource, /role="dialog"/);
+  assert.match(pageSource, /aria-modal="true"/);
+  assert.match(pageSource, /aria-labelledby=\{titleId\}/);
+  assert.match(pageSource, /aria-describedby=\{descriptionId\}/);
+  assert.match(pageSource, /aria-label=\{`复制当前数据集 \$\{datasetName\} 的完整 SQL`\}/);
+  assert.match(pageSource, /aria-label="关闭 SQL 查看器"/);
+  assert.match(pageSource, /role="status" aria-live="polite"/);
 });
 
-test("FineReport dataset SQL cards expose keyboard focus styling", () => {
-  assert.match(styleSource, /\.fr-ds-trigger:focus-visible/);
-  assert.match(styleSource, /\.fr-ds\.open \.fr-ds-chevron/);
+test("FineReport SQL viewer copies the original SQL and reports failures", () => {
+  assert.match(pageSource, /const sql = typeof dataset\?\.sql === "string" \? dataset\.sql : ""/);
+  assert.match(pageSource, /await navigator\.clipboard\.writeText\(sql\)/);
+  assert.match(pageSource, /setCopyFeedback\("已复制"\)/);
+  assert.match(pageSource, /setCopyFeedback\("复制失败，请手动选择 SQL 复制"\)/);
+  assert.match(pageSource, /useEffect\(\(\) => \(\) => clearCopyTimer\(\), \[\]\)/);
+});
+
+test("FineReport SQL viewer contains Escape and restores trigger focus", () => {
+  assert.match(pageSource, /if \(event\.key !== "Escape"\) return;\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);\s*closeViewer\(\);/);
+  assert.match(pageSource, /onCancel=\{\(event\) => \{\s*event\.preventDefault\(\);\s*event\.stopPropagation\(\);/);
+  assert.match(pageSource, /triggerRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(pageSource, /copyButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+});
+
+test("FineReport SQL viewer keeps SQL in an independently scrolling unwrapped area", () => {
+  assert.match(styleSource, /\.fr-sql-viewer-content \{[^}]*overflow-x: auto;[^}]*overflow-y: auto;[^}]*white-space: pre;/s);
+  assert.match(styleSource, /\.fr-sql-viewer-toolbar \{[^}]*flex: none;/s);
+  assert.match(styleSource, /\.fr-sql-viewer::backdrop \{[^}]*var\(--text\)/);
+  assert.doesNotMatch(styleSource, /\.fr-sql-viewer[^}]*#[0-9a-f]{3,8}/i);
+});
+
+test("countSqlLines handles empty, LF, CRLF, and thousand-line SQL", () => {
+  assert.equal(countSqlLines(null), 0);
+  assert.equal(countSqlLines(undefined), 0);
+  assert.equal(countSqlLines(""), 0);
+  assert.equal(countSqlLines("select 1"), 1);
+  assert.equal(countSqlLines("select 1\nselect 2\nselect 3"), 3);
+  assert.equal(countSqlLines("select 1\r\nselect 2\r\nselect 3"), 3);
+  assert.equal(countSqlLines(Array.from({ length: 1000 }, (_, index) => `select ${index}`).join("\n")), 1000);
 });
 
 test("FineReport keeps grouped referenced tables inside CPT drilldown", () => {
