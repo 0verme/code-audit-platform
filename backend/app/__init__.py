@@ -8,6 +8,7 @@ from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 from werkzeug.exceptions import BadRequest
 
+from .config.audit_rules import get_audit_rules
 from .logging_config import configure_logging
 from .routes import BLUEPRINTS
 from .services.audit_task_service import recover_orphan_tasks
@@ -17,6 +18,7 @@ from .settings import get_runtime_security_settings, load_backend_dotenv
 def create_app(*, recover_tasks: bool = True) -> Flask:
     load_backend_dotenv()
     configure_logging()
+    get_audit_rules()
     settings = get_runtime_security_settings()
     app = Flask(__name__)
     app.config.update(JSON_AS_ASCII=False, RUNTIME_SETTINGS=settings)

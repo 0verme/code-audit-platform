@@ -31,7 +31,6 @@ Thumbs.db
 # Local runtime connection configuration; use committed example templates instead.
 /backend/configs/database.yaml
 /backend/configs/svn.yaml
-/backend/configs/audit_rules.yaml
 
 # Codex local state
 .codex/

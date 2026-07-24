@@ -1,0 +1,265 @@
+# Complete, non-secret audit business rules.
+# This file is the single source of truth: every field is required and empty
+# lists mean "no values". Do not put SQL, passwords, tokens, connection strings,
+# production credentials, or arbitrary filesystem paths here.
+schema_version: 1
+
+display:
+  highlight_result_source_systems:
+    - 押品管理系统
+    - 移动贷后
+    - IPC智能微贷平台
+    - 风险预警报送系统
+    - 线下智能风控系统
+    - 统一授信系统
+    - 信贷管理系统
+  calendar_labels:
+    SYS_MONTH_END_CALENDAR: 每月末
+    SYS_EVERYDAY_CALENDAR: 每日
+
+hcyt:
+  schedule:
+    real_job_plan_names: []
+    invalid_plan_names:
+      - PLAN_PROV_LOCAL_SEND_DAY
+    recv_mapping_plan_prefix: PLAN_SA_RECV_
+    missing_plan_warning_patterns:
+      - prefix: PLAN_DWS_
+        suffix: _DWS_DWUPRR_DAY
+      - prefix: PLAN_PROV_
+        suffix: _SEND_DAY
+    plan_name_rules:
+      DWD:
+        - PLAN_PROV_DWD_LOCAL_DAY
+        - PLAN_DWS_DWD_DAY
+      DWP:
+        - PLAN_PROV_DWP_LOCAL_DAY
+        - PLAN_DWS_DWP_DAY
+      DWM:
+        - PLAN_DWS_DWM_DWS_DWM_DAY
+        - PLAN_DWS_DWM_MODEL
+        - PLAN_PROV_DWM_LOCAL_DAY
+    allowed_domains:
+      - EDWS_DOMAIN
+      - CMS_DOMAIN
+      - NOVA_DOMAIN
+      - CBSRUN_DOMAIN
+      - IS_DOMAIN
+      - EXPORT_DOMAIN
+    disabled_status_values: ["9", "9.0"]
+    enabled_status_values: ["1", "1.0"]
+    realtime_priority_values: ["99", "99.0"]
+    realtime_sequence_keyword: REAL
+    realtime_plan_suffix: REAL
+    realtime_calendar_plans:
+      - PLAN_DWS_DWM_MODEL
+      - PLAN_DWS_DWM_DWS_DWM_DAY
+    realtime_calendar_value: SYS_EVERYDAY_CALENDAR
+    forbidden_domain_plan_keywords:
+      - PLAN_SA_RECV
+      - PLAN_SA_MIDD
+      - PLAN_DWS_RDS
+    forbidden_domain: EDWS_DOMAIN
+    recv_plan_keyword: PLAN_SA_RECV
+    provision_job_keyword: JOB_PROV_
+    sequence_name_rules:
+      DWD:
+        - SEQ_DWS_DWD_DAY
+        - SEQ_PROV_DWD_LOCAL_DAY
+        - "0.0"
+      DWP:
+        - SEQ_DWS_DWP_DAY
+        - SEQ_PROV_DWP_LOCAL_DAY
+        - "0.0"
+      DWM:
+        - SEQ_DWS_DWM_DWS_DWM_DAY
+        - SEQ_PROV_DWM_LOCAL_DAY
+        - SEQ_DWS_DWM_MODEL_LON
+        - SEQ_DWS_DWM_MODEL_GLA
+        - SEQ_DWS_DWM_MODEL_COM
+        - "0.0"
+    dependency_required_job_keywords:
+      - JOB_DWS_DWS_DWF
+      - JOB_DWS_DWS_DWO
+      - JOB_PROV_DWS_
+      - DWUPRR
+      - DWM
+      - DWA
+      - DWP
+      - SEND
+      - LOCAL
+    dependency_exceptions:
+      - JOB_SA_RECV
+    late_plan_names:
+      - PLAN_DWS_WLD_DWS_DWF_DAY
+      - PLAN_DWS_CA_DWS_DWF_DAY
+      - PLAN_DWS_BICA_DWS_DWF_DAY
+      - PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY
+      - PLAN_REAL_CBS_CBSRUN_LDXJC_DAY
+      - PLAN_DWS_KDW_PAM_DWS_DWF_DAY
+    late_plan_exceptions:
+      - PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY
+      - PLAN_REAL_CBS_CBSRUN_LDXJC_DAY
+    realtime_dependency_exception: PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY
+    forbidden_dependency_plans:
+      - PLAN_JZZF_MBP_NTCP_REAL_DWS_DAY
+      - PLAN_DWS_KDW_PAM_DWS_DWF_DAY
+    required_predecessors:
+      JOB_DWS_DWS_DWUPRR_GJYW_ACCT_OPEN_INFO_R_00_DAY:
+        - JOB_DWS_DWS_DWF_F_AGT_SAVB_BASICINFO_R_ACC_DAY
+        - JOB_DWS_DWS_DWF_F_AGT_SAVB_ACCTINFO_R_ACC_DAY
+        - JOB_DWS_DWS_DWF_F_EVT_SAVR_OPENBOOK_R_00_DAY
+        - JOB_DWS_DWS_DWF_F_PTY_TABLE_R_00_DAY
+    description_validation:
+      min_meaningful_chinese_chars: 2
+      reference_url: ""
+      noise_phrases:
+        - 数据装载加工作业
+        - 数据预处理作业
+        - 实时数据供应
+        - 数据采集作业
+        - 数据加工作业
+        - 数据装载作业
+        - 数据供应作业
+        - 国结模型表
+        - 监管集市
+        - 数据供应
+        - 加工表
+        - 接入表
+        - 新国结表
+        - 模型层
+        - 贴源层
+        - 拉链表
+        - 预处理
+        - 新国结
+        - 国结表
+        - 待补充
+        - 待完善
+        - 实时
+        - 卸数
+        - 全量
+        - 增量
+        - 拉链
+        - 装载
+        - 采集
+        - 作业
+        - 加工
+        - 数据
+        - 国结
+        - 测试
+        - 描述
+        - 说明
+        - 暂无
+        - 默认
+        - 同上
+        - 未知
+        - F层
+        - SEND
+      invalid_values:
+        - "null"
+        - "none"
+        - "n/a"
+        - "na"
+        - "todo"
+        - "tbd"
+        - "audit sample"
+        - "test"
+        - "description"
+        - 无
+        - 暂无
+        - 无描述
+        - 暂无描述
+        - 待补充
+        - 待完善
+        - 同上
+        - 默认
+        - 未知
+
+dws:
+  naming:
+    schema_prefixes:
+      DWF: [F_]
+      DWM: [M_]
+      DWA: [A_]
+      DWP: [P_]
+      DWD: [RMD_]
+    temporary_table_prefixes: [TMP_]
+    comment_required_schemas: [DWF, DWM, DWA, DWP, DWD]
+    root_check_required_schemas: [DWM, DWA, DM]
+    asset_review_required_schemas: [DWM, DWA, DM]
+  sql_review:
+    legacy_markers:
+      - value: WLQ
+        excludes: []
+      - value: LZY
+        excludes: [RLZY]
+      - value: BSC
+        excludes: []
+      - value: YGW
+        excludes: []
+      - value: TMPQS
+        excludes: []
+    protected_code_tables:
+      - DWM.M_PUB_CODE_MAP_NEW
+      - DWM.M_PUB_CODE_INFO_NEW
+      - DWM.M_PUB_CODE_USE_NEW
+
+nups:
+  file_rules:
+    sql_filenames: []
+    program_path_patterns:
+      - "**/NUPS_DATA/**/*.py"
+    program_table_name:
+      directory_schema_prefix: DWS_
+
+fine_report:
+  file_conventions:
+    menu_filename: menu.txt
+    authority_filename: authority.txt
+    template_extensions: [.cpt, .frm]
+  menu_normalization:
+    required_root_prefix: 数据仓库/
+    replacements:
+      - sources: [会计结算部, 会计部报表]
+        replacement: 运营管理部
+        locations: [backend, menu]
+      - sources: [互联网金融部]
+        replacement: 互联网金融部
+        locations: [menu]
+  sensitive_field_rules: {}
+
+audit_input:
+  included_extensions: [.cpt, .frm, .txt, .xls, .sql, .sh, .py, .json]
+  file_categories:
+    - contains: dws.sql
+      category: DWS SQL
+    - contains: hive.sql
+      category: Hive SQL
+    - suffixes: [.sql]
+      category: SQL
+    - suffixes: [.py]
+      category: Python
+    - suffixes: [.sh]
+      category: 后置脚本
+    - contains: /sbin/
+      category: 后置脚本
+    - suffixes: [.xls, .xlsx]
+      category: 调度表
+    - suffixes: [.json]
+      category: 配置文件
+    - suffixes: [.cpt, .frm]
+      category: 报表模板
+    - suffixes: [.txt]
+      category: 目录/权限
+
+workflows:
+  default: hcyt
+  definitions:
+    - id: hcyt
+      path_keywords: ["/hcyt/", hcyt, 湖仓]
+    - id: nups
+      path_keywords: ["/nups/", nups, 统一报送]
+    - id: fine-report
+      path_keywords: ["/fine-report/", fine_report, finereport, report, 报表]
+
+source_display_rules: []

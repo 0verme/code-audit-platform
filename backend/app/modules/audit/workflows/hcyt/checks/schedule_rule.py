@@ -24,11 +24,6 @@ from ....shared.findings import CheckResult
 def _schedule_rules():
     return get_audit_rules()["hcyt"]["schedule"]
 
-# Compatibility export for callers that import the historical constant. Rule
-# execution itself reads the cached configuration through _schedule_rules().
-REAL_JOB_PLAN_NAMES = frozenset(_schedule_rules()["real_job_plan_names"])
-
-
 def _normalize_job_value(value):
     if value is None or pd.isna(value):
         return ''
@@ -108,14 +103,14 @@ def rule_excle_plan(df):
         if plan_name in rules["invalid_plan_names"]:
             result.add('hcyt.schedule.plan.invalid_name', '计划名规范', 'err', f'计划名: {plan_name} 计划名有误')
 
-        if 'DWD' in plan_name and plan_name not in rules["plan_name_rules"][0]["allowed"]:
-            result.add('hcyt.schedule.plan.dwd_name', 'DWD 计划名', 'err', f'计划名: {plan_name} 计划名有误')
-
-        if 'DWP' in plan_name and plan_name not in rules["plan_name_rules"][1]["allowed"]:
-            result.add('hcyt.schedule.plan.dwp_name', 'DWP 计划名', 'err', f'计划名: {plan_name} 计划名有误')
-
-        if 'DWM' in plan_name and plan_name not in rules["plan_name_rules"][2]["allowed"]:
-            result.add('hcyt.schedule.plan.dwm_name', 'DWM 计划名', 'err', f'计划名: {plan_name} 计划名有误')
+        for keyword, allowed_names in rules["plan_name_rules"].items():
+            if keyword in plan_name and plan_name not in allowed_names:
+                result.add(
+                    f'hcyt.schedule.plan.{keyword.lower()}_name',
+                    f'{keyword} 计划名',
+                    'err',
+                    f'计划名: {plan_name} 计划名有误',
+                )
 
         if plan_depand:
             result.add('hcyt.schedule.plan.predecessor', '计划前置依赖', 'err', f'计划名: {plan_name} 存在前置依赖 {plan_depand}，请检查')
@@ -323,12 +318,14 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
             result.add('hcyt.schedule.job.execution_domain', '作业执行域', 'err', f'{job_name} 执行域有误 不应为EDWS_DOMAIN')
         if domain not in rules["allowed_domains"]:
             result.add('hcyt.schedule.job.invalid_domain', '作业执行域', 'err', f'{job_name} 执行域有误不应为 ' + domain)
-        if 'DWD' in plan_name and seq_name not in rules["sequence_name_rules"][0]["allowed"]:
-            result.add('hcyt.schedule.job.dwd_sequence', 'DWD 作业流名称', 'err', f'{seq_name} 计划流名称有误')
-        if 'DWP' in plan_name and seq_name not in rules["sequence_name_rules"][1]["allowed"]:
-            result.add('hcyt.schedule.job.dwp_sequence', 'DWP 作业流名称', 'err', f'{seq_name} 计划流名称有误')
-        if 'DWM' in plan_name and seq_name not in rules["sequence_name_rules"][2]["allowed"]:
-            result.add('hcyt.schedule.job.dwm_sequence', 'DWM 作业流名称', 'err', f'{seq_name} 计划流名称有误')
+        for keyword, allowed_names in rules["sequence_name_rules"].items():
+            if keyword in plan_name and seq_name not in allowed_names:
+                result.add(
+                    f'hcyt.schedule.job.{keyword.lower()}_sequence',
+                    f'{keyword} 作业流名称',
+                    'err',
+                    f'{seq_name} 计划流名称有误',
+                )
         job_list.append([plan_name, seq_name, job_name, domain, didp_evt, depand])
         if rules["dependency_required_job_keywords"][0] in job_name and depand == '':
             result.add('hcyt.schedule.job.missing_dwf_dependency', 'DWF 前置依赖', 'err', f'{job_name} DWF层为什么没有前置依赖')

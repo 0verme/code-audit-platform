@@ -1,125 +1,167 @@
+import copy
 from pathlib import Path
 
-from app.config.audit_rules import DEFAULT_RULES, _config_path, load_audit_rules, refresh_audit_rules
+import pytest
+import yaml
+
+from app.config.audit_rules import (
+    AuditRulesConfigError,
+    _config_path,
+    get_audit_rules,
+    load_audit_rules,
+    refresh_audit_rules,
+)
 from app.modules.audit.source.resolver import classify_change
 
 
-def test_default_config_path_targets_backend_configs(monkeypatch):
+CANONICAL_RULES_PATH = Path(__file__).resolve().parents[1] / "backend" / "configs" / "audit_rules.yaml"
+
+
+def _canonical_rules() -> dict:
+    return copy.deepcopy(load_audit_rules(path=CANONICAL_RULES_PATH))
+
+
+def _write_rules(tmp_path: Path, rules: dict, name: str = "rules.yaml") -> Path:
+    rules_file = tmp_path / name
+    rules_file.write_text(
+        yaml.safe_dump(rules, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+    return rules_file
+
+
+def test_default_config_path_targets_tracked_backend_config(monkeypatch):
     monkeypatch.delenv("AUDIT_RULES_CONFIG", raising=False)
-    expected = Path(__file__).resolve().parents[1] / "backend" / "configs" / "audit_rules.yaml"
-    assert _config_path() == expected
+    assert _config_path() == CANONICAL_RULES_PATH
 
 
-def test_valid_rules_file_overrides_declared_values(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    rules_file.write_text(
-        "display:\n  highlight_result_source_systems: [CRM]\nhcyt:\n  schedule:\n    allowed_domains: [DOMAIN_A]\n",
-        encoding="utf-8",
-    )
-    rules = load_audit_rules(path=rules_file)
-    assert rules["display"]["highlight_result_source_systems"] == ["CRM"]
-    assert rules["hcyt"]["schedule"]["allowed_domains"] == ["DOMAIN_A"]
+def test_repository_rules_file_is_complete_and_valid():
+    rules = load_audit_rules(path=CANONICAL_RULES_PATH)
+
+    assert rules["schema_version"] == 1
+    assert rules["hcyt"]["schedule"]["allowed_domains"]
+    assert rules["audit_input"]["file_categories"]
+    assert set(rules["hcyt"]["schedule"]["plan_name_rules"]) == {"DWD", "DWP", "DWM"}
+    assert set(rules["hcyt"]["schedule"]["sequence_name_rules"]) == {"DWD", "DWP", "DWM"}
+    assert {item["id"] for item in rules["workflows"]["definitions"]} == {
+        "hcyt",
+        "nups",
+        "fine-report",
+    }
 
 
-def test_description_validation_rules_can_be_overridden(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    rules_file.write_text(
-        "hcyt:\n"
-        "  schedule:\n"
-        "    description_validation:\n"
-        "      min_meaningful_chinese_chars: 4\n"
-        "      reference_url: https://docs.example.test/job-description\n"
-        "      noise_phrases: [自定义模板]\n"
-        "      invalid_values: [自定义占位]\n",
-        encoding="utf-8",
-    )
+def test_complete_alternate_rules_file_replaces_declared_values(tmp_path: Path):
+    rules = _canonical_rules()
+    rules["display"]["highlight_result_source_systems"] = ["CRM"]
+    rules["hcyt"]["schedule"]["allowed_domains"] = ["DOMAIN_A"]
 
-    rules = load_audit_rules(path=rules_file)
-    description_rules = rules["hcyt"]["schedule"]["description_validation"]
+    loaded = load_audit_rules(path=_write_rules(tmp_path, rules))
 
-    assert description_rules["min_meaningful_chinese_chars"] == 4
-    assert description_rules["reference_url"] == "https://docs.example.test/job-description"
-    assert description_rules["noise_phrases"] == ["自定义模板"]
-    assert description_rules["invalid_values"] == ["自定义占位"]
+    assert loaded["display"]["highlight_result_source_systems"] == ["CRM"]
+    assert loaded["hcyt"]["schedule"]["allowed_domains"] == ["DOMAIN_A"]
 
 
-def test_empty_allowed_domains_keeps_compatibility_defaults(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    rules_file.write_text(
-        "display:\n  highlight_result_source_systems: []\nhcyt:\n  schedule:\n    allowed_domains: []\n",
-        encoding="utf-8",
-    )
+def test_explicit_empty_lists_remain_empty(tmp_path: Path):
+    rules = _canonical_rules()
+    rules["hcyt"]["schedule"]["allowed_domains"] = []
+    rules["audit_input"]["file_categories"] = []
 
-    rules = load_audit_rules(path=rules_file)
+    loaded = load_audit_rules(path=_write_rules(tmp_path, rules))
 
-    assert rules["hcyt"]["schedule"]["allowed_domains"] == DEFAULT_RULES["hcyt"]["schedule"]["allowed_domains"]
-    assert rules["display"]["highlight_result_source_systems"] == []
+    assert loaded["hcyt"]["schedule"]["allowed_domains"] == []
+    assert loaded["audit_input"]["file_categories"] == []
 
 
-def test_empty_file_categories_keeps_builtin_classification_map(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    rules_file.write_text(
-        "audit_input:\n  file_categories: []\n",
-        encoding="utf-8",
-    )
+def test_classify_change_uses_configured_categories():
+    refresh_audit_rules(path=CANONICAL_RULES_PATH)
+    expected_categories = {
+        "etl/dws.sql": "DWS SQL",
+        "etl/hive.sql": "Hive SQL",
+        "sql/demo.sql": "SQL",
+        "scripts/job.py": "Python",
+        "scripts/run.sh": "后置脚本",
+        "schedule/jobs.xls": "调度表",
+        "config/task.json": "配置文件",
+        "report/demo.cpt": "报表模板",
+        "report/menu.txt": "目录/权限",
+        "docs/readme.md": "其他",
+    }
 
-    rules = load_audit_rules(path=rules_file)
-
-    assert rules["audit_input"]["file_categories"] == DEFAULT_RULES["audit_input"]["file_categories"]
-
-
-def test_non_empty_file_categories_override_builtin_classification_map(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    custom_categories = [{"suffixes": [".custom"], "category": "自定义"}]
-    rules_file.write_text(
-        "audit_input:\n"
-        "  file_categories:\n"
-        "    - suffixes: [.custom]\n"
-        "      category: 自定义\n",
-        encoding="utf-8",
-    )
-
-    rules = load_audit_rules(path=rules_file)
-
-    assert rules["audit_input"]["file_categories"] == custom_categories
+    assert {path: classify_change(path) for path in expected_categories} == expected_categories
 
 
-def test_classify_change_uses_builtin_map_when_configured_categories_are_empty(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    rules_file.write_text(
-        "audit_input:\n  file_categories: []\n",
-        encoding="utf-8",
-    )
-    refresh_audit_rules(path=rules_file)
+def test_missing_rules_file_reports_absolute_path(tmp_path: Path):
+    missing = (tmp_path / "missing.yaml").resolve()
 
-    try:
-        expected_categories = {
-            "etl/dws.sql": "DWS SQL",
-            "etl/hive.sql": "Hive SQL",
-            "sql/demo.sql": "SQL",
-            "scripts/job.py": "Python",
-            "scripts/run.sh": "后置脚本",
-            "schedule/jobs.xls": "调度表",
-            "config/task.json": "配置文件",
-            "report/demo.cpt": "报表模板",
-            "report/menu.txt": "目录/权限",
-            "docs/readme.md": "其他",
-        }
+    with pytest.raises(AuditRulesConfigError, match="file does not exist") as exc_info:
+        load_audit_rules(path=missing)
 
-        assert {path: classify_change(path) for path in expected_categories} == expected_categories
-    finally:
-        refresh_audit_rules(path=tmp_path / "missing.yaml")
+    assert str(missing) in str(exc_info.value)
 
 
-def test_missing_or_invalid_rules_file_keeps_safe_defaults(tmp_path: Path):
-    assert load_audit_rules(path=tmp_path / "missing.yaml") == DEFAULT_RULES
+def test_yaml_syntax_error_reports_line_and_file(tmp_path: Path):
     broken = tmp_path / "broken.yaml"
-    broken.write_text("display: [not-a-mapping]", encoding="utf-8")
-    assert load_audit_rules(path=broken) == DEFAULT_RULES
+    broken.write_text("display: [unterminated\n", encoding="utf-8")
+
+    with pytest.raises(AuditRulesConfigError, match=r"line \d+, column \d+") as exc_info:
+        load_audit_rules(path=broken)
+
+    assert str(broken.resolve()) in str(exc_info.value)
 
 
-def test_refresh_injects_a_rules_file_for_tests(tmp_path: Path):
-    rules_file = tmp_path / "rules.yaml"
-    rules_file.write_text("display:\n  calendar_labels:\n    X: 标签\n", encoding="utf-8")
-    assert refresh_audit_rules(path=rules_file)["display"]["calendar_labels"] == {"X": "标签"}
-    refresh_audit_rules(path=tmp_path / "missing.yaml")
+@pytest.mark.parametrize(
+    ("mutate", "expected_path"),
+    [
+        (lambda rules: rules.update({"unexpected": {}}), "root.unexpected"),
+        (lambda rules: rules["hcyt"]["schedule"].pop("allowed_domains"), "hcyt.schedule.allowed_domains"),
+        (
+            lambda rules: rules["hcyt"]["schedule"].update({"allowed_domains": "EDWS_DOMAIN"}),
+            "hcyt.schedule.allowed_domains",
+        ),
+        (lambda rules: rules.update({"schema_version": 999}), "schema_version"),
+    ],
+)
+def test_invalid_complete_config_reports_field_path(tmp_path: Path, mutate, expected_path: str):
+    rules = _canonical_rules()
+    mutate(rules)
+
+    with pytest.raises(AuditRulesConfigError) as exc_info:
+        load_audit_rules(path=_write_rules(tmp_path, rules))
+
+    assert expected_path in str(exc_info.value)
+
+
+def test_refresh_failure_preserves_last_valid_cache(tmp_path: Path):
+    expected = refresh_audit_rules(path=CANONICAL_RULES_PATH)
+    broken = tmp_path / "broken.yaml"
+    broken.write_text("schema_version: 1\n", encoding="utf-8")
+
+    with pytest.raises(AuditRulesConfigError):
+        refresh_audit_rules(path=broken)
+
+    assert get_audit_rules() == expected
+
+
+def test_environment_override_requires_a_complete_file(monkeypatch, tmp_path: Path):
+    partial = tmp_path / "partial.yaml"
+    partial.write_text("schema_version: 1\n", encoding="utf-8")
+    monkeypatch.setenv("AUDIT_RULES_CONFIG", str(partial))
+
+    with pytest.raises(AuditRulesConfigError, match="root.audit_input"):
+        load_audit_rules(path=_config_path())
+
+
+def test_app_factory_validates_rules_before_startup(monkeypatch):
+    import app
+
+    error = AuditRulesConfigError("invalid rules for startup")
+
+    def fail_validation():
+        raise error
+
+    monkeypatch.setattr(app, "get_audit_rules", fail_validation)
+
+    with pytest.raises(AuditRulesConfigError) as exc_info:
+        app.create_app(recover_tasks=False)
+
+    assert exc_info.value is error

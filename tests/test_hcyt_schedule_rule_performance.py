@@ -10,12 +10,12 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.checks.hcyt import schedule_rule  # noqa: E402
-from app.modules.audit.checks.hcyt.description_rule import (  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks import schedule_rule  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks.description_rule import (  # noqa: E402
     has_meaningful_job_description,
 )
-from app.config.audit_rules import DEFAULT_RULES  # noqa: E402
-from app.modules.audit.report_builder import build_job_table  # noqa: E402
+from app.config.audit_rules import get_audit_rules  # noqa: E402
+from app.modules.audit.shared.report_helpers import build_job_table  # noqa: E402
 
 
 def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", domain="CMS_DOMAIN", status="1", dependency=""):
@@ -63,6 +63,55 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
             [item.msg for item in result.findings],
         )
         self.assertFalse(any("dwp.p_upstream_system" in item.msg for item in result.findings))
+
+    def test_named_plan_rules_do_not_depend_on_mapping_order(self):
+        plan_name = "PLAN_DWS_DWD_DAY"
+        plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
+        rules = schedule_rule._schedule_rules()
+        rules["plan_name_rules"] = {
+            "DWM": ["PLAN_DWS_DWM_MODEL"],
+            "DWP": ["PLAN_DWS_DWP_DAY"],
+            "DWD": [plan_name],
+        }
+
+        with (
+            patch.object(schedule_rule, "_schedule_rules", return_value=rules),
+            patch.object(schedule_rule, "all_plan", return_value=[(plan_name,)]),
+            patch.object(schedule_rule, "all_upstream_system_ids", return_value=[]),
+        ):
+            result = schedule_rule.rule_excle_plan(plan_df)
+
+        self.assertNotIn(
+            "hcyt.schedule.plan.dwd_name",
+            [finding.rule_code for finding in result.findings],
+        )
+
+    def test_named_sequence_rules_do_not_depend_on_mapping_order(self):
+        plan_name = "PLAN_DWS_DWD_DAY"
+        sequence_name = "SEQ_DWS_DWD_DAY"
+        rows = [job_row(plan=plan_name, seq=sequence_name, job="JOB_A")]
+        rules = schedule_rule._schedule_rules()
+        rules["sequence_name_rules"] = {
+            "DWM": ["SEQ_DWS_DWM_MODEL_LON"],
+            "DWP": ["SEQ_DWS_DWP_DAY"],
+            "DWD": [sequence_name],
+        }
+
+        with (
+            patch.object(schedule_rule, "_schedule_rules", return_value=rules),
+            patch.object(schedule_rule, "all_job_outfile", return_value=[]),
+            patch.object(schedule_rule, "all_cale", return_value=[], create=True),
+        ):
+            result = schedule_rule.rule_excle_job(
+                pd.DataFrame(rows),
+                r_plan={plan_name},
+                job_rows=rows,
+            )
+
+        self.assertNotIn(
+            "hcyt.schedule.job.dwd_sequence",
+            [finding.rule_code for finding in result.findings],
+        )
 
     def test_job_rule_reuses_rules_and_job_records_without_iterrows(self):
         rows = [job_row(job="JOB_A"), job_row(job="JOB_B", dependency="33:JOB_A")]
@@ -189,7 +238,7 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
 
 class HcytJobDescriptionRuleTests(unittest.TestCase):
     def setUp(self):
-        self.rules = DEFAULT_RULES["hcyt"]["schedule"]["description_validation"]
+        self.rules = get_audit_rules()["hcyt"]["schedule"]["description_validation"]
 
     def test_rejects_empty_placeholder_and_non_chinese_descriptions(self):
         invalid_descriptions = [

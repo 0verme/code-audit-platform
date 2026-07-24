@@ -230,9 +230,9 @@ npm run dev
 - `backend/.env.example`
 - `backend/configs/database.example.yaml`
 - `backend/configs/svn.example.yaml`
-- `backend/configs/audit_rules.example.yaml`（若存在）
+- `backend/configs/audit_rules.yaml`（随代码提交的完整非敏感审计规则）
 
-真实配置文件应保留在部署环境，不应提交到仓库。
+数据库、SVN、`.env` 等包含环境信息的真实配置应保留在部署环境，不应提交到仓库；审计业务规则不含敏感信息，正式 YAML 直接纳入版本管理。
 
 ## 测试与回归
 

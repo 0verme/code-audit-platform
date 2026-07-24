@@ -117,10 +117,13 @@ python backend\app.py
 3. 元数据查询也能在同一 profile 下访问 `dwp.p_*` 表。
 ## Audit-rule deployment
 
-Create ignored `backend/configs/audit_rules.yaml` from its example only when a
-deployment needs business overrides, or set `AUDIT_RULES_CONFIG` to an
-externally managed YAML file. Do not put credentials, tokens, connection
-strings, arbitrary paths, or SQL in it. A missing or malformed rule file cannot
-block startup or an audit task: it produces a sanitized warning and safely
-falls back. Put schema/table/column mappings under the selected database
+The tracked `backend/configs/audit_rules.yaml` is the complete, single source
+of truth for audit business rules. Deploy it with the application, or set
+`AUDIT_RULES_CONFIG` to another complete YAML file. Partial overrides are not
+supported. Missing, malformed, incomplete, or incompatible rules block backend
+startup and report the file and field path. Restart every backend process after
+changing rules.
+
+Do not put credentials, tokens, connection strings, arbitrary paths, or SQL in
+this file. Put schema/table/column mappings under the selected database
 profile's `metadata` key in `database.yaml`, not in audit-rule YAML.

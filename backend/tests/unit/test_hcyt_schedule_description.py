@@ -1,11 +1,11 @@
-from app.config.audit_rules import DEFAULT_RULES
+from app.config.audit_rules import get_audit_rules
 from app.modules.audit.workflows.hcyt.checks.schedule_rule import (
     _job_description_error_message,
 )
 
 
 def test_description_error_omits_reference_when_url_is_empty():
-    rules = DEFAULT_RULES["hcyt"]["schedule"]["description_validation"]
+    rules = get_audit_rules()["hcyt"]["schedule"]["description_validation"]
 
     message = _job_description_error_message("JOB_A", rules)
 
@@ -15,7 +15,7 @@ def test_description_error_omits_reference_when_url_is_empty():
 
 def test_description_error_includes_configured_reference_url():
     rules = {
-        **DEFAULT_RULES["hcyt"]["schedule"]["description_validation"],
+        **get_audit_rules()["hcyt"]["schedule"]["description_validation"],
         "reference_url": " https://docs.example.test/job-description ",
     }
 

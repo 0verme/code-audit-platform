@@ -70,16 +70,17 @@ profiles:
 - 当前 profile 名称
 - 缺失字段名
 - 当前支持的 type 列表
-## Audit business rules
+## 审计业务规则
 
-Copy `backend/configs/audit_rules.example.yaml` to the ignored
-`backend/configs/audit_rules.yaml`, or set `AUDIT_RULES_CONFIG` to an absolute
-YAML path. It contains declarative, non-secret HCYT, DWS, NUPS, FineReport,
-workflow, and input-classification rules. Rules are process-cached. Missing or
-invalid YAML logs a non-sensitive warning and falls back safely: display
-highlighting is empty, calendar labels retain raw values, and audit decisions
-keep built-in compatibility defaults. Never put SQL, passwords, tokens, JDBC
-URLs, connection strings, or arbitrary paths in this file.
+`backend/configs/audit_rules.yaml` 是 HCYT、DWS、NUPS、FineReport、工作流及输入分类规则的唯一事实来源，并随代码提交。Python 加载器不包含业务默认值，也不会把多份配置进行合并。
+
+- 所有字段均为必填，`schema_version` 当前必须为 `1`。
+- 空列表表示确实没有配置值，不表示继承或恢复默认值。
+- 规则在进程内缓存；修改后需要重启所有后端进程。
+- 可用 `AUDIT_RULES_CONFIG` 指定另一份 `.yaml`/`.yml` 文件，但该文件必须包含完整配置。
+- 文件缺失、YAML 无法解析、存在未知或缺失字段、字段类型错误时，后端会直接启动失败；错误信息包含配置绝对路径和具体字段路径。
+
+该文件只能包含非敏感声明式规则。不得写入 SQL、密码、Token、JDBC URL、连接串、生产凭据或任意文件系统路径。
 
 ## Profile metadata mappings
 

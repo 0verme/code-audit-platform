@@ -1,6 +1,9 @@
+import copy
 import sys
 from pathlib import Path
 from unittest.mock import patch
+
+import yaml
 
 
 BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
@@ -8,13 +11,16 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.config.audit_rules import load_audit_rules, refresh_audit_rules  # noqa: E402
-from app.modules.audit.checks import nups_rule  # noqa: E402
-from app.modules.audit.checks.dws_sql_review import run_configured_dws_sql_reviews  # noqa: E402
-from app.modules.audit.checks.hcyt import sql_rule  # noqa: E402
+from app.modules.audit.shared.dws_sql_review import run_configured_dws_sql_reviews  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks import sql_rule  # noqa: E402
+from app.modules.audit.workflows.nups import checks as nups_rule  # noqa: E402
 
 
-def test_tracked_example_declares_default_sql_review_rules():
-    rules = load_audit_rules(path=BACKEND_DIR / "configs" / "audit_rules.example.yaml")
+RULES_PATH = BACKEND_DIR / "configs" / "audit_rules.yaml"
+
+
+def test_tracked_rules_declare_sql_review_rules():
+    rules = load_audit_rules(path=RULES_PATH)
 
     assert rules["dws"]["sql_review"]["legacy_markers"][1] == {
         "value": "LZY",
@@ -27,8 +33,8 @@ def test_tracked_example_declares_default_sql_review_rules():
     ]
 
 
-def test_default_rules_match_legacy_markers_and_code_tables(tmp_path: Path):
-    refresh_audit_rules(path=tmp_path / "missing.yaml")
+def test_configured_rules_match_legacy_markers_and_code_tables():
+    refresh_audit_rules(path=RULES_PATH)
 
     findings = run_configured_dws_sql_reviews(
         "select wlq, lzy, bsc, ygw, tmpqs from dwm.m_pub_code_map_new",
@@ -45,8 +51,8 @@ def test_default_rules_match_legacy_markers_and_code_tables(tmp_path: Path):
     ]
 
 
-def test_marker_exclusion_and_case_insensitive_matching(tmp_path: Path):
-    refresh_audit_rules(path=tmp_path / "missing.yaml")
+def test_marker_exclusion_and_case_insensitive_matching():
+    refresh_audit_rules(path=RULES_PATH)
 
     findings = run_configured_dws_sql_reviews(
         "select rlzy from DWM.M_PUB_CODE_INFO_NEW",
@@ -57,14 +63,16 @@ def test_marker_exclusion_and_case_insensitive_matching(tmp_path: Path):
 
 
 def test_yaml_replaces_default_review_values(tmp_path: Path):
+    rules = copy.deepcopy(load_audit_rules(path=RULES_PATH))
+    rules["dws"]["sql_review"] = {
+        "legacy_markers": [
+            {"value": "custom_tag", "excludes": ["ignore_custom_tag"]},
+        ],
+        "protected_code_tables": ["ODS.CUSTOM_CODE"],
+    }
     rules_file = tmp_path / "rules.yaml"
     rules_file.write_text(
-        """dws:
-  sql_review:
-    legacy_markers:
-      - {value: custom_tag, excludes: [ignore_custom_tag]}
-    protected_code_tables: [ODS.CUSTOM_CODE]
-""",
+        yaml.safe_dump(rules, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
     )
 
@@ -83,7 +91,7 @@ def test_yaml_replaces_default_review_values(tmp_path: Path):
             message_style="hcyt",
         )
     finally:
-        refresh_audit_rules(path=tmp_path / "missing.yaml")
+        refresh_audit_rules(path=RULES_PATH)
 
     assert default_messages == []
     assert [item.msg for item in custom_messages] == [
@@ -93,8 +101,8 @@ def test_yaml_replaces_default_review_values(tmp_path: Path):
     assert excluded_messages == []
 
 
-def test_hcyt_rule_dws_uses_configured_reviews(tmp_path: Path):
-    refresh_audit_rules(path=tmp_path / "missing.yaml")
+def test_hcyt_rule_dws_uses_configured_reviews():
+    refresh_audit_rules(path=RULES_PATH)
     with (
         patch.object(sql_rule, "read_data_from_file", return_value="wlq"),
         patch.object(sql_rule, "all_view_names", return_value=[]),
@@ -110,8 +118,8 @@ def test_hcyt_rule_dws_uses_configured_reviews(tmp_path: Path):
     assert [item.level for item in result.findings] == ["info", "err"]
 
 
-def test_nups_rule_dws_uses_configured_reviews(tmp_path: Path):
-    refresh_audit_rules(path=tmp_path / "missing.yaml")
+def test_nups_rule_dws_uses_configured_reviews():
+    refresh_audit_rules(path=RULES_PATH)
     with (
         patch.object(nups_rule, "read_data_from_file", return_value="dwm.m_pub_code_use_new"),
         patch.object(nups_rule, "all_view_names", return_value=[]),

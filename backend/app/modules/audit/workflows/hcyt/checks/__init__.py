@@ -50,7 +50,6 @@ from .python_rule import (
     rule_sbin,
 )
 from .schedule_rule import (
-    REAL_JOB_PLAN_NAMES,
     rule_excle_job,
     rule_excle_plan,
     rule_excle_seq,
