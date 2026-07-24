@@ -25,8 +25,7 @@ def load_result_table_catalog_snapshot(profile: str | None = None, select_sql_wi
         FROM {metadata_table_name('jobs', profile)} j
         INNER JOIN {metadata_table_name('programs', profile)} p
         ON j.{column_name('jobs', 'program_key', profile)} = p.{column_name('programs', 'program_key', profile)}
-        WHERE p.{column_name('programs', 'result_table', profile)} IS NOT NULL
-          AND substr(p.{column_name('programs', 'result_table', profile)},5) IS NOT NULL
+        WHERE substr(p.{column_name('programs', 'result_table', profile)},5) LIKE '%.%'
         GROUP BY substr(p.{column_name('programs', 'result_table', profile)},5)
     """
     rows = select_sql_with_profile(profile, sql) or []

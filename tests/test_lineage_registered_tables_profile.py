@@ -51,8 +51,8 @@ class RegisteredTablesProfileRoutingTests(unittest.TestCase):
         self.assertEqual(captured["profile"], "active_profile")
         self.assertIn("FROM dwp.p_job_hjj", captured["sql"])
         self.assertIn("SELECT DISTINCT substr(p.k,5)", captured["sql"])
-        self.assertIn("WHERE p.k IS NOT NULL", captured["sql"])
-        self.assertNotIn("WHERE substr(", captured["sql"])
+        self.assertIn("WHERE substr(p.k,5) LIKE '%.%'", captured["sql"])
+        self.assertNotIn("IS NOT NULL", captured["sql"])
         self.assertEqual(result, {"DM.TABLE_A"})
 
     def test_result_table_catalog_snapshot_queries_once_and_preserves_disabled_semantics(self):
