@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -83,6 +84,38 @@ class RuntimeSecuritySettings:
     host: str = "127.0.0.1"
     port: int = 5088
     debug: bool = False
+
+
+@dataclass(frozen=True)
+class LocalLLMSettings:
+    base_url: str = ""
+    model: str = ""
+    api_key: str = ""
+    timeout_seconds: float = 30.0
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.base_url and self.model)
+
+
+def get_local_llm_settings(environ: dict[str, str] | None = None) -> LocalLLMSettings:
+    env = os.environ if environ is None else environ
+    base_url = env.get("LOCAL_LLM_BASE_URL", "").strip().rstrip("/")
+    model = env.get("LOCAL_LLM_MODEL", "").strip()
+    api_key = env.get("LOCAL_LLM_API_KEY", "").strip()
+    timeout_value = env.get("LOCAL_LLM_TIMEOUT_SECONDS", "30").strip()
+    try:
+        timeout_seconds = float(timeout_value)
+    except ValueError as exc:
+        raise ValueError("LOCAL_LLM_TIMEOUT_SECONDS must be a positive number") from exc
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise ValueError("LOCAL_LLM_TIMEOUT_SECONDS must be a positive number")
+    return LocalLLMSettings(
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def get_runtime_security_settings(environ: dict[str, str] | None = None) -> RuntimeSecuritySettings:

@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import json
-import os
 import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+from app.settings import get_local_llm_settings
 
 
 PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
@@ -64,9 +65,8 @@ def call_sql_llm(source_path: str) -> dict[str, Any] | None:
     Set LOCAL_LLM_BASE_URL and LOCAL_LLM_MODEL to enable it.  The API key is
     optional because many internal gateways authenticate by network policy.
     """
-    base_url = os.getenv("LOCAL_LLM_BASE_URL", "").strip().rstrip("/")
-    model = os.getenv("LOCAL_LLM_MODEL", "").strip()
-    if not base_url or not model:
+    settings = get_local_llm_settings()
+    if not settings.enabled:
         return None
 
     path = Path(source_path)
@@ -79,26 +79,24 @@ def call_sql_llm(source_path: str) -> dict[str, Any] | None:
 
     system_prompt = _prompt_for(path)
     payload = {
-        "model": model,
+        "model": settings.model,
         "temperature": 0,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": f"File: {path.name}\n\n<source>\n{source}\n</source>"},
         ],
     }
-    api_key = os.getenv("LOCAL_LLM_API_KEY", "").strip()
     headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    if settings.api_key:
+        headers["Authorization"] = f"Bearer {settings.api_key}"
     request = urllib.request.Request(
-        f"{base_url}/chat/completions",
+        f"{settings.base_url}/chat/completions",
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers=headers,
         method="POST",
     )
-    timeout = float(os.getenv("LOCAL_LLM_TIMEOUT_SECONDS", "30"))
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.urlopen(request, timeout=settings.timeout_seconds) as response:
             body = json.loads(response.read().decode("utf-8"))
     except (OSError, ValueError, urllib.error.HTTPError, urllib.error.URLError):
         return None

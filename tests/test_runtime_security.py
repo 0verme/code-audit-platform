@@ -12,9 +12,16 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.checks.workspace_service import load_local_workspace, validate_local_workspace
-from app.modules.audit.source_resolver import LocalSourceDisabledError, resolve_workspace
-from app.settings import RuntimeSecuritySettings, get_runtime_security_settings, load_backend_dotenv, resolve_local_roots
+from app.modules.audit.source.resolver import LocalSourceDisabledError, resolve_workspace  # noqa: E402
+from app.modules.audit.source.workspace import load_local_workspace, validate_local_workspace  # noqa: E402
+from app.settings import (  # noqa: E402
+    LocalLLMSettings,
+    RuntimeSecuritySettings,
+    get_local_llm_settings,
+    get_runtime_security_settings,
+    load_backend_dotenv,
+    resolve_local_roots,
+)
 
 
 class RuntimeSecurityTests(unittest.TestCase):
@@ -64,6 +71,28 @@ class RuntimeSecurityTests(unittest.TestCase):
         self.assertEqual(settings.cors_origins, ("http://localhost:5173", "http://127.0.0.1:5173"))
         with self.assertRaises(ValueError):
             get_runtime_security_settings({"AUDIT_CORS_ORIGINS": "*"})
+
+    def test_local_llm_settings_are_typed_and_normalised(self):
+        settings = get_local_llm_settings({
+            "LOCAL_LLM_BASE_URL": " http://localhost:8000/v1/// ",
+            "LOCAL_LLM_MODEL": " local-model ",
+            "LOCAL_LLM_API_KEY": " test-key ",
+            "LOCAL_LLM_TIMEOUT_SECONDS": "12.5",
+        })
+        self.assertIsInstance(settings, LocalLLMSettings)
+        self.assertTrue(settings.enabled)
+        self.assertEqual(settings.base_url, "http://localhost:8000/v1")
+        self.assertEqual(settings.model, "local-model")
+        self.assertEqual(settings.api_key, "test-key")
+        self.assertEqual(settings.timeout_seconds, 12.5)
+
+    def test_local_llm_defaults_and_invalid_timeout(self):
+        settings = get_local_llm_settings({})
+        self.assertFalse(settings.enabled)
+        self.assertEqual(settings.timeout_seconds, 30.0)
+        for value in ("0", "-1", "nan", "inf", "not-a-number"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "LOCAL_LLM_TIMEOUT_SECONDS"):
+                get_local_llm_settings({"LOCAL_LLM_TIMEOUT_SECONDS": value})
 
     def test_resolver_cannot_bypass_disabled_local_source(self):
         loader = Mock()

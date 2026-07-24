@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from app.modules.audit.checks.ai_service import call_sql_llm
+from app.modules.audit.integrations.ai import call_sql_llm
 
 
 class LocalLlmAiServiceTests(unittest.TestCase):
@@ -29,6 +29,7 @@ class LocalLlmAiServiceTests(unittest.TestCase):
             with patch.dict(os.environ, {
                 "LOCAL_LLM_BASE_URL": "http://llm.internal/v1",
                 "LOCAL_LLM_MODEL": "internal-model",
+                "LOCAL_LLM_API_KEY": "test-key",
                 "LOCAL_LLM_TIMEOUT_SECONDS": "10",
             }, clear=False), patch("urllib.request.urlopen", return_value=response) as urlopen:
                 result = call_sql_llm(str(source))
@@ -39,6 +40,18 @@ class LocalLlmAiServiceTests(unittest.TestCase):
             request = urlopen.call_args.args[0]
             self.assertEqual(request.full_url, "http://llm.internal/v1/chat/completions")
             self.assertEqual(json.loads(request.data.decode("utf-8"))["model"], "internal-model")
+            self.assertEqual(request.headers["Authorization"], "Bearer test-key")
+
+    def test_uses_default_timeout_when_not_configured(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "job.py"
+            source.write_text("print('hello')", encoding="utf-8")
+            response = MagicMock()
+            response.read.return_value = b'{"choices":[{"message":{"content":"{\\"summary\\":\\"ok\\",\\"findings\\":[]}"}}]}'
+            response.__enter__.return_value = response
+            with patch.dict(os.environ, {"LOCAL_LLM_BASE_URL": "http://llm/v1", "LOCAL_LLM_MODEL": "m"}, clear=True), patch("urllib.request.urlopen", return_value=response) as urlopen:
+                call_sql_llm(str(source))
+            self.assertEqual(urlopen.call_args.kwargs["timeout"], 30.0)
 
     def test_invalid_model_response_degrades_to_none(self):
         with tempfile.TemporaryDirectory() as directory:
