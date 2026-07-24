@@ -166,6 +166,11 @@ def _restore_compatibility_defaults(rules: dict[str, Any]) -> dict[str, Any]:
         schedule["allowed_domains"] = copy.deepcopy(
             DEFAULT_RULES["hcyt"]["schedule"]["allowed_domains"]
         )
+    audit_input = rules["audit_input"]
+    if not audit_input["file_categories"]:
+        audit_input["file_categories"] = copy.deepcopy(
+            DEFAULT_RULES["audit_input"]["file_categories"]
+        )
     return rules
 
 
