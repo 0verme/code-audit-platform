@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { getRootNeighborhoodNodeIds } from "@lineage-viewer/domain-adapter";
 import { toCycleDependencyGraph, toViewerGraph } from "./lineageAdapter.js";
-import { getRootNeighborhoodNodeIds } from "./lineageViewport.js";
 
 const graph = {
   rootId: "task:a",
@@ -23,8 +24,30 @@ test("lineage graph adapter preserves task and table semantics", () => {
   assert.equal(viewer.edges[0].source, "table:source");
 });
 
+test("lineage graph adapter forwards relationship evidence", () => {
+  const viewer = toViewerGraph({
+    ...graph,
+    edges: [{ ...graph.edges[0], evidence: { type: "parser" }, confidence: 0.9 }],
+  });
+  assert.deepEqual(viewer.edges[0].metadata.evidence, { type: "parser" });
+  assert.equal(viewer.edges[0].metadata.confidence, 0.9);
+});
+
 test("root focus includes direct upstream and downstream neighbors", () => {
   assert.deepEqual(getRootNeighborhoodNodeIds(graph).sort(), ["table:source", "table:target", "task:a"]);
+});
+
+test("audit host consumes fixed lineage packages without vendor mounting", async () => {
+  const [packageJson, canvas] = await Promise.all([
+    readFile(new URL("../../../package.json", import.meta.url), "utf8").then(JSON.parse),
+    readFile(new URL("./LineageCanvas.jsx", import.meta.url), "utf8"),
+  ]);
+
+  assert.equal(packageJson.dependencies["lineage-viewer"], "1.1.0");
+  assert.equal(packageJson.dependencies["@lineage-viewer/domain-adapter"], "1.1.0");
+  assert.equal(packageJson.dependencies["@lineage-viewer/react"], "1.1.0");
+  assert.match(canvas, /@lineage-viewer\/react/);
+  assert.doesNotMatch(canvas, /vendor\/lineage-viewer|document\.createElement|replaceChildren/);
 });
 
 test("cycle findings merge shared jobs and dependency edges into one graph", () => {

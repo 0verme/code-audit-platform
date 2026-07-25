@@ -1,7 +1,8 @@
 import React from "react";
-import "../../vendor/lineage-viewer/define.js";
+import { getRootNeighborhoodNodeIds } from "@lineage-viewer/domain-adapter";
+import { LineageViewerCanvas } from "@lineage-viewer/react";
+
 import { toViewerGraph } from "./lineageAdapter.js";
-import { getRootNeighborhoodNodeIds } from "./lineageViewport.js";
 
 const ROOT_FIT = { padding: 48, maxScale: 1 };
 
@@ -15,49 +16,42 @@ export const LineageCanvas = React.forwardRef(function LineageCanvas({
   showRootControl = true,
   showSelfLoops = false,
 }, ref) {
-  const hostRef = React.useRef(null);
   const viewerRef = React.useRef(null);
+  const viewerGraph = React.useMemo(() => toViewerGraph(graph), [graph]);
+  const rootNodeIds = React.useMemo(() => getRootNeighborhoodNodeIds(graph), [graph]);
+  const viewerOptions = React.useMemo(() => ({
+    direction: "LR",
+    fitOnLoad: false,
+    nodeWidth: 220,
+    nodeHeight: 72,
+    highlightMode: "connected",
+    validationMode: "strict",
+    showSelfLoops,
+  }), [showSelfLoops]);
 
   React.useImperativeHandle(ref, () => ({
     zoomIn: () => viewerRef.current?.zoomBy(1.2),
     zoomOut: () => viewerRef.current?.zoomBy(1 / 1.2),
     fitView: () => viewerRef.current?.fitView(),
-    focusRoot: () => viewerRef.current?.fitNodes(getRootNeighborhoodNodeIds(graph), ROOT_FIT),
-  }), [graph]);
-
-  React.useEffect(() => {
-    const host = hostRef.current;
-    if (!host || !graph) return undefined;
-    const viewer = document.createElement("lineage-viewer");
-    const handleClick = (event) => onSelect?.(event.detail.nodeId);
-    const fitInitialView = () => {
-      if (initialFit === "view") viewer.fitView();
-      else viewer.fitNodes(getRootNeighborhoodNodeIds(graph), ROOT_FIT);
-    };
-    viewer.options = {
-      direction: "LR", fitOnLoad: false, nodeWidth: 220, nodeHeight: 72,
-      highlightMode: "connected", validationMode: "strict", showSelfLoops,
-    };
-    viewer.data = toViewerGraph(graph);
-    viewer.addEventListener("lineage-node-click", handleClick);
-    viewer.addEventListener("lineage-ready", fitInitialView, { once: true });
-    host.replaceChildren(viewer);
-    viewerRef.current = viewer;
-    return () => {
-      viewerRef.current = null;
-      viewer.removeEventListener("lineage-node-click", handleClick);
-      viewer.removeEventListener("lineage-ready", fitInitialView);
-      viewer.destroy?.();
-    };
-  }, [graph, initialFit, onSelect, showSelfLoops]);
+    focusRoot: () => viewerRef.current?.fitNodes(rootNodeIds, ROOT_FIT),
+  }), [rootNodeIds]);
 
   return <div className="lineage-canvas-shell">
     <div className="lineage-view-tools" role="group" aria-label="血缘图视图操作">
       <button type="button" className="btn ghost sm" onClick={() => viewerRef.current?.zoomBy(1 / 1.2)} aria-label="缩小">−</button>
       <button type="button" className="btn ghost sm" onClick={() => viewerRef.current?.zoomBy(1.2)} aria-label="放大">+</button>
-      {showRootControl ? <button type="button" className="btn ghost sm" onClick={() => viewerRef.current?.fitNodes(getRootNeighborhoodNodeIds(graph), ROOT_FIT)}>{focusLabel}</button> : null}
+      {showRootControl ? <button type="button" className="btn ghost sm" onClick={() => viewerRef.current?.fitNodes(rootNodeIds, ROOT_FIT)}>{focusLabel}</button> : null}
       <button type="button" className="btn ghost sm" onClick={() => viewerRef.current?.fitView()}>适应画布</button>
     </div>
-    <div className={`lineage-canvas${compact ? " lineage-canvas-compact" : ""}`} ref={hostRef} aria-label={ariaLabel} />
+    <LineageViewerCanvas
+      ref={viewerRef}
+      className={`lineage-canvas${compact ? " lineage-canvas-compact" : ""}`}
+      aria-label={ariaLabel}
+      data={viewerGraph}
+      options={viewerOptions}
+      initialFit={initialFit === "view" ? "view" : rootNodeIds}
+      initialFitOptions={ROOT_FIT}
+      onNodeSelect={({ nodeId }) => onSelect?.(nodeId)}
+    />
   </div>;
 });
