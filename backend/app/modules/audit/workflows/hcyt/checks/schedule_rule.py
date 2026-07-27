@@ -4,15 +4,16 @@ import time
 import pandas as pd
 
 from app.modules.metadata.services.public_data import (
+    all_cale,
     all_job_dependencies,
     all_job_outfile,
     all_plan,
     all_planjob,
     all_planseq,
     all_real_seq,
-    all_upstream_system_ids,
     all_seq,
     all_seqjob,
+    all_upstream_system_ids,
     get_job2,
 )
 from ....shared.file_analysis import extract_values
@@ -113,10 +114,10 @@ def rule_excle_plan(df):
                 )
 
         if plan_depand:
-            result.add('hcyt.schedule.plan.predecessor', '计划前置依赖', 'err', f'计划名: {plan_name} 存在前置依赖 {plan_depand}，请检查')
+            result.add('hcyt.schedule.plan.predecessor', '计划前置依赖', 'warn', f'计划名: {plan_name} 存在前置依赖 {plan_depand}，请检查')
 
         if plan_name.startswith(rules["recv_mapping_plan_prefix"]) and plan_name.upper() not in upstream_system_id_set:
-            result.add('hcyt.schedule.plan.upstream_registration', '上游系统登记', 'warn', f'计划名 {plan_name} 未在数据资产系统维护上游系统')
+            result.add('hcyt.schedule.plan.upstream_registration', '上游系统登记', 'err', f'计划名 {plan_name} 未在数据资产系统维护上游系统')
 
         if plan_name not in planname_lists:
             if plan_name.startswith(rules["missing_plan_warning_patterns"][0]["prefix"]) and plan_name.endswith(rules["missing_plan_warning_patterns"][0]["suffix"]):
@@ -124,7 +125,7 @@ def rule_excle_plan(df):
             elif plan_name.startswith(rules["missing_plan_warning_patterns"][1]["prefix"]) and plan_name.endswith(rules["missing_plan_warning_patterns"][1]["suffix"]):
                 result.add('hcyt.schedule.plan.missing_send_plan', '生产计划登记', 'warn', f'计划名: {plan_name} 未在生产调度（自动触发-一审检查是否是新增系统推数！！！！！！）')
             else:
-                result.add('hcyt.schedule.plan.missing_production_plan', '生产计划登记', 'err', f'计划名: {plan_name} 未在生产调度，请检查')
+                result.add('hcyt.schedule.plan.missing_production_plan', '生产计划登记', 'warn', f'计划名: {plan_name} 未在生产调度，请检查')
 
         rr_plan.append(plan_name)
 
@@ -141,11 +142,16 @@ def rule_excle_seq(df):
         for row in all_real_seq()
         if row and not pd.isna(row[0])
     }
+    valid_cales = {str(row[0]).strip().upper() for row in all_cale() if row and not pd.isna(row[0])}
     result = CheckResult()
     for _, row in df.iterrows():
         seq_name = '' if pd.isna(row.iloc[1]) else str(row.iloc[1]).strip()
         if seq_name in real_seq:
             result.add('hcyt.schedule.seq.realtime_override', '循环作业流覆盖', 'err', f'作业流名：{seq_name}  作业流是循环作业,会覆盖生产的循环调度,需要删除不用上线')
+        if len(row) > 3:
+            cale_value = '' if pd.isna(row.iloc[3]) else str(row.iloc[3]).strip()
+            if cale_value and valid_cales and cale_value.upper() not in valid_cales:
+                result.add('hcyt.schedule.seq.invalid_calendar', '作业流执行日历', 'err', f'作业流名：{seq_name} 的执行日历 {cale_value} 在日历表中不存在')
     return result
 
 
@@ -272,6 +278,7 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         result.add('hcyt.schedule.job.dependency_cycle', '作业依赖成环', 'err', f'作业依赖成环，请检查: {" -> ".join(cycle)}', evidence={'cycle': cycle})
 
     stage_start = time.perf_counter()
+    valid_cales = {str(row[0]).strip().upper() for row in all_cale() if row and not pd.isna(row[0])}
     for row in job_records:
         plan_name = '' if pd.isna(row[0]) else str(row[0]).strip()
         seq_name = '' if pd.isna(row[1]) else str(row[1]).strip()
@@ -310,6 +317,8 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
             )
         if plan_name in rules["realtime_calendar_plans"] and cale != rules["realtime_calendar_value"]:
             result.add('hcyt.schedule.job.realtime_calendar', '实时作业日历', 'err', f'{job_name} 的执行日历 {cale} 不对  实际应该是每日跑批 SYS_EVERYDAY_CALENDAR')
+        if cale and valid_cales and cale.upper() not in valid_cales:
+            result.add('hcyt.schedule.job.invalid_calendar', '作业执行日历', 'err', f'{job_name} 的执行日历 {cale} 在日历表中不存在')
         if rules["forbidden_domain_plan_keywords"][0] in plan_name and domain == rules["forbidden_domain"]:
             result.add('hcyt.schedule.job.execution_domain', '作业执行域', 'err', f'{job_name} 执行域有误 不应为EDWS_DOMAIN')
         if rules["forbidden_domain_plan_keywords"][1] in plan_name and domain == rules["forbidden_domain"]:
@@ -387,7 +396,7 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         if rules["recv_plan_keyword"] in plan_name and 'metaflg=Y' in didp_evt:
             result.add('hcyt.schedule.job.export_flags', '卸数字段选项', 'err', f'作业名：{job_name} 卸数请选【否】全字段和【否】获取源数据')
         if 'DIDP_DATA_PROVISION.1.0' in program and 'srcfile' not in didp_evt and '-filt' not in didp_evt:
-            result.add('hcyt.schedule.job.full_export', '全量卸数', 'err', f'作业名：{job_name} 卸数是全量卸数，请确认卸数结果表的数据量')
+            result.add('hcyt.schedule.job.full_export', '全量卸数', 'warn', f'作业名：{job_name} 卸数是全量卸数，请确认卸数结果表的数据量')
         if r_planjob.get(job_name) != plan_name and job_name in r_job and seq_name != '0':
             result.add('hcyt.schedule.job.production_plan_mismatch', '生产计划归属', 'err', f'作业名： {job_name} 在生产上属于 {r_planjob.get(job_name)} 计划了需要删除该作业 重新上线后置作业')
         if r_seqjob.get(job_name) != seq_name and job_name in r_job and seq_name != '0':

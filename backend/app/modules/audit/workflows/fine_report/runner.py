@@ -182,23 +182,6 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                     }
                 )
         preview_url = f"{get_fine_report_preview_url()}?viewlet={quote(viewlet, safe='')}" if viewlet else ""
-        reports.append(
-            {
-                "title": title,
-                "file": mods.re_service.safe_remove_prefix(path),
-                "type": "frm" if path.endswith(".frm") else "cpt",
-                "change": "M",
-                "conn": conn,
-                "engine": engine_flag,
-                "sheets": sheets,
-                "previewUrl": preview_url,
-                "downloadUrl": context.download_url(path),
-                "focus": "重点检查数据集 SQL、数据连接、敏感字段与权限。",
-                "datasets": datasets,
-                "issues": issues,
-                "refTables": ref_tables,
-            }
-        )
         seen = {item["name"] for item in all_ref_tables}
         for item in ref_tables:
             if item["name"] not in seen:

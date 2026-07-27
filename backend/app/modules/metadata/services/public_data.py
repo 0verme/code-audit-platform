@@ -29,11 +29,7 @@ def _column(table, key):
 
 
 def all_real_seq():
-    sql = f"""select DISTINCT {_column('jobs', 'sequence_name')} from {_table('jobs')}
-WHERE a IN ('PLAN_CBS_CBSRUN_REAL_DWS_DAY','PLAN_DWS_CBS_CBSRUN_DH_XQDATA_REAL',
-                         'PLAN_REAL_CBS_CBSRUN_LDXJC_HOUR','PLAN_REAL_CBS_CBSRUN_LDXJC_REAL',
-                         'PLAN_REAL_DWS_DWD_IJEP_REAL','PLAN_REAL_KUANYE_KUANYENEW_REAL',
-                         'PLAN_REAL_TA_LCXSQK_HALF_HOUR')"""
+    sql = f"""select {_column('seq', 'sequence_name')} from {_table('seq')} where {_column('seq', 'is_cycle')} <> '0'"""
     plan_lists = select_sql(sql)
     return plan_lists
 
@@ -64,9 +60,19 @@ def all_program():
     return program_lists
 
 def all_seq():
-    sql = f"""select distinct {_column('jobs', 'sequence_name')} from {_table('jobs')}"""
+    sql = f"""select {_column('seq', 'sequence_name')} from {_table('seq')}"""
     seq_lists = select_sql(sql)
     return seq_lists
+
+def all_seq_full():
+    sql = f"""select * from {_table('seq')}"""
+    seq_lists = select_sql(sql)
+    return seq_lists
+
+def all_cale():
+    sql = f"""select a from {_table('cale')}"""
+    cale_lists = select_sql(sql)
+    return cale_lists
 
 def all_role():
     sql = f"""select * from {_table('roles')}"""
@@ -95,7 +101,7 @@ def all_planjob():
     return planjob_lists
 
 def all_planseq():
-    sql = f"""select DISTINCT {_column('jobs', 'plan_name')},{_column('jobs', 'sequence_name')} from {_table('jobs')}"""
+    sql = f"""select {_column('seq', 'plan_name')},{_column('seq', 'sequence_name')} from {_table('seq')}"""
     planseq_lists = select_sql(sql)
     return planseq_lists
 

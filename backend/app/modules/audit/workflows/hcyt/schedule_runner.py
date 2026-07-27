@@ -63,8 +63,8 @@ def run_hcyt_schedule(
         seq_source = _timed("schedule.seq.load_excel", lambda: safe("SEQ Excel", lambda: modules.re_service.load_xls_to_df(seq_xls), None), log_timing)
         if seq_source is not None:
             summary["seq"] = len(seq_source)
-            seq_df = seq_source.iloc[:, [0, 1, 2]].fillna("")
-            seq_df.columns = ["计划名", "作业流名", "作业流描述"]
+            seq_df = seq_source.iloc[:, [0, 1, 2, 3]].fillna("")
+            seq_df.columns = ["计划名", "作业流名", "作业流描述", "执行日历"]
             tables["seq"] = {"title": "SEQ 作业流清单", **df_table(seq_df)}
             result = _timed("schedule.seq.rules", lambda: safe("SEQ 规则", lambda: modules.hcyt.rule_excle_seq(seq_df), CheckResult()), log_timing)
             seq_rows = finding_messages(result.findings)
