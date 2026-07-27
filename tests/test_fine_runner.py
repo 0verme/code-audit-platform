@@ -9,9 +9,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.fine_runner import run_fine  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
-from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
+from app.modules.audit.workflows.fine_report.runner import run_fine  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
+from app.modules.audit.core.runtime import WorkflowRuntimeContext  # noqa: E402
 
 
 class _FakeValues:
@@ -159,6 +159,8 @@ class FineRunnerTests(unittest.TestCase):
         self.assertEqual(report["menu"]["rows"], [["后台A", "前台A", "tab"]])
         self.assertEqual(report["authority"]["columns"], ["前台目录", "赋予权限"])
         self.assertEqual(report["authority"]["rows"], [["前台A", "ROLE_USER"]])
+        self.assertEqual(report["task"]["reports"], len(report["reports"]))
+        self.assertEqual(len(report["reports"]), 1)
         self.assertEqual(report["reports"][0]["title"], "ReportA")
         self.assertEqual(report["reports"][0]["previewUrl"], "https://fine.example.com/fine/svn_check.html?viewlet=ReportA")
         self.assertEqual(
@@ -197,6 +199,10 @@ class FineRunnerTests(unittest.TestCase):
             ],
         )
         self.assertEqual(report["refTables"], report["reports"][0]["refTables"])
+        self.assertEqual(
+            len(saved_groups[0]["fine"]),
+            sum(len(item["issues"]) for item in report["reports"]),
+        )
         self.assertEqual(saved_groups[0]["fine"][0]["file"], "rel/report.cpt")
 
     def test_run_fine_only_highlights_disabled_or_configured_source_system_tables(self):

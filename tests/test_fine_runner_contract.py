@@ -8,9 +8,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.fine_runner import run_fine  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
-from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
+from app.modules.audit.workflows.fine_report.runner import run_fine  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
+from app.modules.audit.core.runtime import WorkflowRuntimeContext  # noqa: E402
 
 
 class FineRunnerContractTests(unittest.TestCase):
@@ -118,6 +118,7 @@ class FineRunnerContractTests(unittest.TestCase):
                 "authority",
                 "reports",
                 "refTables",
+                "sourceFiles",
                 "assetIssues",
                 "unifiedAssetIssues",
                 "metadataProfile",
@@ -129,6 +130,8 @@ class FineRunnerContractTests(unittest.TestCase):
         self.assertNotIn("source", report)
         self.assertNotIn("sourceType", report)
         self.assertNotIn("workspaceRoot", report)
+        self.assertEqual(report["task"]["reports"], len(report["reports"]))
+        self.assertEqual(len(report["reports"]), 1)
         self.assertEqual(saved_groups[0], {"fine": []})
 
     def test_registered_table_loader_uses_active_profile_name(self):

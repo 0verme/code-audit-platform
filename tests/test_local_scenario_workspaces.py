@@ -6,7 +6,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.checks import fine_rule, nups_rule  # noqa: E402
+from app.modules.audit.workflows.fine_report import checks as fine_rule  # noqa: E402
+from app.modules.audit.workflows.nups import checks as nups_rule  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
