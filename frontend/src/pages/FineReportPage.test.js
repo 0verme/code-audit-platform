@@ -77,10 +77,17 @@ test("FineReport details use independently expanded inline accordions", () => {
   assert.match(pageSource, /syncAutoOpenReportIds\(current, mergedData\.reports, dismissedReportIds\.current\)/);
   assert.match(pageSource, /dismissedReportIds\.current\.add\(reportId\)/);
   assert.match(pageSource, /dismissedReportIds\.current\.delete\(reportId\)/);
-  assert.match(pageSource, /<ReportListSection d=\{mergedData\} reg=\{reg\} openReportIds=\{openReportIds\} onToggle=\{toggleReport\}/);
+  assert.match(pageSource, /<ReportListSection\s+d=\{mergedData\}\s+reg=\{reg\}\s+openReportIds=\{openReportIds\}\s+onToggle=\{toggleReport\}/);
   assert.match(pageSource, /aria-expanded=\{isOpen\}/);
   assert.match(pageSource, /ReportDetailAccordion report=\{report\} detailId=\{detailId\}/);
   assert.doesNotMatch(pageSource, /ReportDetailDrawer|sd-overlay|sd-drawer/);
+});
+
+test("FineReport report list distinguishes pending generation from an empty final result", () => {
+  assert.match(pageSource, /function ReportListSection\(\{ d, reg, openReportIds, onToggle, loading = false \}\)/);
+  assert.match(pageSource, /正在生成报表检查明细，请稍候/);
+  assert.match(pageSource, /本次审查未发现可展示的报表检查项/);
+  assert.match(pageSource, /loading=\{reportDataPending \|\| Boolean\(apiState\?\.loading\)\}/);
 });
 
 test("shared referenced table list renders FineReport table metadata", () => {

@@ -85,7 +85,7 @@ function FrStatusHeader({ d }) {
   );
 }
 
-function ReportListSection({ d, reg, openReportIds, onToggle }) {
+function ReportListSection({ d, reg, openReportIds, onToggle, loading = false }) {
   const reports = d.reports || [];
   const flagged = reports.filter((report) => reportAudit(report).total).length;
   const anyErr = reports.some((report) => reportAudit(report).err);
@@ -102,7 +102,13 @@ function ReportListSection({ d, reg, openReportIds, onToggle }) {
     >
       <div className="panel-body flush">
         <div className="pas-list">
-          {reports.map((report) => {
+          {loading ? (
+            <div className="empty-state">正在生成报表检查明细，请稍候…</div>
+          ) : null}
+          {!loading && !reports.length ? (
+            <div className="empty-state">本次审查未发现可展示的报表检查项。</div>
+          ) : null}
+          {!loading && reports.map((report) => {
             const audit = reportAudit(report);
             const type = reportType(report);
             const detailId = `report-detail-${encodeURIComponent(report.file)}`;
@@ -528,7 +534,7 @@ function mergeFineReportItems(baseData, items) {
   };
 }
 
-export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
+export function FineReportResultsPage({ d, aiEnabled, reg, apiState, reportDataPending = false }) {
   const dismissedReportIds = useRef(new Set());
   const [openReportIds, setOpenReportIds] = useState(() => (
     syncAutoOpenReportIds(new Set(), d.reports, dismissedReportIds.current)
@@ -576,7 +582,13 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState }) {
       <FineChangesSection d={mergedData} reg={reg} />
       <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
-      <ReportListSection d={mergedData} reg={reg} openReportIds={openReportIds} onToggle={toggleReport} />
+      <ReportListSection
+        d={mergedData}
+        reg={reg}
+        openReportIds={openReportIds}
+        onToggle={toggleReport}
+        loading={reportDataPending || Boolean(apiState?.loading)}
+      />
       <AssetIssuesSection d={mergedData} reg={reg} />
       {aiEnabled ? <AiSection d={mergedData} reg={reg} /> : null}
     </div>

@@ -434,6 +434,7 @@ export default function App() {
             aiEnabled={aiEnabled}
             reg={reg}
             apiState={liveData ? null : fineReportItemsState}
+            reportDataPending={Boolean(params.taskId && run.running && !run.report)}
           />
         </Suspense>
       );
