@@ -369,12 +369,12 @@ function CheckSection({ id, icon, title, rows = [], reg, okMsg, scriptMeta, sour
   );
 }
 
-function ConfigFilesDetail({ files, detailId }) {
+function ConfigFilesDetail({ files, sourceFiles, detailId }) {
   return (
     <tr className="config-detail-row">
       <td colSpan={4}>
         <section id={detailId} className="config-detail fade-in" role="region" aria-label="SCHEMA_CONFIG 详情">
-          {files.map((file, fileIndex) => (
+          {files.length ? files.map((file, fileIndex) => (
             <div key={`${file.name}-${fileIndex}`} className="config-file-detail">
               <div className="subhead"><Icon name="file" size={12} /> {file.name}</div>
               {file.error ? (
@@ -392,7 +392,11 @@ function ConfigFilesDetail({ files, detailId }) {
                 </div>
               )}
             </div>
-          ))}
+          )) : (
+            <div className="sd-empty">
+              已识别到 {sourceFiles.length} 个配置文件，但暂未生成可展示的解析明细；请等待配置检查完成后重试。
+            </div>
+          )}
         </section>
       </td>
     </tr>
@@ -441,7 +445,8 @@ export function ConfigCheckSection({ rows = [], files = [], sourceFiles = [], re
             </thead>
             <tbody>
               {displayRows.map((row, rowIndex) => {
-                const canExpand = files.length > 0 && String(row.file || "").toUpperCase() === "SCHEMA_CONFIG";
+                const isSchemaConfig = String(row.file || "").toUpperCase() === "SCHEMA_CONFIG";
+                const canExpand = isSchemaConfig && (files.length > 0 || sourceFiles.length > 0);
                 const isOpen = canExpand && openRowIndex === rowIndex;
                 const detailId = `config-detail-${rowIndex}`;
                 return (
@@ -468,7 +473,7 @@ export function ConfigCheckSection({ rows = [], files = [], sourceFiles = [], re
                       <td className="severity-cell"><Sev level={row.level} /></td>
                       <td>{row.msg}</td>
                     </tr>
-                    {isOpen ? <ConfigFilesDetail files={files} detailId={detailId} /> : null}
+                    {isOpen ? <ConfigFilesDetail files={files} sourceFiles={sourceFiles} detailId={detailId} /> : null}
                   </Fragment>
                 );
               })}

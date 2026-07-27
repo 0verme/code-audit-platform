@@ -99,11 +99,14 @@ def run_hcyt_rules(
 
     if schame_config_lists:
         task_running("config_files")
+        # Publish the parsed file details before running validation.  This keeps
+        # the configuration drill-down available while the rule is running and
+        # when the rule itself reports a recoverable failure.
+        config_files = build_config_files(schame_config_lists)
+        set_partial("configFiles", config_files)
         result = _run_timed("rules.config_files", lambda: safe("schema_config 规则", lambda: modules.hcyt.rule_config(schame_config_lists), CheckResult()), log_timing)
         grouped["config"] += finding_rows(result.findings, file="SCHEMA_CONFIG")
-        config_files = build_config_files(schame_config_lists)
         set_partial("config", grouped["config"])
-        set_partial("configFiles", config_files)
         task_success("config_files", result=grouped["config"], summary={"issues": len(grouped["config"])})
     else:
         task_skipped("config_files", "no schema config files")
