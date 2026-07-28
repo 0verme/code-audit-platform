@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from dataclasses import replace
+import re
 
 from app.modules.audit.rules.asset_issue import create_audit_asset_issue
 from app.modules.audit.rules.portal_link_builder import build_portal_link
-from app.modules.metadata.services.public_data import all_function_names, all_view_names
+from app.modules.metadata.services.audit_metadata_service import MetadataQueryUnavailable
+from app.modules.metadata.services.public_data import all_function_names, all_manual_code_tables, all_view_names
 from app.modules.audit.shared.dws_sql_review import run_configured_dws_sql_reviews
 from app.modules.audit.shared.file_analysis import find_dot_strings, read_data_from_file
 from app.modules.audit.shared.findings import CheckResult
@@ -16,7 +18,48 @@ from .ddl_rule import (
     load_metadata_name_set,
     run_dws_ddl_rules,
 )
-from .sensitive_sql import scan_sensitive_sql
+from .sensitive_sql import extract_write_table_operations, scan_sensitive_sql
+
+
+def collect_manual_code_table_write_findings(sql_text):
+    result = CheckResult()
+    try:
+        registry = {
+            str(table_code).strip().upper(): str(status or "").strip()
+            for table_code, status in all_manual_code_tables()
+            if str(table_code or "").strip()
+        }
+    except MetadataQueryUnavailable:
+        result.add(
+            "hcyt.sql.asset_metadata_unavailable",
+            "资产元数据不可用",
+            "warn",
+            "码值表登记信息查询失败，本次跳过码值表联动检查",
+            evidence={"registry": "manual_code_tables"},
+        )
+        return result.findings
+
+    for operation in extract_write_table_operations(sql_text):
+        full_table_name = re.sub(r'["`]', "", operation.table_name).strip().upper()
+        table_code = full_table_name.rsplit(".", 1)[-1]
+        if table_code not in registry:
+            continue
+        status = registry[table_code]
+        result.add(
+            "hcyt.sql.manual_code_table_write",
+            "码值表写操作",
+            "warn",
+            f"检测到 {operation.operation} 操作资产平台码值表 {full_table_name}，登记状态：{status or '未知'}",
+            location=f"第 {operation.line} 行",
+            evidence={
+                "operation": operation.operation,
+                "table": full_table_name,
+                "tableCode": table_code,
+                "status": status,
+                "line": operation.line,
+            },
+        )
+    return result.findings
 
 
 def _build_asset_table_review_issue(full_table_name, source_module, source_file, issue_desc):
@@ -79,6 +122,7 @@ def rule_dws(dws_url):
     if len(data.split('\n')) > 20000:
         result.add('hcyt.sql.too_many_lines', 'SQL 行数过多', 'err', '行数过多,大批量sql请上线人员操作')
     result.findings.extend(scan_sensitive_sql(data, namespace='hcyt.sql'))
+    result.findings.extend(collect_manual_code_table_write_findings(data))
     if 'dwm.'.upper() in data.upper():
         result.add('hcyt.sql.dwm_operation', 'DWM 模型层操作', 'warn', '存在对dwm模型层的操作,请审核重点检查')
     if 'TO GROUP GROUP_VERSION1'.upper() in data.upper():

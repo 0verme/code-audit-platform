@@ -163,6 +163,36 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(service.list_job_outfiles(), [("table_a", "system_a")])
             self.assertEqual(service.list_result_table_sys_names(), [("table_a", "system_a")])
 
+    def test_asset_registry_queries_use_profile_mapped_tables_and_normalize_rows(self):
+        rows = [
+            {
+                "table_code": " code_a ",
+                "status_code": "active",
+                "job_code": " job_a ",
+                "enabled_flag": "Y",
+                "system_code": " sys_a ",
+                "system_status": "enabled",
+            },
+        ]
+        with patch.object(service.db_router, "select_sql_with_profile", return_value=rows) as select:
+            self.assertEqual(service.list_manual_code_tables("local_pg"), [("code_a", "active")])
+            self.assertEqual(
+                service.list_push_job_systems("local_pg"),
+                [("job_a", "Y", "sys_a", "enabled")],
+            )
+
+        rendered_sql = "\n".join(call.args[1] for call in select.call_args_list)
+        self.assertIn("dwp.p_manual_code_table", rendered_sql)
+        self.assertIn("dwp.p_push_job", rendered_sql)
+        self.assertIn("dwp.p_push_system", rendered_sql)
+
+    def test_asset_registry_queries_raise_distinct_unavailable_error(self):
+        with patch.object(service.db_router, "select_sql_with_profile", side_effect=RuntimeError("boom")):
+            with self.assertRaises(service.MetadataQueryUnavailable):
+                service.list_manual_code_tables()
+            with self.assertRaises(service.MetadataQueryUnavailable):
+                service.list_push_job_systems()
+
     def test_p0_5c_queries_parse_tuple_rows_and_clean_values(self):
         sample_rows = [
             (" table_a ", " value_a ", " sys_a "),
@@ -275,6 +305,12 @@ class AuditMetadataServiceTests(unittest.TestCase):
             self.assertEqual(public_data.all_job_outfile(), [("table_a", "plan_a")])
             self.assertEqual(public_data.all_upstream_system_ids(), [("TABLE_A",)])
             self.assertEqual(public_data.all_result_table_sys_names(), [("table_a", "plan_a")])
+
+    def test_public_data_asset_registry_wrappers_remain_callable(self):
+        rows = [("job_a", "Y", "sys_a", "enabled")]
+        with patch.object(service.db_router, "select_sql_with_profile", return_value=rows):
+            self.assertEqual(public_data.all_manual_code_tables(), [("job_a", "Y")])
+            self.assertEqual(public_data.all_push_job_systems(), rows)
 
     def test_partition_counts_use_index_friendly_grouped_catalog_predicates(self):
         dws_profile = DatabaseProfile("inner_dws", "dws", {"metadata": {"partition_catalog": True}})

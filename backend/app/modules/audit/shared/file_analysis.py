@@ -690,6 +690,37 @@ def extract_values(input_string):
         outfile_value = ''
     return outfile_value
 
+
+_PRONAME_VALUE_RE = re.compile(
+    r"""(?ix)
+    (?<![A-Z0-9_])
+    proname\s*=\s*
+    ["']?
+    ([^:\s()"'`;]+)
+    """
+)
+_SEND_PRONAME_RE = re.compile(r"(?i)(?:_|-)SEND(?:1|2)?$")
+
+
+def extract_pronames(input_string):
+    """Extract normalized proname values from a JOB parameter string."""
+    seen = set()
+    values = []
+    for match in _PRONAME_VALUE_RE.finditer(str(input_string or "")):
+        value = match.group(1).strip().upper()
+        if value and value not in seen:
+            seen.add(value)
+            values.append(value)
+    return values
+
+
+def is_send_proname(value):
+    return bool(_SEND_PRONAME_RE.search(str(value or "").strip()))
+
+
+def has_send_proname(input_string):
+    return any(is_send_proname(value) for value in extract_pronames(input_string))
+
 def detect_file_format(file_path):
     with open(file_path, 'rb') as file:
         first_line = file.readline()

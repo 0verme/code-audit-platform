@@ -61,6 +61,24 @@ LEFT JOIN dwp.p_upstream_system u
   ON u.system_pk = t.upstream_system_id
 """
 
+MANUAL_CODE_TABLE_SQL = """
+SELECT table_code, status_code
+FROM dwp.p_manual_code_table
+"""
+
+PUSH_JOB_SYSTEM_SQL = """
+SELECT j.job_code, j.enabled_flag, s.system_code, s.status_code AS system_status
+FROM dwp.p_push_job j
+LEFT JOIN dwp.p_push_system s
+  ON s.system_id = j.system_id
+ AND s.is_deleted = 'N'
+WHERE j.is_deleted = 'N'
+"""
+
+
+class MetadataQueryUnavailable(RuntimeError):
+    """Raised when a required asset-registry query cannot be completed."""
+
 
 def _get_metadata_profile_name() -> str:
     return get_metadata_profile().name
@@ -80,6 +98,9 @@ def _render_metadata_sql(sql: str, profile: str | None = None) -> str:
         "dwp.p_job_outfile": table_name("job_outfiles", profile),
         "dwp.p_field_mapping_table": table_name("field_mapping", profile),
         "dwp.p_upstream_system": table_name("upstream_system", profile),
+        "dwp.p_manual_code_table": table_name("manual_code_tables", profile),
+        "dwp.p_push_job": table_name("push_jobs", profile),
+        "dwp.p_push_system": table_name("push_systems", profile),
     }
     for source, target in replacements.items():
         sql = sql.replace(source, target)
@@ -165,6 +186,23 @@ def _run_metadata_query(sql: str, function_name: str, profile: str | None = None
             type(exc).__name__,
         )
         return []
+
+
+def _run_required_metadata_query(sql: str, function_name: str, profile: str | None = None) -> list[Any]:
+    profile = profile or _get_metadata_profile_name()
+    backend = _get_backend_name(profile)
+    try:
+        rows = db_router.select_sql_with_profile(profile, _render_metadata_sql(sql, profile))
+        return rows or []
+    except Exception as exc:
+        logger.warning(
+            "required audit metadata query unavailable profile=%s backend=%s function=%s error=%s",
+            profile,
+            backend,
+            function_name,
+            type(exc).__name__,
+        )
+        raise MetadataQueryUnavailable(function_name) from exc
 
 
 def _asset_portal_root_url() -> str:
@@ -275,5 +313,27 @@ def list_result_table_sys_names(profile: str | None = None) -> list[tuple[str, s
         (
             ("target_table_name", "table_name", "result_table"),
             ("system_name", "sys_name", "source_system"),
+        ),
+    )
+
+
+def list_manual_code_tables(profile: str | None = None) -> list[tuple[str, str]]:
+    return _normalize_multi_column_rows(
+        _run_required_metadata_query(MANUAL_CODE_TABLE_SQL, "list_manual_code_tables", profile),
+        (
+            ("table_code", "tableCode"),
+            ("status_code", "status"),
+        ),
+    )
+
+
+def list_push_job_systems(profile: str | None = None) -> list[tuple[str, str, str, str]]:
+    return _normalize_multi_column_rows(
+        _run_required_metadata_query(PUSH_JOB_SYSTEM_SQL, "list_push_job_systems", profile),
+        (
+            ("job_code", "jobCode"),
+            ("enabled_flag", "enabled"),
+            ("system_code", "systemCode"),
+            ("system_status", "systemStatus"),
         ),
     )

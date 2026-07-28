@@ -12,7 +12,7 @@ _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 DEFAULT_MODEL = {
     "schema": "dwp",
-    "tables": {"jobs": "p_job_hjj", "programs": "p_program_hjj", "plans": "p_plan_hjj", "roles": "p_role_hjj", "fine": "p_fine_hjj", "job_outfiles": "p_job_outfile", "para_tables": "p_para_table_lists", "field_mapping": "p_field_mapping_table", "upstream_system": "p_upstream_system", "recv_dwf": "p_recv_dwf", "seq": "p_seq_hjj", "cale": "p_cale_hjj"},
+    "tables": {"jobs": "p_job_hjj", "programs": "p_program_hjj", "plans": "p_plan_hjj", "roles": "p_role_hjj", "fine": "p_fine_hjj", "job_outfiles": "p_job_outfile", "para_tables": "p_para_table_lists", "field_mapping": "p_field_mapping_table", "upstream_system": "p_upstream_system", "manual_code_tables": "p_manual_code_table", "push_jobs": "p_push_job", "push_systems": "p_push_system", "recv_dwf": "p_recv_dwf", "seq": "p_seq_hjj", "cale": "p_cale_hjj"},
     "columns": {"jobs": {"plan_name": "a", "sequence_name": "b", "job_name": "c", "program_key": "e", "status": "x", "dependencies": "ab", "cale": "j"}, "programs": {"program_key": "b", "result_table": "k"}, "seq": {"plan_name": "a", "sequence_name": "b", "sequence_desc": "c", "exec_date": "d", "time_start_cond": "e", "is_cycle": "h"}, "cale": {"cale_name": "a", "cale_desc": "b"}},
 }
 

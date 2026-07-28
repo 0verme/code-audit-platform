@@ -10,13 +10,15 @@ from app.modules.metadata.services.public_data import (
     all_plan,
     all_planjob,
     all_planseq,
+    all_push_job_systems,
     all_real_seq,
     all_seq,
     all_seqjob,
     all_upstream_system_ids,
     get_job2,
 )
-from ....shared.file_analysis import extract_values
+from app.modules.metadata.services.audit_metadata_service import MetadataQueryUnavailable
+from ....shared.file_analysis import extract_values, extract_pronames, has_send_proname
 from ....shared.dependency import build_dependency_graph, find_cycles
 from .description_rule import has_meaningful_job_description
 from app.config.audit_rules import get_audit_rules
@@ -35,6 +37,108 @@ def _normalize_dependency_value(value):
     if value is None or pd.isna(value):
         return ''
     return str(value).strip().upper()
+
+
+def _job_parameter_value(row):
+    if len(row) <= 25 or row[25] is None or pd.isna(row[25]):
+        return ""
+    return str(row[25]).strip()
+
+
+def _collect_send_job_names(job_records, production_rows=None):
+    production_parameters = {}
+    for row in production_rows or []:
+        if len(row) <= 2:
+            continue
+        job_name = _normalize_job_value(row[2])
+        if job_name:
+            production_parameters[job_name] = _job_parameter_value(row)
+
+    send_jobs = {}
+    for row in job_records:
+        if len(row) <= 2:
+            continue
+        job_name = _normalize_job_value(row[2])
+        if not job_name:
+            continue
+        parameters = _job_parameter_value(row) if len(row) > 25 else production_parameters.get(job_name, "")
+        pronames = extract_pronames(parameters)
+        if has_send_proname(parameters):
+            send_jobs[job_name] = pronames
+    return send_jobs
+
+
+def _add_push_registration_findings(result, send_jobs):
+    if not send_jobs:
+        return
+    try:
+        rows = all_push_job_systems()
+    except MetadataQueryUnavailable:
+        result.add(
+            "hcyt.schedule.job.asset_metadata_unavailable",
+            "资产元数据不可用",
+            "warn",
+            "下游推送登记信息查询失败，本次跳过下游推送联动检查",
+            evidence={"registry": "push_job_systems"},
+        )
+        return
+
+    registrations = {}
+    for row in rows or []:
+        job_code = _normalize_job_value(row[0] if len(row) > 0 else "")
+        if job_code:
+            registrations.setdefault(job_code, []).append(row)
+
+    for job_name, pronames in send_jobs.items():
+        matched = registrations.get(job_name, [])
+        evidence = {"jobCode": job_name, "pronames": pronames}
+        if not matched:
+            result.add(
+                "hcyt.schedule.job.push_job_missing",
+                "下游推送作业登记",
+                "warn",
+                f"推数作业 {job_name} 未在数据资产系统【下游推送】模块维护",
+                evidence=evidence,
+            )
+            continue
+
+        if not any(str(row[1] if len(row) > 1 else "").strip().upper() == "Y" for row in matched):
+            result.add(
+                "hcyt.schedule.job.push_job_disabled",
+                "下游推送作业状态",
+                "warn",
+                f"推数作业 {job_name} 在数据资产系统中已停用",
+                evidence=evidence,
+            )
+
+        valid_systems = [
+            row for row in matched
+            if str(row[2] if len(row) > 2 else "").strip()
+        ]
+        if len(valid_systems) != len(matched):
+            result.add(
+                "hcyt.schedule.job.push_system_missing",
+                "下游推送系统登记",
+                "warn",
+                f"推数作业 {job_name} 关联的下游系统未维护或已删除",
+                evidence=evidence,
+            )
+        if valid_systems and not any(
+            str(row[3] if len(row) > 3 else "").strip().lower() == "enabled"
+            for row in valid_systems
+        ):
+            system_codes = sorted({
+                str(row[2]).strip()
+                for row in valid_systems
+                if len(row) > 2 and str(row[2]).strip()
+            })
+            result.add(
+                "hcyt.schedule.job.push_system_disabled",
+                "下游推送系统状态",
+                "warn",
+                f"推数作业 {job_name} 关联的下游系统已停用：{', '.join(system_codes)}",
+                evidence={**evidence, "systemCodes": system_codes},
+            )
 
 
 def _job_description_error_message(job_name, description_rules):
@@ -259,6 +363,10 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
     stage_start = time.perf_counter()
     job_records = list(df.itertuples(index=False, name=None))
     log_timing(f"JOB规则 JOB Excel 转换完成：{len(job_records)} 行，{time.perf_counter() - stage_start:.2f}s")
+    _add_push_registration_findings(
+        result,
+        _collect_send_job_names(job_records, production_rows=job_rows),
+    )
 
     job_list = []
     yilai_job = set(r_job)

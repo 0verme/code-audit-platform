@@ -50,6 +50,9 @@ profiles:
         roles: p_role_hjj
         fine: p_fine_hjj
         job_outfiles: p_job_outfile
+        manual_code_tables: p_manual_code_table
+        push_jobs: p_push_job
+        push_systems: p_push_system
       columns:
         jobs: {plan_name: a, sequence_name: b, job_name: c, program_key: e, status: x, dependencies: ab}
         programs: {program_key: b, result_table: k}
@@ -79,6 +82,9 @@ profiles:
         para_tables: p_para_table_lists
         field_mapping: p_field_mapping_table
         upstream_system: p_upstream_system
+        manual_code_tables: p_manual_code_table
+        push_jobs: p_push_job
+        push_systems: p_push_system
       columns:
         jobs: {plan_name: a, sequence_name: b, job_name: c, program_key: e, status: x, dependencies: ab}
         programs: {program_key: b, result_table: k}

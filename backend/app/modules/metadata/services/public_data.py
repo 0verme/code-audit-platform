@@ -8,7 +8,9 @@ from app.modules.lineage.registered_tables import load_result_table_catalog_snap
 from .audit_metadata_service import (
     list_function_names,
     list_job_outfiles,
+    list_manual_code_tables,
     list_para_table_names,
+    list_push_job_systems,
     list_result_table_sys_names,
     list_term_roots,
     list_upstream_system_ids,
@@ -129,6 +131,14 @@ def all_result_table_sys_names():
 
 def all_upstream_system_ids():
     return list_upstream_system_ids()
+
+
+def all_manual_code_tables():
+    return list_manual_code_tables()
+
+
+def all_push_job_systems():
+    return list_push_job_systems()
 
 
 def all_view_names():

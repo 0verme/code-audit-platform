@@ -10,7 +10,7 @@ from ....shared.findings import Finding
 _WORD_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*")
 _COMMANDS = {
     "ALTER", "CREATE", "DELETE", "DROP", "GRANT", "INSERT",
-    "LOAD", "REVOKE", "SELECT", "TRUNCATE", "UPDATE",
+    "LOAD", "MERGE", "REVOKE", "SELECT", "TRUNCATE", "UPDATE",
 }
 _DROP_OBJECT_TYPES = {
     "DATABASE", "FUNCTION", "INDEX", "MATERIALIZED VIEW",
@@ -26,6 +26,13 @@ class _Token:
     line: int
     depth: int
     kind: str = "word"
+
+
+@dataclass(frozen=True, slots=True)
+class WriteTableOperation:
+    operation: str
+    table_name: str
+    line: int
 
 
 def _tokenize(sql_text: str) -> list[_Token]:
@@ -182,6 +189,45 @@ def _token_after(tokens: list[_Token], marker: str, *, skip: set[str] | None = N
         if token.value == marker:
             return _identifier_from(tokens, _skip_words(tokens, index + 1, skip or set()))
     return ""
+
+
+def extract_write_table_operations(sql_text: str) -> list[WriteTableOperation]:
+    """Return top-level table targets for mutating SQL statements."""
+    operations = []
+    seen = set()
+    for statement in _split_statements(_tokenize(sql_text)):
+        tokens = _top_level_tokens(statement)
+        command_index = _command_index(tokens)
+        if command_index is None:
+            continue
+        command = tokens[command_index].value
+        tail = tokens[command_index:]
+        table_name = ""
+        operation = command
+        if command == "INSERT":
+            operation = "INSERT OVERWRITE" if len(tail) > 1 and tail[1].value == "OVERWRITE" else "INSERT"
+            table_name = _token_after(tail, "INTO", skip={"TABLE"})
+            if not table_name:
+                table_name = _identifier_from(tail, 2 if operation == "INSERT OVERWRITE" else 1)
+        elif command == "UPDATE":
+            table_name = _identifier_from(tail, 1)
+        elif command == "DELETE":
+            table_name = _token_after(tail, "FROM")
+        elif command == "MERGE":
+            table_name = _token_after(tail, "INTO")
+        elif command == "TRUNCATE":
+            operation = "TRUNCATE TABLE"
+            table_name = _identifier_from(tail, 1)
+        elif command in {"ALTER", "DROP"} and len(tail) > 1 and tail[1].value == "TABLE":
+            operation = f"{command} TABLE"
+            table_name = _identifier_from(tail, 2)
+        if not table_name:
+            continue
+        key = (operation, table_name.upper(), tail[0].line)
+        if key not in seen:
+            seen.add(key)
+            operations.append(WriteTableOperation(operation, table_name, tail[0].line))
+    return operations
 
 
 def _finding(
