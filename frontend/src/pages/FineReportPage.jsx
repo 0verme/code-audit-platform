@@ -1,9 +1,12 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Badge, Icon, Metric, OkState, Panel, Sev } from "../components/ui";
+import { useMemo } from "react";
+import { Icon, OkState, Panel, Sev } from "../components/ui";
 import { ReferenceTableList } from "../components/ReferenceTableList";
 import { SourceFileLinks } from "../components/SourceFileLinks";
-import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
-import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
+import { ChangeFilesSection } from "../components/results/ChangeFilesSection";
+import { DatasetSqlCard } from "../components/results/FineReportDatasetSqlCard";
+import { AiSection, AssetIssuesSection } from "../components/results/SharedResultSections";
+import { StatusHero } from "../components/results/StatusHero";
+import { useAutoOpenAccordion } from "../hooks/useAutoOpenAccordion";
 import { sortAlertRows } from "../utils/alertSorting";
 import {
   FINE_REPORT_REF_TABLE_GROUPS,
@@ -11,9 +14,7 @@ import {
   getReportKey,
   groupFineReportRefTables,
   reportAudit,
-  syncAutoOpenReportIds,
 } from "../utils/fineReportPresentation";
-import { countSqlLines } from "../utils/sqlPresentation";
 
 const FR_CAT = {
   dataset: { label: "数据集", icon: "db" },
@@ -32,44 +33,28 @@ function reportType(report) {
 
 function FrStatusHeader({ d }) {
   const task = d.task;
-  const status = STATUS_META[task.status] || STATUS_META.warn;
   const reports = Array.isArray(d.reports) ? d.reports : [];
   const highRisk = reports.filter((report) => reportAudit(report).err).length;
   return (
-    <div className={`status-hero card ${status.tone}`}>
-      <div className="sh-main">
-        <div className={`sh-badge ${status.tone}`}>
-          <Icon name={status.icon} size={26} stroke={2.4} />
-        </div>
-        <div className="sh-text">
-          <div className="sh-title-row">
-            <h2 className="sh-title">{status.label}</h2>
-            <Badge tone="accent" icon="grid">{task.workflow}</Badge>
-          </div>
-          <p className="sh-desc">
-            {task.status === "pass"
-              ? "所有报表均已通过检查，可以发布。"
-              : "存在尚未解决的数据集、连接或权限问题。"}
-          </p>
-          <div className="sh-meta mono">
-            <span><Icon name="branch" size={12} /> {task.revision}</span>
-            <span className="sh-sep">/</span>
-            <span>{task.author}</span>
-            <span className="sh-sep">/</span>
-            <span><Icon name="clock" size={12} /> {task.startedAt}</span>
-            <span className="sh-sep">/</span>
-            <span>时长 {task.duration}</span>
-          </div>
-        </div>
-      </div>
-      <div className="metrics sh-metrics">
-        <Metric label="报表" value={task.reports} icon="grid" />
-        <Metric label="检查项" value={task.checks} icon="layers" />
-        <Metric label="错误" value={task.errors} tone={task.errors ? "err" : "ok"} icon="x" />
-        <Metric label="警告" value={task.warnings} tone={task.warnings ? "warn" : "ok"} icon="alert" />
-        <Metric label="高风险" value={highRisk} tone={highRisk ? "err" : "ok"} icon="shield" />
-      </div>
-    </div>
+    <StatusHero
+      data={d}
+      workflowIcon="grid"
+      durationLabel="时长"
+      description={(currentTask, status) => (
+        ["running", "starting", "failed"].includes(d.__auditRun?.pageStatus)
+          ? status?.desc
+          : currentTask.status === "pass"
+            ? "所有报表均已通过检查，可以发布。"
+            : "存在尚未解决的数据集、连接或权限问题。"
+      )}
+      metrics={[
+        { label: "报表", value: task.reports, icon: "grid" },
+        { label: "检查项", value: task.checks, icon: "layers" },
+        { label: "错误", value: task.errors, tone: task.errors ? "err" : "ok", icon: "x" },
+        { label: "警告", value: task.warnings, tone: task.warnings ? "warn" : "ok", icon: "alert" },
+        { label: "高风险", value: highRisk, tone: highRisk ? "err" : "ok", icon: "shield" },
+      ]}
+    />
   );
 }
 
@@ -141,39 +126,6 @@ function ReportListSection({ d, reg, openReportIds, onToggle, loading = false })
   );
 }
 
-function FineChangesSection({ d, reg }) {
-  const changes = Array.isArray(d.changes) ? d.changes : [];
-  if (!changes.length) return null;
-  return (
-    <Panel
-      id="changes"
-      icon="git"
-      title="变更文件列表"
-      registerRef={reg}
-      count={changes.length}
-      countTone="info"
-      defaultOpen={shouldDefaultOpenChangeList(changes.length)}
-    >
-      <div className="panel-body flush">
-        <div className="flist">
-          {changes.map((change) => (
-            <div key={change.path} className="frow">
-              <span className={`chg-tag ${change.type}`}>{change.type}</span>
-              <span className="fpath">{change.path}</span>
-              <Badge>{change.cat}</Badge>
-              {change.downloadUrl ? (
-                <a className="dl-link" href={change.downloadUrl} target="_blank" rel="noreferrer">
-                  <Icon name="download" size={12} /> 下载
-                </a>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </div>
-    </Panel>
-  );
-}
-
 function TxtTableSection({ id, icon, title, section, reg }) {
   if (!section) return null;
   const messages = section.messages || [];
@@ -232,142 +184,6 @@ function TxtTableSection({ id, icon, title, section, reg }) {
         ) : <OkState>校验通过</OkState>}
       </div>
     </Panel>
-  );
-}
-
-function DatasetSqlCard({ dataset, index }) {
-  const [viewerOpen, setViewerOpen] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState("");
-  const dialogRef = useRef(null);
-  const triggerRef = useRef(null);
-  const copyButtonRef = useRef(null);
-  const copyTimerRef = useRef(null);
-  const id = useId();
-  const datasetName = dataset?.name || `未命名数据集 ${index + 1}`;
-  const sql = typeof dataset?.sql === "string" ? dataset.sql : "";
-  const sqlLineCount = countSqlLines(sql);
-  const titleId = `fr-sql-title-${id}`;
-  const descriptionId = `fr-sql-description-${id}`;
-
-  const clearCopyTimer = () => {
-    if (copyTimerRef.current) {
-      window.clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = null;
-    }
-  };
-
-  useEffect(() => () => clearCopyTimer(), []);
-
-  useEffect(() => {
-    if (!viewerOpen || !dialogRef.current) return;
-    if (!dialogRef.current.open) dialogRef.current.showModal();
-    copyButtonRef.current?.focus({ preventScroll: true });
-  }, [viewerOpen]);
-
-  const openViewer = () => {
-    clearCopyTimer();
-    setCopyFeedback("");
-    setViewerOpen(true);
-  };
-
-  const closeViewer = () => {
-    dialogRef.current?.close();
-  };
-
-  const handleDialogClose = () => {
-    clearCopyTimer();
-    setCopyFeedback("");
-    setViewerOpen(false);
-    triggerRef.current?.focus({ preventScroll: true });
-  };
-
-  const handleDialogKeyDown = (event) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    event.stopPropagation();
-    closeViewer();
-  };
-
-  const handleCopy = async () => {
-    clearCopyTimer();
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(sql);
-      setCopyFeedback("已复制");
-      copyTimerRef.current = window.setTimeout(() => {
-        setCopyFeedback("");
-        copyTimerRef.current = null;
-      }, 1600);
-    } catch {
-      setCopyFeedback("复制失败，请手动选择 SQL 复制");
-    }
-  };
-
-  return (
-    <>
-      <div className="fr-ds">
-        <div className="fr-ds-top">
-          <span className="fr-ds-heading">
-            <Icon name="db" size={14} />
-            <span className="fr-ds-name mono">{datasetName}</span>
-          </span>
-          <span className="fr-ds-summary">
-            <span className="fr-ds-rows mono">SQL {sqlLineCount} 行</span>
-            {dataset?.rows !== null && dataset?.rows !== undefined && dataset?.rows !== ""
-              ? <span className="fr-ds-rows mono">结果约 {dataset.rows} 行</span>
-              : null}
-            <button ref={triggerRef} type="button" className="btn sm" onClick={openViewer}>
-              查看完整 SQL
-            </button>
-          </span>
-        </div>
-      </div>
-      {viewerOpen ? (
-        <dialog
-          ref={dialogRef}
-          className="fr-sql-viewer"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={titleId}
-          aria-describedby={descriptionId}
-          onClose={handleDialogClose}
-          onCancel={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            closeViewer();
-          }}
-          onKeyDown={handleDialogKeyDown}
-        >
-          <header className="fr-sql-viewer-toolbar">
-            <div className="fr-sql-viewer-heading">
-              <h2 id={titleId} className="fr-sql-viewer-title">{datasetName}</h2>
-              <span id={descriptionId} className="fr-sql-viewer-meta mono">SQL {sqlLineCount} 行</span>
-            </div>
-            <div className="fr-sql-viewer-actions">
-              <span className="fr-sql-copy-status" role="status" aria-live="polite">
-                {copyFeedback}
-              </span>
-              <button
-                ref={copyButtonRef}
-                type="button"
-                className="btn sm"
-                onClick={handleCopy}
-                title={`复制当前数据集 ${datasetName} 的完整 SQL`}
-                aria-label={`复制当前数据集 ${datasetName} 的完整 SQL`}
-              >
-                <Icon name="copy" size={13} />
-                {copyFeedback === "已复制" ? "已复制" : "复制 SQL"}
-              </button>
-              <button type="button" className="btn sm" onClick={closeViewer} aria-label="关闭 SQL 查看器">
-                <Icon name="x" size={13} />
-                关闭
-              </button>
-            </div>
-          </header>
-          <pre className="fr-sql-viewer-content mono" tabIndex={0}>{sql}</pre>
-        </dialog>
-      ) : null}
-    </>
   );
 }
 
@@ -524,74 +340,29 @@ function mergeFineReportItems(baseData, items) {
   };
 }
 
+const hasReportFinding = (report) => Boolean(reportAudit(report).total);
+
 export function FineReportResultsPage({ d, aiEnabled, reg, apiState, reportDataPending = false, reportJumpRequest }) {
-  const dismissedReportIds = useRef(new Set());
-  const [openReportIds, setOpenReportIds] = useState(() => (
-    syncAutoOpenReportIds(new Set(), d.reports, dismissedReportIds.current)
-  ));
   const mergedData = useMemo(() => mergeFineReportItems(d, apiState?.data), [d, apiState?.data]);
-
-  const toggleReport = (reportId) => {
-    setOpenReportIds((current) => {
-      const next = new Set(current);
-      if (next.has(reportId)) {
-        next.delete(reportId);
-        dismissedReportIds.current.add(reportId);
-      } else {
-        next.add(reportId);
-        dismissedReportIds.current.delete(reportId);
-      }
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    setOpenReportIds((current) => (
-      syncAutoOpenReportIds(current, mergedData.reports, dismissedReportIds.current)
-    ));
-  }, [mergedData.reports]);
-
-  useEffect(() => {
-    const closeAll = (event) => {
-      if (event.key === "Escape") {
-        setOpenReportIds((current) => {
-          current.forEach((reportId) => dismissedReportIds.current.add(reportId));
-          return new Set();
-        });
-      }
-    };
-    window.addEventListener("keydown", closeAll);
-    return () => window.removeEventListener("keydown", closeAll);
-  }, []);
-
-  useEffect(() => {
-    const reportKey = reportJumpRequest?.key;
-    if (!reportKey) return;
-
-    dismissedReportIds.current.delete(reportKey);
-    setOpenReportIds((current) => {
-      if (current.has(reportKey)) return current;
-      const next = new Set(current);
-      next.add(reportKey);
-      return next;
-    });
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.getElementById(getReportElementId(reportKey))?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      });
-    });
-  }, [reportJumpRequest]);
+  const { openIds: openReportIds, toggle: toggleReport } = useAutoOpenAccordion({
+    items: mergedData.reports,
+    getKey: getReportKey,
+    isActionable: hasReportFinding,
+    jumpRequest: reportJumpRequest,
+    getElementId: getReportElementId,
+  });
 
   return (
     <div className="results-page fade-in">
       {apiState?.loading ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)" }}>正在加载报表检查数据...</div> : null}
       {apiState?.error ? <div className="card" style={{ padding: 14, marginBottom: "var(--gap)", borderColor: "var(--err)" }}>FineReport API 不可用，请检查任务接口配置。</div> : null}
       <FrStatusHeader d={mergedData} />
-      <FineChangesSection d={mergedData} reg={reg} />
+      <ChangeFilesSection
+        changes={Array.isArray(mergedData.changes) ? mergedData.changes : []}
+        registerRef={reg}
+        title="变更文件列表"
+        splitPath={false}
+      />
       <TxtTableSection id="menu" icon="folder" title="目录检查（menu.txt）" section={mergedData.menu} reg={reg} />
       <TxtTableSection id="authority" icon="shield" title="权限检查（authority.txt）" section={mergedData.authority} reg={reg} />
       <ReportListSection

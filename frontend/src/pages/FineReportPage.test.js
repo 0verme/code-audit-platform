@@ -8,10 +8,18 @@ import {
 } from "../utils/fineReportPresentation.js";
 import { countSqlLines } from "../utils/sqlPresentation.js";
 
-const pageSource = readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8");
-const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
+const pageSource = [
+  readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/results/FineReportDatasetSqlCard.jsx", import.meta.url), "utf8"),
+].join("\n");
+const appSource = [
+  readFileSync(new URL("../App.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/app/ResultRail.jsx", import.meta.url), "utf8"),
+].join("\n");
 const styleSource = readFileSync(new URL("../styles/fine-report.css", import.meta.url), "utf8");
 const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
+const changeFilesSource = readFileSync(new URL("../components/results/ChangeFilesSection.jsx", import.meta.url), "utf8");
+const accordionHookSource = readFileSync(new URL("../hooks/useAutoOpenAccordion.js", import.meta.url), "utf8");
 
 test("FineReport dataset cards render summaries without inline SQL", () => {
   assert.match(pageSource, /function DatasetSqlCard\(\{ dataset, index \}\)/);
@@ -30,7 +38,7 @@ test("FineReport SQL viewer exposes accessible copy and close actions", () => {
   assert.match(pageSource, /aria-describedby=\{descriptionId\}/);
   assert.match(pageSource, /aria-label=\{`复制当前数据集 \$\{datasetName\} 的完整 SQL`\}/);
   assert.match(pageSource, /aria-label="关闭 SQL 查看器"/);
-  assert.match(pageSource, /role="status" aria-live="polite"/);
+  assert.match(pageSource, /role="status"\s+aria-live="polite"/);
 });
 
 test("FineReport SQL viewer copies the original SQL and reports failures", () => {
@@ -78,11 +86,9 @@ test("FineReport keeps grouped referenced tables inside CPT drilldown", () => {
 });
 
 test("FineReport details use independently expanded inline accordions", () => {
-  assert.match(pageSource, /const dismissedReportIds = useRef\(new Set\(\)\)/);
-  assert.match(pageSource, /syncAutoOpenReportIds\(new Set\(\), d\.reports, dismissedReportIds\.current\)/);
-  assert.match(pageSource, /syncAutoOpenReportIds\(current, mergedData\.reports, dismissedReportIds\.current\)/);
-  assert.match(pageSource, /dismissedReportIds\.current\.add\(reportId\)/);
-  assert.match(pageSource, /dismissedReportIds\.current\.delete\(reportId\)/);
+  assert.match(pageSource, /useAutoOpenAccordion\(\{/);
+  assert.match(accordionHookSource, /dismissedIds\.add\(itemId\)/);
+  assert.match(accordionHookSource, /dismissedIds\.delete\(itemId\)/);
   assert.match(pageSource, /<ReportListSection\s+d=\{mergedData\}\s+reg=\{reg\}\s+openReportIds=\{openReportIds\}\s+onToggle=\{toggleReport\}/);
   assert.match(pageSource, /aria-expanded=\{isOpen\}/);
   assert.match(pageSource, /ReportDetailAccordion report=\{report\} detailId=\{detailId\}/);
@@ -123,7 +129,7 @@ test("FineReport navigation renders every report in the expanded second-level di
   assert.match(appSource, /isPython \? onJumpScript\(item\) : onJumpReport\(item\)/);
   assert.match(appSource, /activeReportKey === itemKey/);
   assert.match(pageSource, /id=\{reportElementId\}/);
-  assert.match(pageSource, /document\.getElementById\(getReportElementId\(reportKey\)\)\?\.scrollIntoView/);
+  assert.match(accordionHookSource, /document\.getElementById\(getElementId\(itemKey\)\)\?\.scrollIntoView/);
 });
 
 test("shared referenced table list renders FineReport table metadata", () => {
@@ -138,8 +144,8 @@ test("shared referenced table list renders FineReport table metadata", () => {
 });
 
 test("FineReport exposes changed files plus menu and authority downloads", () => {
-  assert.match(pageSource, /function FineChangesSection/);
-  assert.match(pageSource, /<FineChangesSection d=\{mergedData\} reg=\{reg\} \/>/);
+  assert.match(pageSource, /<ChangeFilesSection/);
+  assert.match(changeFilesSource, /href=\{change\.downloadUrl\}/);
   assert.match(pageSource, /section\.downloadUrl/);
   assert.match(pageSource, /<SourceFileLinks/);
   assert.match(pageSource, /const existing = baseReports\.get\(item\.file_path\) \|\| \{\}/);

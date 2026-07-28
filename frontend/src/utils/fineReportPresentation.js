@@ -14,24 +14,6 @@ export function getReportElementId(reportOrKey) {
   return `fine-report-${encodeURIComponent(key)}`;
 }
 
-export function syncAutoOpenReportIds(currentIds, reports, dismissedIds) {
-  const next = new Set(currentIds);
-  let changed = false;
-
-  for (const report of Array.isArray(reports) ? reports : []) {
-    const reportId = getReportKey(report);
-    const issues = Array.isArray(report?.issues) ? report.issues : [];
-    const hasFinding = issues.some((issue) => issue.level === "err" || issue.level === "warn");
-
-    if (reportId && hasFinding && !dismissedIds.has(reportId) && !next.has(reportId)) {
-      next.add(reportId);
-      changed = true;
-    }
-  }
-
-  return changed ? next : currentIds;
-}
-
 export const FINE_REPORT_REF_TABLE_GROUPS = [
   { key: "result", label: "结果表", icon: "db" },
   { key: "src", label: "码值表", icon: "grid" },

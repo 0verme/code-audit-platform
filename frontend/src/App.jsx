@@ -1,4 +1,10 @@
 ﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { ResultRail } from "./components/app/ResultRail";
+import {
+  ApiErrorView as TaskApiErrorView,
+  FailedView as TaskFailedView,
+  PageFallback as TaskPageFallback,
+} from "./components/app/TaskStateViews";
 import { Icon } from "./components/ui";
 import { TweakColor, TweaksPanel, TweakRadio, TweakSection, TweakToggle, useTweaks } from "./components/tweaksPanel";
 import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
@@ -10,8 +16,8 @@ import { useAsyncResource } from "./hooks/useAsyncResource";
 import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
-import { getReportKey, reportAudit } from "./utils/fineReportPresentation";
-import { getScriptKey, scriptAudit } from "./utils/scriptAuditPresentation";
+import { getReportKey } from "./utils/fineReportPresentation";
+import { getScriptKey } from "./utils/scriptAuditPresentation";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
@@ -91,177 +97,6 @@ function ThemeToggle({ theme, onToggle }) {
     <button className="iconbtn" title="切换主题" onClick={onToggle}>
       <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
     </button>
-  );
-}
-
-function RunningView({ task }) {
-  const progress = task?.progress ?? 0;
-  const step = task?.step || "排队中";
-  const recentLogs = (task?.logs || []).slice(-12);
-  return (
-    <div className="card fade-in task-state-card">
-      <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Icon name="clock" size={16} /> 审查任务执行中
-      </div>
-      <p className="muted" style={{ margin: "10px 0 6px" }}>当前步骤：{step}</p>
-      <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden", margin: "10px 0 16px" }}>
-        <div style={{ height: "100%", width: `${progress}%`, background: "var(--accent)", transition: "width .4s" }} />
-      </div>
-      {recentLogs.length ? (
-        <pre className="mono" style={{ fontSize: "var(--fs-xs)", color: "var(--text-2)", whiteSpace: "pre-wrap", margin: 0 }}>
-          {recentLogs.map((entry) => `[${entry.ts}] ${entry.msg}`).join("\n")}
-        </pre>
-      ) : null}
-    </div>
-  );
-}
-
-function FailedView({ task, onBack }) {
-  const recentLogs = (task?.logs || []).slice(-20);
-  return (
-    <div className="card fade-in task-state-card" style={{ borderColor: "var(--err)" }}>
-      <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--err-fg)" }}>
-        <Icon name="x" size={16} /> 审查任务执行失败
-      </div>
-      <p className="muted" style={{ margin: "10px 0" }}>{task?.error || "任务异常结束，未生成报告。"}</p>
-      {recentLogs.length ? (
-        <pre className="mono" style={{ fontSize: "var(--fs-xs)", color: "var(--text-2)", whiteSpace: "pre-wrap", margin: "0 0 14px" }}>
-          {recentLogs.map((entry) => `[${entry.ts}] ${entry.level} ${entry.msg}`).join("\n")}
-        </pre>
-      ) : null}
-      <button className="btn primary" onClick={onBack}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 返回首页</button>
-    </div>
-  );
-}
-
-function ApiErrorView({ error, onBack }) {
-  return (
-    <div className="card fade-in task-state-card" style={{ borderColor: "var(--err)" }}>
-      <div className="section-title" style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--err-fg)" }}>
-        <Icon name="x" size={16} /> 任务接口不可用
-      </div>
-      <p className="muted" style={{ margin: "10px 0 14px" }}>
-        API 模式不会自动降级为 mock。请检查后端服务、网络连接或 VITE_API_BASE_URL。
-      </p>
-      {error ? <pre className="mono" style={{ fontSize: "var(--fs-xs)", color: "var(--err-fg)", whiteSpace: "pre-wrap", margin: "0 0 14px" }}>{error.message || String(error)}</pre> : null}
-      <button className="btn primary" onClick={onBack}><Icon name="chevron" size={14} style={{ transform: "rotate(180deg)" }} /> 返回首页</button>
-    </div>
-  );
-}
-
-function Rail({ data, active, activeScriptKey, activeReportKey, onJump, onJumpScript, onJumpReport, collapsed, params, nav, mobileOpen }) {
-  const [expandedBranches, setExpandedBranches] = useState(() => new Set(["python", "reports"]));
-  const pythonScripts = Array.isArray(data?.pyScripts) ? data.pyScripts : [];
-  const fineReports = Array.isArray(data?.reports) ? data.reports : [];
-
-  return (
-    <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
-      <div className="rail-head">
-        <img className="brand-mark" src="/favicon.svg" alt="代码提交审查平台" />
-        {!collapsed ? (
-          <div style={{ minWidth: 0 }}>
-            <div className="brand-name">代码提交审查平台</div>
-            <div className="brand-sub">Code Review</div>
-          </div>
-        ) : null}
-      </div>
-      <div className="rail-scroll">
-        <div className="rail-group-label">审查结果</div>
-        {nav.map((section) => {
-          if (section.id === "ai") return null;
-          const rows = section.get ? section.get(data) : null;
-          const tone = rows && !section.neutral ? (rows.some((item) => item.level === "err") ? "err" : rows.some((item) => item.level === "warn") ? "warn" : "ok") : null;
-          const count = rows ? rows.length : null;
-          const isPython = section.id === "python";
-          const isReports = section.id === "reports";
-          const nestedItems = isPython ? pythonScripts : isReports ? fineReports : null;
-          if (section.id !== "overview" && count === 0 && !nestedItems?.length) return null;
-          if (nestedItems) {
-            const isExpanded = expandedBranches.has(section.id);
-            const directoryLabel = isPython ? "Python 脚本目录" : "FineReport 报表目录";
-            return (
-              <div key={section.id} className="nav-branch">
-                <div
-                  className={`navitem${active === section.id ? " active" : ""}`}
-                  onClick={() => {
-                    setExpandedBranches((current) => new Set(current).add(section.id));
-                    onJump(section.id);
-                  }}
-                >
-                  <span className="ni-ico"><Icon name={section.icon} size={15} /></span>
-                  {!collapsed ? <span className="ni-label">{section.label}</span> : null}
-                  {!collapsed && count != null ? <span className={`ni-count${tone ? ` ${tone}` : ""}`}>{count}</span> : null}
-                  {!collapsed ? (
-                    <button
-                      type="button"
-                      className={`nav-branch-toggle${isExpanded ? " open" : ""}`}
-                      aria-label={`${isExpanded ? "收起" : "展开"}${directoryLabel}`}
-                      aria-expanded={isExpanded}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setExpandedBranches((current) => {
-                          const next = new Set(current);
-                          if (next.has(section.id)) next.delete(section.id);
-                          else next.add(section.id);
-                          return next;
-                        });
-                      }}
-                    >
-                      <Icon name="chevron" size={13} />
-                    </button>
-                  ) : null}
-                </div>
-                {!collapsed && isExpanded ? (
-                  <div className="nav-children" role="group" aria-label={directoryLabel}>
-                    {nestedItems.map((item) => {
-                      const itemKey = isPython ? getScriptKey(item) : getReportKey(item);
-                      const itemLevel = isPython ? scriptAudit(item).level : reportAudit(item).level;
-                      const itemLabel = isPython ? item.script : (item.title || item.file);
-                      const itemTitle = isPython ? item.script : `${item.title || item.file} · ${item.file}`;
-                      const isActive = isPython ? activeScriptKey === itemKey : activeReportKey === itemKey;
-                      return (
-                        <button
-                          type="button"
-                          key={itemKey}
-                          className={`nav-child${isActive ? " active" : ""}`}
-                          title={itemTitle}
-                          onClick={() => isPython ? onJumpScript(item) : onJumpReport(item)}
-                        >
-                          <span className={`nav-child-status ${itemLevel}`} aria-label={itemLevel} />
-                          <span className="nav-child-label mono">{itemLabel}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            );
-          }
-          return (
-            <div key={section.id} className={`navitem${active === section.id ? " active" : ""}`} onClick={() => onJump(section.id)}>
-              <span className="ni-ico"><Icon name={section.icon} size={15} /></span>
-              {!collapsed ? <span className="ni-label">{section.label}</span> : null}
-              {!collapsed && count != null ? <span className={`ni-count${tone ? ` ${tone}` : ""}`}>{count}</span> : null}
-            </div>
-          );
-        })}
-        {params.ai ? (
-          <div className={`navitem${active === "ai" ? " active" : ""}`} onClick={() => onJump("ai")}>
-            <span className="ni-ico" style={{ color: "var(--accent)" }}><Icon name="sparkle" size={15} /></span>
-            {!collapsed ? <span className="ni-label">AI 分析</span> : null}
-          </div>
-        ) : null}
-      </div>
-    </aside>
-  );
-}
-
-function PageFallback() {
-  return (
-    <div className="card" style={{ padding: 24 }}>
-      <div className="section-title">Loading...</div>
-      <p className="muted" style={{ margin: "8px 0 0" }}>Page resources are loading.</p>
-    </div>
   );
 }
 
@@ -402,21 +237,25 @@ export default function App() {
     return () => container.removeEventListener("scroll", onScroll);
   }, [navList, view]);
 
-  async function handleCreateTask(payload) {
-    try {
-      return await run.startAuditRun({
-        sourceRef: payload.path,
-        repo: payload.path,
-        sourceType: payload.sourceType || "unknown",
-        workflow: payload.workflow,
-        type: payload.type,
-        ai_enabled: payload.ai,
-        debug_enabled: payload.dbg,
-      });
-    } catch (error) {
-      return { error: error.message || "Failed to create audit task" };
-    }
-  }
+  const { startAuditRun } = run;
+  const handleCreateTask = useMemo(
+    () => async (payload) => {
+      try {
+        return await startAuditRun({
+          sourceRef: payload.path,
+          repo: payload.path,
+          sourceType: payload.sourceType || "unknown",
+          workflow: payload.workflow,
+          type: payload.type,
+          ai_enabled: payload.ai,
+          debug_enabled: payload.dbg,
+        });
+      } catch (error) {
+        return { error: error.message || "Failed to create audit task" };
+      }
+    },
+    [startAuditRun],
+  );
 
   function submit(nextParams) {
     setParams({ taskId: null, ...nextParams });
@@ -439,11 +278,11 @@ export default function App() {
 
   const page = useMemo(() => {
     if (view === "publish") {
-      return <Suspense fallback={<PageFallback />}><PublishListPage /></Suspense>;
+      return <Suspense fallback={<TaskPageFallback />}><PublishListPage /></Suspense>;
     }
     if (view === "home") {
       return (
-        <Suspense fallback={<PageFallback />}>
+        <Suspense fallback={<TaskPageFallback />}>
           <HomePage
             onSubmit={submit}
             projectsState={projectsState}
@@ -457,7 +296,7 @@ export default function App() {
     }
     if (view === "lineage" && lineageSelection && params.taskId) {
       return (
-        <Suspense fallback={<PageFallback />}>
+        <Suspense fallback={<TaskPageFallback />}>
           <LineagePage
             taskId={params.taskId}
             selection={lineageSelection}
@@ -467,21 +306,21 @@ export default function App() {
       );
     }
     if (IS_API_MODE && params.taskId && run.error && !liveData) {
-      return <ApiErrorView error={run.error} onBack={() => setView("home")} />;
+      return <TaskApiErrorView error={run.error} onBack={() => setView("home")} />;
     }
     if (taskFailed) {
-      return <FailedView task={run.task} onBack={() => setView("home")} />;
+      return <TaskFailedView task={run.task} onBack={() => setView("home")} />;
     }
     if (isNups) {
       return (
-        <Suspense fallback={<PageFallback />}>
+        <Suspense fallback={<TaskPageFallback />}>
           <NupsResultsPage d={data} aiEnabled={aiEnabled} reg={reg} />
         </Suspense>
       );
     }
     if (isFR) {
       return (
-        <Suspense fallback={<PageFallback />}>
+        <Suspense fallback={<TaskPageFallback />}>
           <FineReportResultsPage
             d={data}
             aiEnabled={aiEnabled}
@@ -494,7 +333,7 @@ export default function App() {
       );
     }
     return (
-      <Suspense fallback={<PageFallback />}>
+      <Suspense fallback={<TaskPageFallback />}>
         <ResultsPage
           d={data}
           aiEnabled={aiEnabled}
@@ -508,7 +347,7 @@ export default function App() {
         />
       </Suspense>
     );
-  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, reportJumpRequest, run.error, run.running, run.task, scriptJumpRequest, t.variant, taskFailed, tasksState, view]);
+  }, [aiEnabled, auditResultsState, data, fineReportItemsState, handleCreateTask, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, reportJumpRequest, run.error, run.report, run.running, run.starting, run.task, scriptJumpRequest, t.variant, taskFailed, tasksState, view]);
 
   return (
     <div className={`app${canShowRail ? "" : " no-rail"}`}>
@@ -518,7 +357,7 @@ export default function App() {
             className={`rail-overlay${railOpen ? " shown" : ""}`}
             onClick={() => setRailOpen(false)}
           />
-          <Rail
+          <ResultRail
             data={data}
             active={active}
             activeScriptKey={activeScriptKey}

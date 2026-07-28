@@ -1,6 +1,7 @@
-import { Badge, Icon, Metric, OkState, Panel, ViolationTable } from "../components/ui";
-import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
-import { AiSection, AssetIssuesSection, STATUS_META } from "./ResultsPage";
+import { Icon, OkState, Panel, ViolationTable } from "../components/ui";
+import { ChangeFilesSection } from "../components/results/ChangeFilesSection";
+import { AiSection, AssetIssuesSection } from "../components/results/SharedResultSections";
+import { StatusHero } from "../components/results/StatusHero";
 import {
   getNupsChanges,
   getNupsPyScripts,
@@ -16,69 +17,18 @@ const NUPS_MESSAGE_COLUMNS = [
 
 function NupsStatusHeader({ d }) {
   const task = d.task;
-  const status = STATUS_META[task.status] || STATUS_META.warn;
   return (
-    <div className={`status-hero card ${status.tone}`}>
-      <div className="sh-main">
-        <div className={`sh-badge ${status.tone}`}><Icon name={status.icon} size={26} stroke={2.4} /></div>
-        <div className="sh-text">
-          <div className="sh-title-row">
-            <h2 className="sh-title">{status.label}</h2>
-            <Badge tone="accent" icon="layers">{task.workflow}</Badge>
-          </div>
-          <p className="sh-desc">{status.desc}</p>
-          <div className="sh-meta mono">
-            <span><Icon name="branch" size={12} /> {task.revision}</span>
-            <span className="sh-sep">/</span>
-            <span>{task.author}</span>
-            <span className="sh-sep">/</span>
-            <span><Icon name="clock" size={12} /> {task.startedAt}</span>
-            <span className="sh-sep">/</span>
-            <span>耗时 {task.duration}</span>
-          </div>
-        </div>
-      </div>
-      <div className="metrics sh-metrics">
-        <Metric label="变更文件" value={task.changedFiles} icon="file" />
-        <Metric label="检查项" value={task.checks} icon="layers" />
-        <Metric label="错误" value={task.errors} tone={task.errors ? "err" : "ok"} icon="x" />
-        <Metric label="警告" value={task.warnings} tone={task.warnings ? "warn" : "ok"} icon="alert" />
-        <Metric label="冲突" value={task.conflicts} tone={task.conflicts ? "err" : "ok"} icon="conflict" />
-      </div>
-    </div>
-  );
-}
-
-function ChangesSection({ d, reg }) {
-  const changes = getNupsChanges(d);
-  return (
-    <Panel
-      id="changes"
-      icon="git"
-      title="SVN 变更文件列表"
-      registerRef={reg}
-      count={changes.length}
-      countTone="info"
-      defaultOpen={shouldDefaultOpenChangeList(changes.length)}
-    >
-      <div className="panel-body flush">
-        <div className="flist">
-          {changes.map((change) => {
-            const idx = change.path.lastIndexOf("/") + 1;
-            return (
-              <div key={change.path} className="frow">
-                <span className={`chg-tag ${change.type}`}>{change.type}</span>
-                <span className="fpath"><span className="fdir">{change.path.slice(0, idx)}</span>{change.path.slice(idx)}</span>
-                <Badge>{change.cat}</Badge>
-                {change.downloadUrl ? (
-                  <a className="dl-link" href={change.downloadUrl} target="_blank" rel="noreferrer"><Icon name="download" size={12} /> 下载</a>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </Panel>
+    <StatusHero
+      data={d}
+      workflowIcon="layers"
+      metrics={[
+        { label: "变更文件", value: task.changedFiles, icon: "file" },
+        { label: "检查项", value: task.checks, icon: "layers" },
+        { label: "错误", value: task.errors, tone: task.errors ? "err" : "ok", icon: "x" },
+        { label: "警告", value: task.warnings, tone: task.warnings ? "warn" : "ok", icon: "alert" },
+        { label: "冲突", value: task.conflicts, tone: task.conflicts ? "err" : "ok", icon: "conflict" },
+      ]}
+    />
   );
 }
 
@@ -172,7 +122,7 @@ export function NupsResultsPage({ d, aiEnabled, reg }) {
   return (
     <div className="results-page fade-in">
       <NupsStatusHeader d={d} />
-      <ChangesSection d={d} reg={reg} />
+      <ChangeFilesSection changes={getNupsChanges(d)} registerRef={reg} hideWhenEmpty={false} />
       <ConflictSection d={d} reg={reg} />
       <NupsSqlSection d={d} reg={reg} />
       <NupsPySection d={d} reg={reg} />

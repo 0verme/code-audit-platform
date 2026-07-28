@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "node --test src/config/auditWorkflows.test.js src/config/resultNavigation.test.js src/ui/runtimeVisibility.test.js src/hooks/useAuditRun.test.js src/components/advancedSettingsPanel.test.js src/components/recentAuditHistory.test.js src/components/lineage/lineageAdapter.test.js src/utils/alertSorting.test.js src/utils/auditSourceDisplay.test.js src/utils/fineReportPresentation.test.js src/utils/homePathFeedback.test.js src/utils/hcytResultPresentation.test.js src/utils/nupsResultPresentation.test.js src/utils/resultTablePresentation.test.js src/utils/singleFlight.test.js src/services/reviewService.test.js src/pages/HomePageSubmit.test.js src/pages/FineReportPage.test.js src/pages/NupsPage.test.js src/pages/ResultsPage.test.js",
+    "test": "node --test src/config/auditWorkflows.test.js src/config/resultNavigation.test.js src/ui/runtimeVisibility.test.js src/hooks/useAuditRun.test.js src/hooks/useAutoOpenAccordion.test.js src/components/advancedSettingsPanel.test.js src/components/recentAuditHistory.test.js src/components/results/sharedResults.test.js src/components/lineage/lineageAdapter.test.js src/utils/alertSorting.test.js src/utils/auditSourceDisplay.test.js src/utils/fineReportPresentation.test.js src/utils/homePathFeedback.test.js src/utils/hcytResultPresentation.test.js src/utils/nupsResultPresentation.test.js src/utils/resultTablePresentation.test.js src/utils/singleFlight.test.js src/services/reviewService.test.js src/pages/HomePageSubmit.test.js src/pages/FineReportPage.test.js src/pages/NupsPage.test.js src/pages/ResultsPage.test.js",
+    "lint": "eslint src/App.jsx src/config/resultNavigation.js src/components/app src/components/results src/hooks/useAutoOpenAccordion.js src/pages/ResultsPage.jsx src/pages/FineReportPage.jsx src/pages/NupsPage.jsx",
+    "format:check": "prettier --check src/components/app src/components/results src/hooks/useAutoOpenAccordion.js src/config/resultNavigation.js",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -18,7 +20,14 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "^9.39.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
     "vite": "^5.4.10"
   }
 }

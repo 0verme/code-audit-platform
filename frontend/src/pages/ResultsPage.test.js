@@ -5,17 +5,25 @@ import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation.js"
 import {
   getScriptElementId,
   getScriptKey,
-  syncAutoOpenScriptIds,
 } from "../utils/scriptAuditPresentation.js";
 
-const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8");
+const source = [
+  readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/results/HcytRunProgress.jsx", import.meta.url), "utf8"),
+].join("\n");
 const nupsSource = readFileSync(new URL("./NupsPage.jsx", import.meta.url), "utf8");
-const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
+const appSource = [
+  readFileSync(new URL("../App.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/app/ResultRail.jsx", import.meta.url), "utf8"),
+].join("\n");
 const navigationSource = readFileSync(new URL("../config/resultNavigation.js", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/script-audit.css", import.meta.url), "utf8");
 const resultsStyleSource = readFileSync(new URL("../styles/results.css", import.meta.url), "utf8");
 const uiSource = readFileSync(new URL("../components/ui.jsx", import.meta.url), "utf8");
 const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
+const changeFilesSource = readFileSync(new URL("../components/results/ChangeFilesSection.jsx", import.meta.url), "utf8");
+const sharedSectionsSource = readFileSync(new URL("../components/results/SharedResultSections.jsx", import.meta.url), "utf8");
+const accordionHookSource = readFileSync(new URL("../hooks/useAutoOpenAccordion.js", import.meta.url), "utf8");
 
 test("change lists default to collapsed only when they contain more than ten files", () => {
   assert.equal(shouldDefaultOpenChangeList(0), true);
@@ -23,12 +31,13 @@ test("change lists default to collapsed only when they contain more than ten fil
   assert.equal(shouldDefaultOpenChangeList(10), true);
   assert.equal(shouldDefaultOpenChangeList(11), false);
   assert.equal(shouldDefaultOpenChangeList(98), false);
-  assert.match(source, /defaultOpen=\{shouldDefaultOpenChangeList\(d\.changes\.length\)\}/);
-  assert.match(nupsSource, /defaultOpen=\{shouldDefaultOpenChangeList\(changes\.length\)\}/);
+  assert.match(changeFilesSource, /defaultOpen=\{shouldDefaultOpenChangeList\(changes\.length\)\}/);
+  assert.match(source, /<ChangeFilesSection changes=\{mergedData\.changes\}/);
+  assert.match(nupsSource, /<ChangeFilesSection changes=\{getNupsChanges\(d\)\}/);
 });
 
 test("change list and SQL check use the report download URL as a direct link", () => {
-  assert.match(source, /href=\{change\.downloadUrl\}[\s\S]*?target="_blank"/);
+  assert.match(changeFilesSource, /href=\{change\.downloadUrl\}[\s\S]*?target="_blank"/);
   assert.match(source, /href=\{scriptMeta\.downloadUrl\}[\s\S]*?target="_blank"/);
 });
 
@@ -65,10 +74,9 @@ test("execution logs can be resized vertically while retaining scroll boundaries
 
 test("Python script details use independently expanded inline accordions", () => {
   const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
-  assert.match(source, /syncAutoOpenScriptIds\(new Set\(\), d\.pyScripts, dismissedScriptIds\.current\)/);
-  assert.match(source, /syncAutoOpenScriptIds\(current, mergedData\.pyScripts, dismissedScriptIds\.current\)/);
-  assert.match(source, /dismissedScriptIds\.current\.add\(scriptId\)/);
-  assert.match(source, /dismissedScriptIds\.current\.delete\(scriptId\)/);
+  assert.match(source, /useAutoOpenAccordion\(\{/);
+  assert.match(accordionHookSource, /dismissedIds\.add\(itemId\)/);
+  assert.match(accordionHookSource, /dismissedIds\.delete\(itemId\)/);
   assert.match(source, /<PyScriptAuditSection d=\{mergedData\} reg=\{reg\} openScriptIds=\{openScriptIds\} onToggle=\{toggleScript\}/);
   assert.doesNotMatch(source, /ScriptDetailDrawer/);
   assert.match(scriptSource, /aria-expanded=\{isOpen\}/);
@@ -85,24 +93,6 @@ test("Python script details omit the review focus while FineReport keeps its foc
   assert.match(fineReportSource, /report\.focus/);
 });
 
-test("Python script findings auto-open after progressive results arrive without overriding manual dismissal", () => {
-  const cleanScript = { script: "clean.py", lint: [], result: [] };
-  const errorScript = { script: "error.py", lint: [{ level: "err" }], result: [] };
-  const warningScript = { script: "warning.py", lint: [{ level: "warn" }], result: [] };
-
-  const initiallyOpen = syncAutoOpenScriptIds(new Set(), [], new Set());
-  assert.deepEqual([...initiallyOpen], []);
-
-  const autoOpened = syncAutoOpenScriptIds(initiallyOpen, [cleanScript, errorScript, warningScript], new Set());
-  assert.deepEqual([...autoOpened], ["error.py", "warning.py"]);
-
-  const dismissed = new Set(["error.py"]);
-  const manuallyClosed = new Set(["warning.py"]);
-  const refreshed = syncAutoOpenScriptIds(manuallyClosed, [cleanScript, errorScript, warningScript], dismissed);
-  assert.deepEqual([...refreshed], ["warning.py"]);
-  assert.equal(syncAutoOpenScriptIds(refreshed, [errorScript, warningScript], dismissed), refreshed);
-});
-
 test("Python script navigation prefers paths while retaining filename compatibility", () => {
   const nestedScript = { script: "load.py", path: "jobs/daily/load.py", lint: [{ level: "err" }], result: [] };
   const legacyScript = { script: "legacy.py", lint: [{ level: "warn" }], result: [] };
@@ -110,21 +100,26 @@ test("Python script navigation prefers paths while retaining filename compatibil
   assert.equal(getScriptKey(nestedScript), "jobs/daily/load.py");
   assert.equal(getScriptKey(legacyScript), "legacy.py");
   assert.equal(getScriptElementId(nestedScript), "python-script-jobs%2Fdaily%2Fload.py");
-  assert.deepEqual(
-    [...syncAutoOpenScriptIds(new Set(), [nestedScript, legacyScript], new Set())],
-    ["jobs/daily/load.py", "legacy.py"],
-  );
 });
 
 test("Python navigation renders every script as an expanded nested directory", () => {
   const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
 
-  assert.match(appSource, /useState\(\(\) => new Set\(\["python", "reports"\]\)\)/);
-  assert.match(appSource, /const nestedItems = isPython \? pythonScripts : isReports \? fineReports : null/);
-  assert.match(appSource, /const isActive = isPython \? activeScriptKey === itemKey : activeReportKey === itemKey/);
-  assert.match(appSource, /const itemTitle = isPython \? item\.script/);
-  assert.match(appSource, /isPython \? onJumpScript\(item\) : onJumpReport\(item\)/);
-  assert.match(source, /document\.getElementById\(getScriptElementId\(scriptKey\)\)\?\.scrollIntoView/);
+  assert.match(appSource, /useState\(\s*\(\) =>\s*new Set\(\["python", "reports"\]\)\s*,?\s*\)/);
+  assert.match(
+    appSource,
+    /const nestedItems = isPython[\s\S]*?\? pythonScripts[\s\S]*?: isReports[\s\S]*?\? fineReports[\s\S]*?: null/,
+  );
+  assert.match(
+    appSource,
+    /const isActive = isPython[\s\S]*?\? activeScriptKey === itemKey[\s\S]*?: activeReportKey === itemKey/,
+  );
+  assert.match(appSource, /const itemTitle = isPython[\s\S]*?\? item\.script/);
+  assert.match(
+    appSource,
+    /isPython[\s\S]*?\? onJumpScript\(item\)[\s\S]*?: onJumpReport\(item\)/,
+  );
+  assert.match(accordionHookSource, /document[\s\S]*getElementById\(getElementId\(itemKey\)\)[\s\S]*scrollIntoView/);
   assert.match(scriptSource, /id=\{scriptElementId\}/);
   assert.match(sharedStyleSource, /\.nav-child-label \{[\s\S]*text-overflow: ellipsis/);
 });
@@ -158,7 +153,7 @@ test("HCYT check panels opt into the shared accent header treatment", () => {
   assert.match(uiSource, /accentHeader = false/);
   assert.match(uiSource, /accentHeader \? " accent-header" : ""/);
   assert.match(source, /function CheckSection[\s\S]*?<Panel[\s\S]*?accentHeader/);
-  assert.match(source, /id="asset-issues"[\s\S]*?accentHeader/);
+  assert.match(sharedSectionsSource, /id="asset-issues"[\s\S]*?accentHeader/);
   assert.match(source, /function ConfigCheckSection[\s\S]*?<Panel[\s\S]*?accentHeader/);
   assert.match(source, /id="schedule"[\s\S]*?accentHeader/);
   assert.match(scriptSource, /id="python"[\s\S]*?accentHeader/);
@@ -177,7 +172,7 @@ test("schedule findings render inside their PLAN, SEQ, and JOB table blocks", ()
 
 test("asset issues are available from the HCYT result navigation", () => {
   assert.match(navigationSource, /id: "asset-issues"/);
-  assert.match(source, /id="asset-issues"/);
+  assert.match(sharedSectionsSource, /id="asset-issues"/);
 });
 
 test("SCHEMA_CONFIG details expand inline instead of using a separate panel", () => {
