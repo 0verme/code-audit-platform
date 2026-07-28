@@ -10,6 +10,7 @@ import { countSqlLines } from "../utils/sqlPresentation.js";
 
 const pageSource = [
   readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/results/FineReportSections.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("../components/results/FineReportDatasetSqlCard.jsx", import.meta.url), "utf8"),
 ].join("\n");
 const appSource = [
@@ -91,12 +92,18 @@ test("FineReport details use independently expanded inline accordions", () => {
   assert.match(accordionHookSource, /dismissedIds\.delete\(itemId\)/);
   assert.match(pageSource, /<ReportListSection\s+d=\{mergedData\}\s+reg=\{reg\}\s+openReportIds=\{openReportIds\}\s+onToggle=\{toggleReport\}/);
   assert.match(pageSource, /aria-expanded=\{isOpen\}/);
-  assert.match(pageSource, /ReportDetailAccordion report=\{report\} detailId=\{detailId\}/);
+  assert.match(
+    pageSource,
+    /<ReportDetailAccordion[\s\S]*?report=\{report\}[\s\S]*?detailId=\{detailId\}/,
+  );
   assert.doesNotMatch(pageSource, /ReportDetailDrawer|sd-overlay|sd-drawer/);
 });
 
 test("FineReport report list distinguishes pending generation from an empty final result", () => {
-  assert.match(pageSource, /function ReportListSection\(\{ d, reg, openReportIds, onToggle, loading = false \}\)/);
+  assert.match(
+    pageSource,
+    /function ReportListSection\(\{[\s\S]*?loading = false,[\s\S]*?\}\)/,
+  );
   assert.match(pageSource, /正在生成报表检查明细，请稍候/);
   assert.match(pageSource, /本次审查未发现可展示的报表检查项/);
   assert.match(pageSource, /loading=\{reportDataPending \|\| Boolean\(apiState\?\.loading\)\}/);

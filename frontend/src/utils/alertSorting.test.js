@@ -46,15 +46,23 @@ test("alert sorting is stable and does not mutate the source array", () => {
 
 test("HCYT, NUPS, and FineReport rule-alert renderers use the shared sorter", () => {
   const uiSource = readFileSync(new URL("../components/ui.jsx", import.meta.url), "utf8");
-  const resultsSource = readFileSync(new URL("../pages/ResultsPage.jsx", import.meta.url), "utf8");
+  const resultsSource = [
+    readFileSync(new URL("../pages/ResultsPage.jsx", import.meta.url), "utf8"),
+    readFileSync(new URL("../components/results/HcytBasicChecks.jsx", import.meta.url), "utf8"),
+    readFileSync(new URL("../components/results/HcytScheduleSection.jsx", import.meta.url), "utf8"),
+    readFileSync(new URL("../components/results/HcytOverview.jsx", import.meta.url), "utf8"),
+  ].join("\n");
   const scriptSource = readFileSync(new URL("../pages/ScriptAudit.jsx", import.meta.url), "utf8");
   const nupsSource = readFileSync(new URL("../pages/NupsPage.jsx", import.meta.url), "utf8");
-  const fineSource = readFileSync(new URL("../pages/FineReportPage.jsx", import.meta.url), "utf8");
+  const fineSource = [
+    readFileSync(new URL("../pages/FineReportPage.jsx", import.meta.url), "utf8"),
+    readFileSync(new URL("../components/results/FineReportSections.jsx", import.meta.url), "utf8"),
+  ].join("\n");
 
   assert.match(uiSource, /const sortedRows = sortAlertRows\(rows\)/);
-  assert.match(resultsSource, /rows\.length \? sortAlertRows\(rows\)/);
+  assert.match(resultsSource, /rows\.length[\s\S]*?\? sortAlertRows\(rows\)/);
   assert.match(resultsSource, /const sortedRows = sortAlertRows\(rows\)/);
-  assert.match(resultsSource, /return sortAlertRows\(groups\.flatMap/);
+  assert.match(resultsSource, /return sortAlertRows\([\s\S]*?groups\.flatMap/);
   assert.match(scriptSource, /const lint = sortAlertRows\(script\?\.lint\)/);
   assert.match(nupsSource, /<ViolationTable rows=\{rows\} cols=\{NUPS_MESSAGE_COLUMNS\} \/>/);
   assert.match(fineSource, /const sortedMessages = sortAlertRows\(messages\)/);

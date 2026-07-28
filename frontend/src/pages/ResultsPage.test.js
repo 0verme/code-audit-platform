@@ -10,6 +10,9 @@ import {
 const source = [
   readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8"),
   readFileSync(new URL("../components/results/HcytRunProgress.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/results/HcytBasicChecks.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/results/HcytScheduleSection.jsx", import.meta.url), "utf8"),
+  readFileSync(new URL("../components/results/HcytOverview.jsx", import.meta.url), "utf8"),
 ].join("\n");
 const nupsSource = readFileSync(new URL("./NupsPage.jsx", import.meta.url), "utf8");
 const appSource = [
@@ -86,11 +89,12 @@ test("Python script details use independently expanded inline accordions", () =>
 
 test("Python script details omit the review focus while FineReport keeps its focus callout", () => {
   const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
-  const fineReportSource = readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8");
   assert.doesNotMatch(scriptSource, /className="sd-focus"/);
   assert.doesNotMatch(scriptSource, /script\.focus/);
-  assert.match(fineReportSource, /className="sd-focus"/);
-  assert.match(fineReportSource, /report\.focus/);
+  assert.match(
+    readFileSync(new URL("../components/results/FineReportSections.jsx", import.meta.url), "utf8"),
+    /className="sd-focus"[\s\S]*?report\.focus/,
+  );
 });
 
 test("Python script navigation prefers paths while retaining filename compatibility", () => {
@@ -162,8 +166,14 @@ test("HCYT check panels opt into the shared accent header treatment", () => {
 test("schedule findings render inside their PLAN, SEQ, and JOB table blocks", () => {
   assert.match(source, /getScheduleIssuesByTable/);
   assert.match(source, /function ScheduleIssueTable\(\{ rows, columns \}\)/);
-  assert.match(source, /key !== "cale" \? <ScheduleIssueTable rows=\{issuesByTable\[key\]\} columns=\{columns\} \/>/);
-  assert.match(source, /key === "job" \? <CycleDependencyList findings=\{cycleFindings\} \/>/);
+  assert.match(
+    source,
+    /key !== "cale"[\s\S]*?<ScheduleIssueTable[\s\S]*?rows=\{issuesByTable\[key\]\}[\s\S]*?columns=\{columns\}/,
+  );
+  assert.match(
+    source,
+    /key === "job"[\s\S]*?<CycleDependencyList findings=\{cycleFindings\}/,
+  );
   assert.match(source, /toCycleDependencyGraph\(findings\)/);
   assert.match(source, /<LineageCanvas[\s\S]*?initialFit="view"/);
   assert.match(source, /<LineageCanvas[\s\S]*?showSelfLoops/);
@@ -176,14 +186,26 @@ test("asset issues are available from the HCYT result navigation", () => {
 });
 
 test("SCHEMA_CONFIG details expand inline instead of using a separate panel", () => {
-  assert.match(source, /<ConfigCheckSection rows=\{mergedData\.config\} files=\{mergedData\.configFiles\} sourceFiles=\{getSourceFiles\(mergedData, "config"\)\} reg=\{reg\} \/>/);
+  assert.match(
+    source,
+    /<ConfigCheckSection[\s\S]*?rows=\{mergedData\.config\}[\s\S]*?files=\{mergedData\.configFiles\}[\s\S]*?sourceFiles=\{getSourceFiles\(mergedData, "config"\)\}[\s\S]*?reg=\{reg\}/,
+  );
   assert.doesNotMatch(source, /id="configjson"|function ConfigJsonSection/);
   assert.match(source, /const \[openRowIndex, setOpenRowIndex\] = useState\(null\)/);
   assert.match(source, /aria-expanded=\{isOpen\}/);
   assert.match(source, /aria-controls=\{detailId\}/);
-  assert.match(source, /onClick=\{canExpand \? \(\) => toggleRow\(rowIndex\) : undefined\}/);
-  assert.match(source, /const canExpand = isSchemaConfig && \(files\.length > 0 \|\| sourceFiles\.length > 0\)/);
-  assert.match(source, /rows\.length \? sortAlertRows\(rows\) : \[\{[\s\S]*?file: "SCHEMA_CONFIG"[\s\S]*?level: "ok"/);
+  assert.match(
+    source,
+    /onClick=\{[\s\S]*?canExpand \? \(\) => toggleRow\(rowIndex\) : undefined[\s\S]*?\}/,
+  );
+  assert.match(
+    source,
+    /const canExpand =[\s\S]*?isSchemaConfig[\s\S]*?sourceFiles\.length > 0/,
+  );
+  assert.match(
+    source,
+    /rows\.length[\s\S]*?\? sortAlertRows\(rows\)[\s\S]*?: \[[\s\S]*?file: "SCHEMA_CONFIG"[\s\S]*?level: "ok"/,
+  );
   assert.match(source, /files\.map\(\(file, fileIndex\)/);
   assert.match(source, /暂未生成可展示的解析明细/);
   assert.match(resultsStyleSource, /\.config-check-row\.open \.config-row-chev \{ transform: rotate\(90deg\); \}/);
