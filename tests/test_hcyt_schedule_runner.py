@@ -9,8 +9,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.findings import CheckResult  # noqa: E402
-from app.modules.audit.hcyt_schedule_runner import run_hcyt_schedule  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
+from app.modules.audit.workflows.hcyt.schedule_runner import run_hcyt_schedule  # noqa: E402
 
 
 class FakeReService:
@@ -24,8 +24,13 @@ class FakeReService:
 class FakeHcyt:
     def __init__(self):
         self.job_rule_timing_log = None
+        self.plan_rule_send_plan_names = None
 
-    def rule_excle_plan(self, plan_df):
+    def collect_send_plan_names(self, _job_df):
+        return {"PLAN_A"}
+
+    def rule_excle_plan(self, plan_df, send_plan_names=None):
+        self.plan_rule_send_plan_names = send_plan_names
         result = CheckResult(artifacts={"plans": {"plan": "PLAN_A"}})
         result.add("hcyt.schedule.plan.cycle", "计划成环", "err", "计划 成环")
         result.add("hcyt.schedule.plan.warning", "计划警告", "warn", "计划 警告")
@@ -62,7 +67,7 @@ class FakeModules:
 class HcytScheduleRunnerTests(unittest.TestCase):
     def test_run_hcyt_schedule_keeps_summary_tables_and_row_states_shape(self):
         plan_df = pd.DataFrame([["PLAN_A", "", "", "", "JOB_A"]])
-        seq_df = pd.DataFrame([["PLAN_A", "FLOW_A", "desc"]])
+        seq_df = pd.DataFrame([["PLAN_A", "FLOW_A", "desc", "SYS_EVERYDAY_CALENDAR"]])
         cale_df = pd.DataFrame([["daily", "1"]], columns=["cycle", "value"])
         job_df = pd.DataFrame([["JOB_A", "task"]])
         modules = FakeModules(
@@ -91,12 +96,16 @@ class HcytScheduleRunnerTests(unittest.TestCase):
         self.assertEqual(set(result["tables"].keys()), {"plan", "seq", "cale", "job"})
         self.assertEqual(result["tables"]["job"]["rowStates"], [{"job": "JOB_A", "state": "new"}])
         self.assertEqual(result["tables"]["plan"]["columns"], ["计划名", "前置依赖"])
-        self.assertEqual(result["tables"]["seq"]["columns"], ["计划名", "作业流名", "作业流描述"])
+        self.assertEqual(
+            result["tables"]["seq"]["columns"],
+            ["计划名", "作业流名", "作业流描述", "执行日历"],
+        )
         self.assertEqual(result["rows"][0]["table"], "PLAN")
         self.assertEqual(result["rows"][-1]["table"], "JOB")
         self.assertIs(result["_job_df"], job_df)
         self.assertEqual(result["_r_plan"], {"plan": "PLAN_A"})
         self.assertEqual(result["_db_job_rows"], [("row",)])
+        self.assertEqual(modules.hcyt.plan_rule_send_plan_names, {"PLAN_A"})
 
     def test_run_hcyt_schedule_forwards_job_rule_detail_timings(self):
         job_df = pd.DataFrame([["JOB_A", "task"]])

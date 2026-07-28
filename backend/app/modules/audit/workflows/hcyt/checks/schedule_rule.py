@@ -187,7 +187,21 @@ def _find_online_job_dependency_cycles(job_records, job_rows=None, job_dependenc
     return find_cycles(graph, only_nodes=set(online_jobs), max_cycles=20)
 
 
-def rule_excle_plan(df):
+def collect_send_plan_names(job_df):
+    if job_df is None:
+        return set()
+    job_records = list(job_df.itertuples(index=False, name=None))
+    send_jobs = set(_collect_send_job_names(job_records))
+    return {
+        str(row[0]).strip()
+        for row in job_records
+        if len(row) > 2
+        and not pd.isna(row[0])
+        and _normalize_job_value(row[2]) in send_jobs
+    }
+
+
+def rule_excle_plan(df, send_plan_names=None):
     print('===================================rule_excle_plan=================================')
     result = CheckResult()
     planname_lists = []
@@ -200,6 +214,12 @@ def rule_excle_plan(df):
     upstream_system_id_set = set(upstream_system_ids)
     rr_plan = []
     rules = _schedule_rules()
+    send_plan_names = {
+        str(plan_name).strip().upper()
+        for plan_name in (send_plan_names or [])
+        if str(plan_name).strip()
+    }
+    missing_dws_pattern = rules["missing_plan_warning_patterns"][0]
     for _, row in df.iterrows():
         plan_name = '' if pd.isna(row.iloc[0]) else str(row.iloc[0]).strip()
         plan_depand = '' if pd.isna(row.iloc[1]) else str(row.iloc[1]).strip()
@@ -224,10 +244,10 @@ def rule_excle_plan(df):
             result.add('hcyt.schedule.plan.upstream_registration', '上游系统登记', 'err', f'计划名 {plan_name} 未在数据资产系统维护上游系统')
 
         if plan_name not in planname_lists:
-            if plan_name.startswith(rules["missing_plan_warning_patterns"][0]["prefix"]) and plan_name.endswith(rules["missing_plan_warning_patterns"][0]["suffix"]):
-                result.add('hcyt.schedule.plan.missing_dws_plan', '生产计划登记', 'warn', f'计划名: {plan_name} 未在生产调度（自动触发-一审检查是否是新增系统加工！！！！！！）')
-            elif plan_name.startswith(rules["missing_plan_warning_patterns"][1]["prefix"]) and plan_name.endswith(rules["missing_plan_warning_patterns"][1]["suffix"]):
+            if plan_name.upper() in send_plan_names:
                 result.add('hcyt.schedule.plan.missing_send_plan', '生产计划登记', 'warn', f'计划名: {plan_name} 未在生产调度（自动触发-一审检查是否是新增系统推数！！！！！！）')
+            elif plan_name.startswith(missing_dws_pattern["prefix"]) and plan_name.endswith(missing_dws_pattern["suffix"]):
+                result.add('hcyt.schedule.plan.missing_dws_plan', '生产计划登记', 'warn', f'计划名: {plan_name} 未在生产调度（自动触发-一审检查是否是新增系统加工！！！！！！）')
             else:
                 result.add('hcyt.schedule.plan.missing_production_plan', '生产计划登记', 'warn', f'计划名: {plan_name} 未在生产调度，请检查')
 

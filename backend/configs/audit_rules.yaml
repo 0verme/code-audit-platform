@@ -26,8 +26,6 @@ hcyt:
     missing_plan_warning_patterns:
       - prefix: PLAN_DWS_
         suffix: _DWS_DWUPRR_DAY
-      - prefix: PLAN_PROV_
-        suffix: _SEND_DAY
     plan_name_rules:
       DWD:
         - PLAN_PROV_DWD_LOCAL_DAY

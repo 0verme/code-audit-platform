@@ -38,6 +38,7 @@ def run_hcyt_schedule(
     tables = {}
     summary = {"plan": 0, "seq": 0, "job": 0, "cycles": 0, "missing": 0}
     job_df = r_plan = db_job_rows = None
+    job_source = None
 
     def df_table(df, columns=None):
         display = df.fillna("") if df is not None else None
@@ -46,6 +47,15 @@ def run_hcyt_schedule(
         cols = columns or [str(c) for c in display.columns]
         return {"columns": cols, "rows": display.astype(str).values.tolist()}
 
+    if job_xls:
+        job_source = _timed(
+            "schedule.job.load_excel",
+            lambda: safe("JOB Excel", lambda: modules.re_service.load_xls_to_df(job_xls), None),
+            log_timing,
+            result_fields=lambda frame: {"rows": len(frame), "columns": len(frame.columns)},
+            file=Path(job_xls).name,
+        )
+
     if plan_xls:
         plan_source = _timed("schedule.plan.load_excel", lambda: safe("PLAN Excel", lambda: modules.re_service.load_xls_to_df(plan_xls), None), log_timing)
         if plan_source is not None:
@@ -53,7 +63,23 @@ def run_hcyt_schedule(
             plan_df = plan_source.iloc[:, [0, 4]].fillna("")
             plan_df.columns = ["计划名", "前置依赖"]
             tables["plan"] = {"title": "PLAN 计划清单", **df_table(plan_df)}
-            result = _timed("schedule.plan.rules", lambda: safe("PLAN 规则", lambda: modules.hcyt.rule_excle_plan(plan_df), CheckResult()), log_timing)
+            send_plan_names = (
+                modules.hcyt.collect_send_plan_names(job_source)
+                if job_source is not None
+                else set()
+            )
+            result = _timed(
+                "schedule.plan.rules",
+                lambda: safe(
+                    "PLAN 规则",
+                    lambda: modules.hcyt.rule_excle_plan(
+                        plan_df,
+                        send_plan_names=send_plan_names,
+                    ),
+                    CheckResult(),
+                ),
+                log_timing,
+            )
             r_plan = result.artifacts.get("plans")
             plan_rows = finding_messages(result.findings)
             tables["plan"]["messages"] = plan_rows
@@ -77,13 +103,6 @@ def run_hcyt_schedule(
             tables["cale"] = {"title": "CALE 日历清单", **df_table(cale_source)}
 
     if job_xls:
-        job_source = _timed(
-            "schedule.job.load_excel",
-            lambda: safe("JOB Excel", lambda: modules.re_service.load_xls_to_df(job_xls), None),
-            log_timing,
-            result_fields=lambda frame: {"rows": len(frame), "columns": len(frame.columns)},
-            file=Path(job_xls).name,
-        )
         if job_source is not None:
             summary["job"] = len(job_source)
             job_df = job_source

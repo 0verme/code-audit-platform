@@ -18,7 +18,16 @@ from app.config.audit_rules import get_audit_rules  # noqa: E402
 from app.modules.audit.shared.report_helpers import build_job_table  # noqa: E402
 
 
-def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", domain="CMS_DOMAIN", status="1", dependency=""):
+def job_row(
+    *,
+    plan="PLAN_A",
+    seq="SEQ_A",
+    job="JOB_A",
+    domain="CMS_DOMAIN",
+    status="1",
+    dependency="",
+    parameters="",
+):
     row = [""] * 28
     row[0] = plan
     row[1] = seq
@@ -27,11 +36,70 @@ def job_row(*, plan="PLAN_A", seq="SEQ_A", job="JOB_A", domain="CMS_DOMAIN", sta
     row[5] = domain
     row[6] = "1"
     row[23] = status
+    row[25] = parameters
     row[27] = dependency
     return row
 
 
 class HcytScheduleRulePerformanceTests(unittest.TestCase):
+    def test_missing_send_plan_is_identified_from_job_proname(self):
+        plan_name = "PLAN_CUSTOM_EXPORT_DAY"
+        plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
+        job_df = pd.DataFrame([
+            job_row(
+                plan=plan_name,
+                job="JOB_CUSTOM_EXPORT",
+                parameters='--args (proname="ABC_SEND2")',
+            )
+        ])
+
+        with (
+            patch.object(schedule_rule, "all_plan", return_value=[]),
+            patch.object(schedule_rule, "all_upstream_system_ids", return_value=[]),
+        ):
+            result = schedule_rule.rule_excle_plan(
+                plan_df,
+                send_plan_names=schedule_rule.collect_send_plan_names(job_df),
+            )
+
+        self.assertIn(
+            "hcyt.schedule.plan.missing_send_plan",
+            [finding.rule_code for finding in result.findings],
+        )
+        self.assertNotIn(
+            "hcyt.schedule.plan.missing_production_plan",
+            [finding.rule_code for finding in result.findings],
+        )
+
+    def test_send_named_plan_without_send_proname_uses_generic_warning(self):
+        plan_name = "PLAN_PROV_CUSTOM_SEND_DAY"
+        plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
+        job_df = pd.DataFrame([
+            job_row(
+                plan=plan_name,
+                job="JOB_CUSTOM_EXPORT",
+                parameters="proname=ABC_SEND3",
+            )
+        ])
+
+        with (
+            patch.object(schedule_rule, "all_plan", return_value=[]),
+            patch.object(schedule_rule, "all_upstream_system_ids", return_value=[]),
+        ):
+            result = schedule_rule.rule_excle_plan(
+                plan_df,
+                send_plan_names=schedule_rule.collect_send_plan_names(job_df),
+            )
+
+        self.assertNotIn(
+            "hcyt.schedule.plan.missing_send_plan",
+            [finding.rule_code for finding in result.findings],
+        )
+        self.assertIn(
+            "hcyt.schedule.plan.missing_production_plan",
+            [finding.rule_code for finding in result.findings],
+        )
+
     def test_plan_rule_matches_full_name_against_upstream_system_ids(self):
         plan_name = "PLAN_SA_RECV_CMS_CMS_VLOAN_DAY"
         plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
