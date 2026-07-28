@@ -1,9 +1,25 @@
+export function reportAudit(report) {
+  const issues = Array.isArray(report?.issues) ? report.issues : [];
+  const err = issues.filter((item) => item.level === "err").length;
+  const warn = issues.filter((item) => item.level === "warn").length;
+  return { err, warn, total: issues.length, level: err ? "err" : warn ? "warn" : "ok" };
+}
+
+export function getReportKey(report) {
+  return String(report?.file || report?.title || "").trim();
+}
+
+export function getReportElementId(reportOrKey) {
+  const key = typeof reportOrKey === "string" ? reportOrKey : getReportKey(reportOrKey);
+  return `fine-report-${encodeURIComponent(key)}`;
+}
+
 export function syncAutoOpenReportIds(currentIds, reports, dismissedIds) {
   const next = new Set(currentIds);
   let changed = false;
 
   for (const report of Array.isArray(reports) ? reports : []) {
-    const reportId = report?.file;
+    const reportId = getReportKey(report);
     const issues = Array.isArray(report?.issues) ? report.issues : [];
     const hasFinding = issues.some((issue) => issue.level === "err" || issue.level === "warn");
 

@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {
+  getReportElementId,
+  getReportKey,
+  reportAudit,
+} from "../utils/fineReportPresentation.js";
 import { countSqlLines } from "../utils/sqlPresentation.js";
 
 const pageSource = readFileSync(new URL("./FineReportPage.jsx", import.meta.url), "utf8");
+const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/fine-report.css", import.meta.url), "utf8");
 const sharedStyleSource = readFileSync(new URL("../styles/styles.css", import.meta.url), "utf8");
 
@@ -88,6 +94,36 @@ test("FineReport report list distinguishes pending generation from an empty fina
   assert.match(pageSource, /正在生成报表检查明细，请稍候/);
   assert.match(pageSource, /本次审查未发现可展示的报表检查项/);
   assert.match(pageSource, /loading=\{reportDataPending \|\| Boolean\(apiState\?\.loading\)\}/);
+});
+
+test("FineReport report navigation uses stable file targets and review status", () => {
+  const report = {
+    title: "风险监控日报",
+    file: "fine-report/risk/RPT_RISK_MONITOR_D.cpt",
+    issues: [{ level: "err" }, { level: "warn" }],
+  };
+
+  assert.equal(getReportKey(report), report.file);
+  assert.equal(
+    getReportElementId(report),
+    "fine-report-fine-report%2Frisk%2FRPT_RISK_MONITOR_D.cpt",
+  );
+  assert.deepEqual(reportAudit(report), {
+    err: 1,
+    warn: 1,
+    total: 2,
+    level: "err",
+  });
+});
+
+test("FineReport navigation renders every report in the expanded second-level directory", () => {
+  assert.match(appSource, /new Set\(\["python", "reports"\]\)/);
+  assert.match(appSource, /const fineReports = Array\.isArray\(data\?\.reports\) \? data\.reports : \[\]/);
+  assert.match(appSource, /const isReports = section\.id === "reports"/);
+  assert.match(appSource, /isPython \? onJumpScript\(item\) : onJumpReport\(item\)/);
+  assert.match(appSource, /activeReportKey === itemKey/);
+  assert.match(pageSource, /id=\{reportElementId\}/);
+  assert.match(pageSource, /document\.getElementById\(getReportElementId\(reportKey\)\)\?\.scrollIntoView/);
 });
 
 test("shared referenced table list renders FineReport table metadata", () => {

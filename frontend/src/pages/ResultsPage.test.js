@@ -118,11 +118,11 @@ test("Python script navigation prefers paths while retaining filename compatibil
 test("Python navigation renders every script as an expanded nested directory", () => {
   const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
 
-  assert.match(appSource, /const \[pythonExpanded, setPythonExpanded\] = useState\(true\)/);
-  assert.match(appSource, /pythonScripts\.map\(\(script\) =>/);
-  assert.match(appSource, /className=\{`nav-child\$\{activeScriptKey === scriptKey \? " active" : ""\}`\}/);
-  assert.match(appSource, /title=\{script\.script\}/);
-  assert.match(appSource, /onClick=\{\(\) => onJumpScript\(script\)\}/);
+  assert.match(appSource, /useState\(\(\) => new Set\(\["python", "reports"\]\)\)/);
+  assert.match(appSource, /const nestedItems = isPython \? pythonScripts : isReports \? fineReports : null/);
+  assert.match(appSource, /const isActive = isPython \? activeScriptKey === itemKey : activeReportKey === itemKey/);
+  assert.match(appSource, /const itemTitle = isPython \? item\.script/);
+  assert.match(appSource, /isPython \? onJumpScript\(item\) : onJumpReport\(item\)/);
   assert.match(source, /document\.getElementById\(getScriptElementId\(scriptKey\)\)\?\.scrollIntoView/);
   assert.match(scriptSource, /id=\{scriptElementId\}/);
   assert.match(sharedStyleSource, /\.nav-child-label \{[\s\S]*text-overflow: ellipsis/);

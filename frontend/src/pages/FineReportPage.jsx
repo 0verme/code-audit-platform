@@ -7,7 +7,10 @@ import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
 import {
   FINE_REPORT_REF_TABLE_GROUPS,
+  getReportElementId,
+  getReportKey,
   groupFineReportRefTables,
+  reportAudit,
   syncAutoOpenReportIds,
 } from "../utils/fineReportPresentation";
 import { countSqlLines } from "../utils/sqlPresentation";
@@ -28,13 +31,6 @@ export const FR_NAV = [
   { id: "authority", label: "权限", icon: "shield", get: (data) => data.authority?.rows, neutral: true },
   { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
 ];
-
-function reportAudit(report) {
-  const issues = report.issues || [];
-  const err = issues.filter((item) => item.level === "err").length;
-  const warn = issues.filter((item) => item.level === "warn").length;
-  return { err, warn, total: issues.length, level: err ? "err" : warn ? "warn" : "ok" };
-}
 
 function reportType(report) {
   return report.type === "frm"
@@ -111,11 +107,13 @@ function ReportListSection({ d, reg, openReportIds, onToggle, loading = false })
           {!loading && reports.map((report) => {
             const audit = reportAudit(report);
             const type = reportType(report);
-            const detailId = `report-detail-${encodeURIComponent(report.file)}`;
-            const isOpen = openReportIds.has(report.file);
+            const reportKey = getReportKey(report);
+            const reportElementId = getReportElementId(reportKey);
+            const detailId = `${reportElementId}-detail`;
+            const isOpen = openReportIds.has(reportKey);
             return (
-              <div key={report.file} className={`accordion-item${isOpen ? " open" : ""}`}>
-                <button className="fr-row" onClick={() => onToggle(report.file)} aria-expanded={isOpen} aria-controls={detailId}>
+              <div id={reportElementId} key={reportKey} className={`accordion-item${isOpen ? " open" : ""}`}>
+                <button className="fr-row" onClick={() => onToggle(reportKey)} aria-expanded={isOpen} aria-controls={detailId}>
                 <span className={`fr-ico ${report.type}`}>
                   <Icon name={type.icon} size={16} />
                 </span>
@@ -141,7 +139,7 @@ function ReportListSection({ d, reg, openReportIds, onToggle, loading = false })
                 </span>
                 <Icon name="chevron" size={16} className="pas-chev" />
                 </button>
-                <ReportDetailAccordion report={report} detailId={detailId} open={isOpen} onClose={() => onToggle(report.file)} />
+                <ReportDetailAccordion report={report} detailId={detailId} open={isOpen} onClose={() => onToggle(reportKey)} />
               </div>
             );
           })}
@@ -534,7 +532,7 @@ function mergeFineReportItems(baseData, items) {
   };
 }
 
-export function FineReportResultsPage({ d, aiEnabled, reg, apiState, reportDataPending = false }) {
+export function FineReportResultsPage({ d, aiEnabled, reg, apiState, reportDataPending = false, reportJumpRequest }) {
   const dismissedReportIds = useRef(new Set());
   const [openReportIds, setOpenReportIds] = useState(() => (
     syncAutoOpenReportIds(new Set(), d.reports, dismissedReportIds.current)
@@ -573,6 +571,28 @@ export function FineReportResultsPage({ d, aiEnabled, reg, apiState, reportDataP
     window.addEventListener("keydown", closeAll);
     return () => window.removeEventListener("keydown", closeAll);
   }, []);
+
+  useEffect(() => {
+    const reportKey = reportJumpRequest?.key;
+    if (!reportKey) return;
+
+    dismissedReportIds.current.delete(reportKey);
+    setOpenReportIds((current) => {
+      if (current.has(reportKey)) return current;
+      const next = new Set(current);
+      next.add(reportKey);
+      return next;
+    });
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(getReportElementId(reportKey))?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  }, [reportJumpRequest]);
 
   return (
     <div className="results-page fade-in">

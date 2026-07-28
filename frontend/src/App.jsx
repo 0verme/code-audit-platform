@@ -9,6 +9,7 @@ import { useAsyncResource } from "./hooks/useAsyncResource";
 import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
+import { getReportKey, reportAudit } from "./utils/fineReportPresentation";
 import { hasScheduleTables } from "./utils/hcytResultPresentation";
 import { getNupsChanges, getNupsPyScripts, getNupsSqlChecks } from "./utils/nupsResultPresentation";
 import { getScriptKey, scriptAudit } from "./utils/scriptAuditPresentation";
@@ -197,9 +198,10 @@ function ApiErrorView({ error, onBack }) {
   );
 }
 
-function Rail({ data, active, activeScriptKey, onJump, onJumpScript, collapsed, params, nav, mobileOpen }) {
-  const [pythonExpanded, setPythonExpanded] = useState(true);
+function Rail({ data, active, activeScriptKey, activeReportKey, onJump, onJumpScript, onJumpReport, collapsed, params, nav, mobileOpen }) {
+  const [expandedBranches, setExpandedBranches] = useState(() => new Set(["python", "reports"]));
   const pythonScripts = Array.isArray(data?.pyScripts) ? data.pyScripts : [];
+  const fineReports = Array.isArray(data?.reports) ? data.reports : [];
 
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
@@ -220,14 +222,18 @@ function Rail({ data, active, activeScriptKey, onJump, onJumpScript, collapsed, 
           const tone = rows && !section.neutral ? (rows.some((item) => item.level === "err") ? "err" : rows.some((item) => item.level === "warn") ? "warn" : "ok") : null;
           const count = rows ? rows.length : null;
           const isPython = section.id === "python";
-          if (section.id !== "overview" && count === 0 && !(isPython && pythonScripts.length)) return null;
-          if (isPython) {
+          const isReports = section.id === "reports";
+          const nestedItems = isPython ? pythonScripts : isReports ? fineReports : null;
+          if (section.id !== "overview" && count === 0 && !nestedItems?.length) return null;
+          if (nestedItems) {
+            const isExpanded = expandedBranches.has(section.id);
+            const directoryLabel = isPython ? "Python 脚本目录" : "FineReport 报表目录";
             return (
               <div key={section.id} className="nav-branch">
                 <div
                   className={`navitem${active === section.id ? " active" : ""}`}
                   onClick={() => {
-                    setPythonExpanded(true);
+                    setExpandedBranches((current) => new Set(current).add(section.id));
                     onJump(section.id);
                   }}
                 >
@@ -237,33 +243,41 @@ function Rail({ data, active, activeScriptKey, onJump, onJumpScript, collapsed, 
                   {!collapsed ? (
                     <button
                       type="button"
-                      className={`nav-branch-toggle${pythonExpanded ? " open" : ""}`}
-                      aria-label={pythonExpanded ? "收起 Python 脚本目录" : "展开 Python 脚本目录"}
-                      aria-expanded={pythonExpanded}
+                      className={`nav-branch-toggle${isExpanded ? " open" : ""}`}
+                      aria-label={`${isExpanded ? "收起" : "展开"}${directoryLabel}`}
+                      aria-expanded={isExpanded}
                       onClick={(event) => {
                         event.stopPropagation();
-                        setPythonExpanded((current) => !current);
+                        setExpandedBranches((current) => {
+                          const next = new Set(current);
+                          if (next.has(section.id)) next.delete(section.id);
+                          else next.add(section.id);
+                          return next;
+                        });
                       }}
                     >
                       <Icon name="chevron" size={13} />
                     </button>
                   ) : null}
                 </div>
-                {!collapsed && pythonExpanded ? (
-                  <div className="nav-children" role="group" aria-label="Python 脚本目录">
-                    {pythonScripts.map((script) => {
-                      const scriptKey = getScriptKey(script);
-                      const scriptLevel = scriptAudit(script).level;
+                {!collapsed && isExpanded ? (
+                  <div className="nav-children" role="group" aria-label={directoryLabel}>
+                    {nestedItems.map((item) => {
+                      const itemKey = isPython ? getScriptKey(item) : getReportKey(item);
+                      const itemLevel = isPython ? scriptAudit(item).level : reportAudit(item).level;
+                      const itemLabel = isPython ? item.script : (item.title || item.file);
+                      const itemTitle = isPython ? item.script : `${item.title || item.file} · ${item.file}`;
+                      const isActive = isPython ? activeScriptKey === itemKey : activeReportKey === itemKey;
                       return (
                         <button
                           type="button"
-                          key={scriptKey}
-                          className={`nav-child${activeScriptKey === scriptKey ? " active" : ""}`}
-                          title={script.script}
-                          onClick={() => onJumpScript(script)}
+                          key={itemKey}
+                          className={`nav-child${isActive ? " active" : ""}`}
+                          title={itemTitle}
+                          onClick={() => isPython ? onJumpScript(item) : onJumpReport(item)}
                         >
-                          <span className={`nav-child-status ${scriptLevel}`} aria-label={scriptLevel} />
-                          <span className="nav-child-label mono">{script.script}</span>
+                          <span className={`nav-child-status ${itemLevel}`} aria-label={itemLevel} />
+                          <span className="nav-child-label mono">{itemLabel}</span>
                         </button>
                       );
                     })}
@@ -329,8 +343,11 @@ export default function App() {
   const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt", taskId: null });
   const [active, setActive] = useState("overview");
   const [activeScriptKey, setActiveScriptKey] = useState("");
+  const [activeReportKey, setActiveReportKey] = useState("");
   const [scriptJumpRequest, setScriptJumpRequest] = useState(null);
+  const [reportJumpRequest, setReportJumpRequest] = useState(null);
   const scriptJumpSequence = useRef(0);
+  const reportJumpSequence = useRef(0);
   const [railOpen, setRailOpen] = useState(false);
   const contentRef = useRef(null);
   const registry = useRef(new Map());
@@ -378,6 +395,7 @@ export default function App() {
   function jump(id) {
     setActive(id);
     setActiveScriptKey("");
+    setActiveReportKey("");
     if (id === "overview") {
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -402,6 +420,15 @@ export default function App() {
     setScriptJumpRequest({ key: scriptKey, sequence: scriptJumpSequence.current });
   }
 
+  function jumpToReport(report) {
+    const reportKey = getReportKey(report);
+    jump("reports");
+    if (!reportKey) return;
+    setActiveReportKey(reportKey);
+    reportJumpSequence.current += 1;
+    setReportJumpRequest({ key: reportKey, sequence: reportJumpSequence.current });
+  }
+
   useEffect(() => {
     if (view !== "results") return undefined;
     const container = contentRef.current;
@@ -418,6 +445,7 @@ export default function App() {
       });
       setActive(current);
       if (current !== "python") setActiveScriptKey("");
+      if (current !== "reports") setActiveReportKey("");
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
@@ -444,7 +472,9 @@ export default function App() {
     setView("results");
     setActive("overview");
     setActiveScriptKey("");
+    setActiveReportKey("");
     setScriptJumpRequest(null);
+    setReportJumpRequest(null);
     setRailOpen(false);
     contentRef.current?.scrollTo({ top: 0 });
   }
@@ -507,6 +537,7 @@ export default function App() {
             reg={reg}
             apiState={liveData ? null : fineReportItemsState}
             reportDataPending={Boolean(params.taskId && run.running && !run.report)}
+            reportJumpRequest={reportJumpRequest}
           />
         </Suspense>
       );
@@ -526,7 +557,7 @@ export default function App() {
         />
       </Suspense>
     );
-  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, run.error, run.running, run.task, scriptJumpRequest, t.variant, taskFailed, tasksState, view]);
+  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, reportJumpRequest, run.error, run.running, run.task, scriptJumpRequest, t.variant, taskFailed, tasksState, view]);
 
   return (
     <div className={`app${canShowRail ? "" : " no-rail"}`}>
@@ -540,8 +571,10 @@ export default function App() {
             data={data}
             active={active}
             activeScriptKey={activeScriptKey}
+            activeReportKey={activeReportKey}
             onJump={(id) => { jump(id); setRailOpen(false); }}
             onJumpScript={(script) => { jumpToScript(script); setRailOpen(false); }}
+            onJumpReport={(report) => { jumpToReport(report); setRailOpen(false); }}
             params={params}
             nav={navList}
             mobileOpen={railOpen}
