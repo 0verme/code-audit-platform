@@ -5,7 +5,7 @@ import {
   formatSqlReference,
   sortReferenceTableNames,
 } from "../utils/resultTablePresentation";
-import { scriptAudit } from "../utils/scriptAuditPresentation";
+import { getScriptElementId, getScriptKey, scriptAudit } from "../utils/scriptAuditPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
 
 const SD_STATE = {
@@ -47,13 +47,15 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLi
         <div className="pas-list">
           {scripts.map((script) => {
             const audit = scriptAudit(script);
-            const detailId = `script-detail-${encodeURIComponent(script.script)}`;
-            const isOpen = openScriptIds.has(script.script);
+            const scriptKey = getScriptKey(script);
+            const scriptElementId = getScriptElementId(scriptKey);
+            const detailId = `${scriptElementId}-detail`;
+            const isOpen = openScriptIds.has(scriptKey);
             const lineageKey = getScriptLineageKey(script);
             return (
-              <div key={script.script} className={`accordion-item${isOpen ? " open" : ""}`}>
+              <div id={scriptElementId} key={scriptKey} className={`accordion-item${isOpen ? " open" : ""}`}>
                 <div className="pas-row-shell">
-                <button className="pas-row" onClick={() => onToggle(script.script)} aria-expanded={isOpen} aria-controls={detailId}>
+                <button className="pas-row" onClick={() => onToggle(scriptKey)} aria-expanded={isOpen} aria-controls={detailId}>
                 <span className="pas-ico"><Icon name="python" size={16} /></span>
                 <span className="pas-main">
                   <span className="pas-name mono">{script.script}</span>
@@ -84,7 +86,7 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLi
                   title={lineageEnabled ? "查看该 Python 的上下游血缘" : "审查完成后可查看"}
                 ><Icon name="flow" size={13} /> 查看血缘</button>
                 </div>
-                <ScriptDetailAccordion script={script} detailId={detailId} open={isOpen} onClose={() => onToggle(script.script)} />
+                <ScriptDetailAccordion script={script} detailId={detailId} open={isOpen} onClose={() => onToggle(scriptKey)} />
               </div>
             );
           })}

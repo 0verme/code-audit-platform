@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation.js";
-import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation.js";
+import {
+  getScriptElementId,
+  getScriptKey,
+  syncAutoOpenScriptIds,
+} from "../utils/scriptAuditPresentation.js";
 
 const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8");
 const nupsSource = readFileSync(new URL("./NupsPage.jsx", import.meta.url), "utf8");
@@ -96,6 +100,32 @@ test("Python script findings auto-open after progressive results arrive without 
   const refreshed = syncAutoOpenScriptIds(manuallyClosed, [cleanScript, errorScript, warningScript], dismissed);
   assert.deepEqual([...refreshed], ["warning.py"]);
   assert.equal(syncAutoOpenScriptIds(refreshed, [errorScript, warningScript], dismissed), refreshed);
+});
+
+test("Python script navigation prefers paths while retaining filename compatibility", () => {
+  const nestedScript = { script: "load.py", path: "jobs/daily/load.py", lint: [{ level: "err" }], result: [] };
+  const legacyScript = { script: "legacy.py", lint: [{ level: "warn" }], result: [] };
+
+  assert.equal(getScriptKey(nestedScript), "jobs/daily/load.py");
+  assert.equal(getScriptKey(legacyScript), "legacy.py");
+  assert.equal(getScriptElementId(nestedScript), "python-script-jobs%2Fdaily%2Fload.py");
+  assert.deepEqual(
+    [...syncAutoOpenScriptIds(new Set(), [nestedScript, legacyScript], new Set())],
+    ["jobs/daily/load.py", "legacy.py"],
+  );
+});
+
+test("Python navigation renders every script as an expanded nested directory", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+
+  assert.match(appSource, /const \[pythonExpanded, setPythonExpanded\] = useState\(true\)/);
+  assert.match(appSource, /pythonScripts\.map\(\(script\) =>/);
+  assert.match(appSource, /className=\{`nav-child\$\{activeScriptKey === scriptKey \? " active" : ""\}`\}/);
+  assert.match(appSource, /title=\{script\.script\}/);
+  assert.match(appSource, /onClick=\{\(\) => onJumpScript\(script\)\}/);
+  assert.match(source, /document\.getElementById\(getScriptElementId\(scriptKey\)\)\?\.scrollIntoView/);
+  assert.match(scriptSource, /id=\{scriptElementId\}/);
+  assert.match(sharedStyleSource, /\.nav-child-label \{[\s\S]*text-overflow: ellipsis/);
 });
 
 test("each HCYT Python row exposes a separate lineage action", () => {

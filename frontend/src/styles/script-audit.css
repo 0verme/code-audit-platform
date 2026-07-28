@@ -28,7 +28,7 @@
 .pas-row:hover .pas-chev { color: var(--text-2); }
 
 /* ---- inline detail accordion ---- */
-.accordion-item { border-bottom: 1px solid var(--border); }
+.accordion-item { border-bottom: 1px solid var(--border); scroll-margin-top: 12px; }
 .accordion-item:last-child { border-bottom: none; }
 .accordion-item .pas-row { border-bottom: none; }
 .accordion-item.open .pas-row { background: var(--surface-2); }

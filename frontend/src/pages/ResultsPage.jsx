@@ -4,7 +4,7 @@ import { LineageCanvas } from "../components/lineage/LineageCanvas";
 import { toCycleDependencyGraph } from "../components/lineage/lineageAdapter";
 import { getSourceFiles, SourceFileLinks } from "../components/SourceFileLinks";
 import { shouldDefaultOpenChangeList } from "../utils/changeListPresentation";
-import { syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
+import { getScriptElementId, syncAutoOpenScriptIds } from "../utils/scriptAuditPresentation";
 import { sortAlertRows } from "../utils/alertSorting";
 import { PyScriptAuditSection } from "./ScriptAudit";
 import {
@@ -995,7 +995,7 @@ export function mergeAuditResults(baseData, apiRows) {
   };
 }
 
-export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState, onViewLineage, lineageEnabled }) {
+export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState, onViewLineage, lineageEnabled, scriptJumpRequest }) {
   const dismissedScriptIds = useRef(new Set());
   const [openScriptIds, setOpenScriptIds] = useState(() => (
     syncAutoOpenScriptIds(new Set(), d.pyScripts, dismissedScriptIds.current)
@@ -1034,6 +1034,28 @@ export function ResultsPage({ d, aiEnabled, variant, reg, onJump, apiState, onVi
     window.addEventListener("keydown", closeAll);
     return () => window.removeEventListener("keydown", closeAll);
   }, []);
+
+  useEffect(() => {
+    const scriptKey = scriptJumpRequest?.key;
+    if (!scriptKey) return;
+
+    dismissedScriptIds.current.delete(scriptKey);
+    setOpenScriptIds((current) => {
+      if (current.has(scriptKey)) return current;
+      const next = new Set(current);
+      next.add(scriptKey);
+      return next;
+    });
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(getScriptElementId(scriptKey))?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    });
+  }, [scriptJumpRequest]);
 
   return (
     <div className="results-page fade-in">

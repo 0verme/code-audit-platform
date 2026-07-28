@@ -11,6 +11,7 @@ import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
 import { hasScheduleTables } from "./utils/hcytResultPresentation";
 import { getNupsChanges, getNupsPyScripts, getNupsSqlChecks } from "./utils/nupsResultPresentation";
+import { getScriptKey, scriptAudit } from "./utils/scriptAuditPresentation";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
 const ResultsPage = lazy(() => import("./pages/ResultsPage").then((module) => ({ default: module.ResultsPage })));
@@ -196,7 +197,10 @@ function ApiErrorView({ error, onBack }) {
   );
 }
 
-function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
+function Rail({ data, active, activeScriptKey, onJump, onJumpScript, collapsed, params, nav, mobileOpen }) {
+  const [pythonExpanded, setPythonExpanded] = useState(true);
+  const pythonScripts = Array.isArray(data?.pyScripts) ? data.pyScripts : [];
+
   return (
     <aside className={`rail${collapsed ? " collapsed" : ""}${mobileOpen ? " mobile-open" : ""}`}>
       <div className="rail-head">
@@ -215,7 +219,59 @@ function Rail({ data, active, onJump, collapsed, params, nav, mobileOpen }) {
           const rows = section.get ? section.get(data) : null;
           const tone = rows && !section.neutral ? (rows.some((item) => item.level === "err") ? "err" : rows.some((item) => item.level === "warn") ? "warn" : "ok") : null;
           const count = rows ? rows.length : null;
-          if (section.id !== "overview" && count === 0) return null;
+          const isPython = section.id === "python";
+          if (section.id !== "overview" && count === 0 && !(isPython && pythonScripts.length)) return null;
+          if (isPython) {
+            return (
+              <div key={section.id} className="nav-branch">
+                <div
+                  className={`navitem${active === section.id ? " active" : ""}`}
+                  onClick={() => {
+                    setPythonExpanded(true);
+                    onJump(section.id);
+                  }}
+                >
+                  <span className="ni-ico"><Icon name={section.icon} size={15} /></span>
+                  {!collapsed ? <span className="ni-label">{section.label}</span> : null}
+                  {!collapsed && count != null ? <span className={`ni-count${tone ? ` ${tone}` : ""}`}>{count}</span> : null}
+                  {!collapsed ? (
+                    <button
+                      type="button"
+                      className={`nav-branch-toggle${pythonExpanded ? " open" : ""}`}
+                      aria-label={pythonExpanded ? "收起 Python 脚本目录" : "展开 Python 脚本目录"}
+                      aria-expanded={pythonExpanded}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPythonExpanded((current) => !current);
+                      }}
+                    >
+                      <Icon name="chevron" size={13} />
+                    </button>
+                  ) : null}
+                </div>
+                {!collapsed && pythonExpanded ? (
+                  <div className="nav-children" role="group" aria-label="Python 脚本目录">
+                    {pythonScripts.map((script) => {
+                      const scriptKey = getScriptKey(script);
+                      const scriptLevel = scriptAudit(script).level;
+                      return (
+                        <button
+                          type="button"
+                          key={scriptKey}
+                          className={`nav-child${activeScriptKey === scriptKey ? " active" : ""}`}
+                          title={script.script}
+                          onClick={() => onJumpScript(script)}
+                        >
+                          <span className={`nav-child-status ${scriptLevel}`} aria-label={scriptLevel} />
+                          <span className="nav-child-label mono">{script.script}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            );
+          }
           return (
             <div key={section.id} className={`navitem${active === section.id ? " active" : ""}`} onClick={() => onJump(section.id)}>
               <span className="ni-ico"><Icon name={section.icon} size={15} /></span>
@@ -272,6 +328,9 @@ export default function App() {
   const [lineageSelection, setLineageSelection] = useState(null);
   const [params, setParams] = useState({ path: "", ai: false, dbg: false, workflow: "hcyt", taskId: null });
   const [active, setActive] = useState("overview");
+  const [activeScriptKey, setActiveScriptKey] = useState("");
+  const [scriptJumpRequest, setScriptJumpRequest] = useState(null);
+  const scriptJumpSequence = useRef(0);
   const [railOpen, setRailOpen] = useState(false);
   const contentRef = useRef(null);
   const registry = useRef(new Map());
@@ -318,6 +377,7 @@ export default function App() {
 
   function jump(id) {
     setActive(id);
+    setActiveScriptKey("");
     if (id === "overview") {
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -331,6 +391,15 @@ export default function App() {
       const top = node.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - 12;
       container.scrollTo({ top, behavior: "smooth" });
     });
+  }
+
+  function jumpToScript(script) {
+    const scriptKey = getScriptKey(script);
+    jump("python");
+    if (!scriptKey) return;
+    setActiveScriptKey(scriptKey);
+    scriptJumpSequence.current += 1;
+    setScriptJumpRequest({ key: scriptKey, sequence: scriptJumpSequence.current });
   }
 
   useEffect(() => {
@@ -348,6 +417,7 @@ export default function App() {
         }
       });
       setActive(current);
+      if (current !== "python") setActiveScriptKey("");
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
@@ -373,6 +443,8 @@ export default function App() {
     setParams({ taskId: null, ...nextParams });
     setView("results");
     setActive("overview");
+    setActiveScriptKey("");
+    setScriptJumpRequest(null);
     setRailOpen(false);
     contentRef.current?.scrollTo({ top: 0 });
   }
@@ -450,10 +522,11 @@ export default function App() {
           apiState={liveData ? null : auditResultsState}
           onViewLineage={(script) => { setLineageSelection(script); setView("lineage"); }}
           lineageEnabled={Boolean(IS_API_MODE && params.taskId && run.report && data.pyScripts?.length)}
+          scriptJumpRequest={scriptJumpRequest}
         />
       </Suspense>
     );
-  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, run.error, run.running, run.task, t.variant, taskFailed, tasksState, view]);
+  }, [aiEnabled, auditResultsState, data, fineReportItemsState, isFR, isNups, lineageSelection, liveData, params.taskId, projectsState, run.error, run.running, run.task, scriptJumpRequest, t.variant, taskFailed, tasksState, view]);
 
   return (
     <div className={`app${canShowRail ? "" : " no-rail"}`}>
@@ -466,7 +539,9 @@ export default function App() {
           <Rail
             data={data}
             active={active}
+            activeScriptKey={activeScriptKey}
             onJump={(id) => { jump(id); setRailOpen(false); }}
+            onJumpScript={(script) => { jumpToScript(script); setRailOpen(false); }}
             params={params}
             nav={navList}
             mobileOpen={railOpen}
