@@ -5,13 +5,12 @@ import { AUDIT_DATA_MODE, IS_API_MODE } from "./config/api";
 import { applyBackendWorkflowDefinitions } from "./config/auditWorkflows";
 import { applyAuditSourceDisplayRules } from "./config/auditSourceDisplayConfig";
 import { APP_EDITION, APP_NAME, APP_VERSION } from "./config/appMeta";
+import { getResultNavigation } from "./config/resultNavigation";
 import { useAsyncResource } from "./hooks/useAsyncResource";
 import { mergePartialReport, shouldShowAuditRunFailure, useAuditRun } from "./hooks/useAuditRun";
 import { FINEREPORT_DATA, HCYT_DATA, NUPS_DATA, WORKFLOWS } from "./mock/data";
 import { reviewService } from "./services/reviewService";
 import { getReportKey, reportAudit } from "./utils/fineReportPresentation";
-import { hasScheduleTables } from "./utils/hcytResultPresentation";
-import { getNupsChanges, getNupsPyScripts, getNupsSqlChecks } from "./utils/nupsResultPresentation";
 import { getScriptKey, scriptAudit } from "./utils/scriptAuditPresentation";
 
 const HomePage = lazy(() => import("./pages/HomePage"));
@@ -20,54 +19,6 @@ const FineReportResultsPage = lazy(() => import("./pages/FineReportPage").then((
 const NupsResultsPage = lazy(() => import("./pages/NupsPage").then((module) => ({ default: module.NupsResultsPage })));
 const LineagePage = lazy(() => import("./pages/LineagePage").then((module) => ({ default: module.LineagePage })));
 const PublishListPage = lazy(() => import("./pages/PublishListPage"));
-const NUPS_NAV = [
-  { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => getNupsChanges(data), neutral: true },
-  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => getNupsSqlChecks(data), neutral: true },
-  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => getNupsPyScripts(data), neutral: true },
-];
-const SECTION_NAV = [
-  { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
-  { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
-  { id: "dws", label: "DWS SQL", icon: "db", get: (data) => data.dws },
-  { id: "hive", label: "Hive SQL", icon: "db", get: (data) => data.hive },
-  { id: "config", label: "配置文件", icon: "cog", get: (data) => data.config },
-  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => data.sbin },
-  { id: "recv", label: "收卸配置", icon: "download", get: (data) => data.recv },
-  {
-    id: "schedule",
-    label: "调度表检查",
-    icon: "grid",
-    get: (data) => {
-      const issues = data.schedule?.rows?.filter((row) => row.level !== "ok") || [];
-      return issues.length || !hasScheduleTables(data) ? issues : [{ level: "ok" }];
-    },
-  },
-  {
-    id: "python",
-    label: "Python 脚本",
-    icon: "python",
-    get: (data) => {
-      const flaggedScripts = (data.pyScripts || []).flatMap((script) => {
-        const lint = script.lint || [];
-        const result = script.result || [];
-        const hasErr = lint.some((item) => item.level === "err") || result.some((item) => item.state === "missing");
-        const hasWarn = lint.some((item) => item.level === "warn") || result.some((item) => item.state === "extra");
-        if (!hasErr && !hasWarn) return [];
-        return [{ script: script.script, level: hasErr ? "err" : "warn" }];
-      });
-      return flaggedScripts;
-    },
-    neutral: true,
-  },
-  { id: "asset-issues", label: "资产问题", icon: "link", get: (data) => data.assetIssues || [] },
-];
-const FR_NAV = [
-  { id: "overview", label: "概览", icon: "layers" },
-  { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
-];
-
 const TWEAK_DEFAULTS = {
   density: "standard",
   sampleState: "fail",
@@ -362,7 +313,7 @@ export default function App() {
   const mockDataset = isNups ? NUPS_DATA : (isFR ? FINEREPORT_DATA : HCYT_DATA);
   const mockData = t.sampleState === "pass" ? mockDataset.PASS : mockDataset.FAIL;
   const data = liveData || mockData;
-  const navList = isNups ? NUPS_NAV : (isFR ? FR_NAV : SECTION_NAV);
+  const navList = getResultNavigation(params.workflow);
   const workflowName = WORKFLOWS.find((workflow) => workflow.key === params.workflow)?.name || params.workflow;
   const aiEnabled = Boolean(data?.ai) || (!params.taskId && (params.ai || t.showAi));
   const canShowRail = view === "results" && (!IS_API_MODE || !!liveData);

@@ -9,7 +9,7 @@ import {
   normalizeNupsMessageRows,
 } from "./nupsResultPresentation.js";
 
-const appSource = await readFile(new URL("../App.jsx", import.meta.url), "utf8");
+const navigationSource = await readFile(new URL("../config/resultNavigation.js", import.meta.url), "utf8");
 const pageSource = await readFile(new URL("../pages/NupsPage.jsx", import.meta.url), "utf8");
 
 test("NUPS lists normalize missing and non-array progressive values", () => {
@@ -49,9 +49,9 @@ test("NUPS message rows preserve structured findings and fill missing rule names
 });
 
 test("NUPS navigation and result sections use the safe list selectors", () => {
-  assert.match(appSource, /getNupsChanges\(data\)/);
-  assert.match(appSource, /getNupsSqlChecks\(data\)/);
-  assert.match(appSource, /getNupsPyScripts\(data\)/);
+  assert.match(navigationSource, /getNupsChanges\(data\)/);
+  assert.match(navigationSource, /getNupsSqlChecks\(data\)/);
+  assert.match(navigationSource, /getNupsPyScripts\(data\)/);
   assert.match(pageSource, /const changes = getNupsChanges\(d\)/);
   assert.match(pageSource, /const items = getNupsSqlChecks\(d\)/);
   assert.match(pageSource, /const items = getNupsPyScripts\(d\)/);

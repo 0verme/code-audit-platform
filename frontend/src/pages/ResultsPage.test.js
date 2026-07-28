@@ -11,6 +11,7 @@ import {
 const source = readFileSync(new URL("./ResultsPage.jsx", import.meta.url), "utf8");
 const nupsSource = readFileSync(new URL("./NupsPage.jsx", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
+const navigationSource = readFileSync(new URL("../config/resultNavigation.js", import.meta.url), "utf8");
 const styleSource = readFileSync(new URL("../styles/script-audit.css", import.meta.url), "utf8");
 const resultsStyleSource = readFileSync(new URL("../styles/results.css", import.meta.url), "utf8");
 const uiSource = readFileSync(new URL("../components/ui.jsx", import.meta.url), "utf8");
@@ -175,7 +176,7 @@ test("schedule findings render inside their PLAN, SEQ, and JOB table blocks", ()
 });
 
 test("asset issues are available from the HCYT result navigation", () => {
-  assert.match(appSource, /id: "asset-issues", label: "资产问题", icon: "link", get: \(data\) => data\.assetIssues \|\| \[\]/);
+  assert.match(navigationSource, /id: "asset-issues"/);
   assert.match(source, /id="asset-issues"/);
 });
 

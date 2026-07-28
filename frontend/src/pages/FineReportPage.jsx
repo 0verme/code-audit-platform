@@ -24,14 +24,6 @@ const FR_CAT = {
   perm: { label: "权限", icon: "shield" },
 };
 
-export const FR_NAV = [
-  { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
-  { id: "menu", label: "目录", icon: "folder", get: (data) => data.menu?.rows, neutral: true },
-  { id: "authority", label: "权限", icon: "shield", get: (data) => data.authority?.rows, neutral: true },
-  { id: "reports", label: "报表检查", icon: "grid", get: (data) => data.reports, neutral: true },
-];
-
 function reportType(report) {
   return report.type === "frm"
     ? { icon: "screen", label: "决策大屏 .frm" }

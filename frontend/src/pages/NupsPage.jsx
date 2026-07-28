@@ -14,14 +14,6 @@ const NUPS_MESSAGE_COLUMNS = [
   { key: "msg", label: "说明" },
 ];
 
-export const NUPS_NAV = [
-  { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => getNupsChanges(data), neutral: true },
-  { id: "conflict", label: "冲突文件", icon: "conflict", get: (data) => data.conflicts, neutral: true },
-  { id: "nups-sql", label: "NUPS SQL", icon: "db", get: (data) => getNupsSqlChecks(data), neutral: true },
-  { id: "nups-py", label: "加工程序", icon: "python", get: (data) => getNupsPyScripts(data), neutral: true },
-];
-
 function NupsStatusHeader({ d }) {
   const task = d.task;
   const status = STATUS_META[task.status] || STATUS_META.warn;

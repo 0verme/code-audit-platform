@@ -25,38 +25,6 @@ export const STATUS_META = {
 STATUS_META.running = { tone: "info", icon: "clock", label: "审查执行中", desc: "审查结果正在异步生成，已完成模块会逐步填充到报告中。" };
 STATUS_META.taskFailed = { tone: "err", icon: "x", label: "任务异常", desc: "审查任务异常结束，已完成模块仍可查看。" };
 
-const rowsWithSourceFiles = (data, rows, section) => [
-  ...(Array.isArray(rows) ? rows : []),
-  ...getSourceFiles(data, section),
-];
-
-export const SECTION_NAV = [
-  { id: "overview", label: "概览", icon: "layers" },
-  { id: "changes", label: "变更文件", icon: "git", get: (data) => data.changes, neutral: true },
-  { id: "conflict", label: "trunk 冲突", icon: "conflict", get: (data) => data.conflicts },
-  { id: "dws", label: "DWS SQL", icon: "db", get: (data) => rowsWithSourceFiles(data, data.dws, "dws") },
-  { id: "hive", label: "Hive SQL", icon: "db", get: (data) => rowsWithSourceFiles(data, data.hive, "hive") },
-  { id: "config", label: "配置文件", icon: "cog", get: (data) => rowsWithSourceFiles(data, data.config, "config") },
-  { id: "sbin", label: "后置脚本", icon: "terminal", get: (data) => rowsWithSourceFiles(data, data.sbin, "sbin") },
-  { id: "recv", label: "收卸配置", icon: "download", get: (data) => rowsWithSourceFiles(data, data.recv, "recv") },
-  {
-    id: "schedule",
-    label: "调度表检查",
-    icon: "grid",
-    get: (data) => rowsWithSourceFiles(data, getScheduleIssueRows(data), "schedule"),
-  },
-  {
-    id: "python",
-    label: "Python 脚本",
-    icon: "python",
-    get: (data) => {
-      return rowsWithSourceFiles(data, getPythonIssueRows(data), "python");
-    },
-    neutral: true,
-  },
-  { id: "other-files", label: "其他审计文件", icon: "file", get: (data) => getSourceFiles(data, "other-files"), neutral: true },
-];
-
 function StatusHeader({ d }) {
   const run = d.__auditRun;
   const status =
