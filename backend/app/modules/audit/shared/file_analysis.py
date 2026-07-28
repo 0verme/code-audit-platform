@@ -699,7 +699,7 @@ _PRONAME_VALUE_RE = re.compile(
     ([^:\s()"'`;]+)
     """
 )
-_SEND_PRONAME_RE = re.compile(r"(?i)(?:_|-)SEND(?:1|2)?$")
+_SEND_PRONAME_RE = re.compile(r"(?i)_SEND[0-9]*$")
 
 
 def extract_pronames(input_string):

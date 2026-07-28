@@ -71,14 +71,14 @@ class HcytScheduleRulePerformanceTests(unittest.TestCase):
             [finding.rule_code for finding in result.findings],
         )
 
-    def test_send_named_plan_without_send_proname_uses_generic_warning(self):
+    def test_send_named_plan_with_hyphen_proname_uses_generic_warning(self):
         plan_name = "PLAN_PROV_CUSTOM_SEND_DAY"
         plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])
         job_df = pd.DataFrame([
             job_row(
                 plan=plan_name,
                 job="JOB_CUSTOM_EXPORT",
-                parameters="proname=ABC_SEND3",
+                parameters="proname=ABC-SEND3",
             )
         ])
 

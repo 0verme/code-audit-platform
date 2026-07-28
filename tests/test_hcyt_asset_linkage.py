@@ -30,10 +30,22 @@ class PronamePushDetectionTests(unittest.TestCase):
         self.assertEqual(extract_pronames(value), ["ABC_SEND", "RISK-SEND2"])
 
     def test_send_suffix_requires_separator_and_supported_variant(self):
-        for value in ["proname=ABC_SEND", "proname=ABC-SEND1", "proname=abc_send2"]:
+        for value in [
+            "proname=ABC_SEND",
+            "proname=abc_send1",
+            "proname=ABC_SEND3",
+            "proname=ABC_SEND10",
+            "proname=ABC_SEND2026",
+        ]:
             with self.subTest(value=value):
                 self.assertTrue(has_send_proname(value))
-        for value in ["proname=NOTSEND", "proname=ABC_SEND3", "proname=ABC_SEND10", "proname=SEND"]:
+        for value in [
+            "proname=NOTSEND",
+            "proname=ABC-SEND1",
+            "proname=ABC-SEND3",
+            "proname=ABC_SENDX",
+            "proname=SEND",
+        ]:
             with self.subTest(value=value):
                 self.assertFalse(has_send_proname(value))
 
