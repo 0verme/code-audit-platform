@@ -315,6 +315,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
     def test_partition_counts_use_index_friendly_grouped_catalog_predicates(self):
         dws_profile = DatabaseProfile("inner_dws", "dws", {"metadata": {"partition_catalog": True}})
         with patch.object(public_data, "get_metadata_profile", return_value=dws_profile), patch.object(
+            public_data, "get_partition_profile", return_value=None
+        ), patch.object(
             public_data,
             "select_sql",
             return_value=[("DWPURR", "TABLE_A", 3), ("DWPURR", "TABLE_B", 1)],
@@ -345,6 +347,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
         metadata = DatabaseProfile("local_pg", "postgresql", {"metadata": {"partition_catalog": False}})
         runtime = DatabaseProfile("inner_dws", "dws", {"metadata": {"partition_catalog": True}})
         with patch.object(public_data, "get_metadata_profile", return_value=metadata), patch.object(
+            public_data, "get_partition_profile", return_value=None
+        ), patch.object(
             public_data, "get_active_profile", return_value=runtime
         ), patch.object(public_data, "select_sql", return_value=[(2,)]) as select:
             with self.assertLogs("svn_check.partition_metadata", level=logging.INFO) as logs:
@@ -359,6 +363,8 @@ class AuditMetadataServiceTests(unittest.TestCase):
     def test_partition_queries_fail_closed_when_no_catalog_is_available(self):
         local = DatabaseProfile("local_pg", "postgresql", {"metadata": {"partition_catalog": False}})
         with patch.object(public_data, "get_metadata_profile", return_value=local), patch.object(
+            public_data, "get_partition_profile", return_value=None
+        ), patch.object(
             public_data, "get_active_profile", return_value=local
         ), patch.object(public_data, "select_sql") as select:
             with self.assertRaisesRegex(RuntimeError, "partition metadata catalog is unavailable"):

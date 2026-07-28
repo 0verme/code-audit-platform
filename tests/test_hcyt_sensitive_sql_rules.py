@@ -7,8 +7,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.checks.hcyt import sql_rule  # noqa: E402
-from app.modules.audit.checks.hcyt.sensitive_sql import scan_sensitive_sql  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks import sql_rule  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks.sensitive_sql import scan_sensitive_sql  # noqa: E402
 
 
 def _scan(sql_text: str, namespace: str = "hcyt.sql"):

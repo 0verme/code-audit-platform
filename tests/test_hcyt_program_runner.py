@@ -7,9 +7,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_program_runner import run_hcyt_programs  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
-from app.modules.audit.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
+from app.modules.audit.workflows.hcyt.program_runner import run_hcyt_programs  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
+from app.modules.audit.shared.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
 from app.modules.lineage.registered_tables import ResultTableCatalogSnapshot  # noqa: E402
 
 

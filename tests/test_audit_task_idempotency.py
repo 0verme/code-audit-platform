@@ -15,7 +15,7 @@ if str(BACKEND_DIR) not in sys.path:
 import app.modules.audit.engine as audit_engine  # noqa: E402
 from app.db import connection as db_connection  # noqa: E402
 from app.db.schema import init_db  # noqa: E402
-from app.db.sql_runner import execute_insert as real_execute_insert  # noqa: E402
+from app.db.runtime_store import create_audit_task as real_create_audit_task  # noqa: E402
 from app.services.audit_task_service import create_task  # noqa: E402
 
 
@@ -43,7 +43,7 @@ class AuditTaskIdempotencyTests(unittest.TestCase):
         app_module = importlib.import_module("app")
         start_task_calls = []
         with patch.object(audit_engine, "start_task", lambda *args: start_task_calls.append(args)):
-            client = app_module.create_app(recover_tasks=False).test_client()
+            client = app_module.create_app().test_client()
             first = client.post(
                 "/api/audit-runs",
                 json=PAYLOAD,
@@ -65,7 +65,7 @@ class AuditTaskIdempotencyTests(unittest.TestCase):
     def test_reusing_a_key_with_different_parameters_returns_conflict(self):
         app_module = importlib.import_module("app")
         with patch.object(audit_engine, "start_task"):
-            client = app_module.create_app(recover_tasks=False).test_client()
+            client = app_module.create_app().test_client()
             client.post(
                 "/api/audit-runs",
                 json=PAYLOAD,
@@ -83,7 +83,7 @@ class AuditTaskIdempotencyTests(unittest.TestCase):
     def test_new_keys_and_legacy_requests_create_new_tasks(self):
         app_module = importlib.import_module("app")
         with patch.object(audit_engine, "start_task") as start_task:
-            client = app_module.create_app(recover_tasks=False).test_client()
+            client = app_module.create_app().test_client()
             responses = [
                 client.post("/api/audit-runs", json=PAYLOAD, headers={"Idempotency-Key": "submission-a"}),
                 client.post("/api/audit-runs", json=PAYLOAD, headers={"Idempotency-Key": "submission-b"}),
@@ -100,9 +100,9 @@ class AuditTaskIdempotencyTests(unittest.TestCase):
         calls = 0
         calls_lock = Lock()
 
-        def synchronized_insert(sql, params=None, profile=None):
+        def synchronized_insert(**kwargs):
             barrier.wait(timeout=5)
-            return real_execute_insert(sql, params, profile)
+            return real_create_audit_task(**kwargs)
 
         def record_start(*_args):
             nonlocal calls
@@ -110,7 +110,7 @@ class AuditTaskIdempotencyTests(unittest.TestCase):
                 calls += 1
 
         with (
-            patch("app.services.audit_task_service.execute_insert", side_effect=synchronized_insert),
+            patch("app.services.audit_task_service.create_audit_task", side_effect=synchronized_insert),
             patch.object(audit_engine, "start_task", side_effect=record_start),
             ThreadPoolExecutor(max_workers=2) as pool,
         ):
@@ -123,6 +123,23 @@ class AuditTaskIdempotencyTests(unittest.TestCase):
         self.assertEqual({result["id"] for result in results}, {results[0]["id"]})
         self.assertEqual(sorted(result["deduplicated"] for result in results), [False, True])
         self.assertEqual(calls, 1)
+
+    def test_non_unique_database_errors_are_not_treated_as_idempotent_replays(self):
+        with (
+            patch(
+                "app.services.audit_task_service.create_audit_task",
+                side_effect=RuntimeError("database unavailable"),
+            ),
+            patch.object(audit_engine, "start_task") as start_task,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "database unavailable"):
+                create_task(
+                    PAYLOAD,
+                    client_ip="127.0.0.1",
+                    idempotency_key="submission-db-error",
+                )
+
+        start_task.assert_not_called()
 
 
 if __name__ == "__main__":

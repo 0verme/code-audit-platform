@@ -6,7 +6,7 @@ from app import create_app
 
 class AppFactoryTests(unittest.TestCase):
     def setUp(self):
-        self.app = create_app(recover_tasks=False)
+        self.app = create_app()
 
     def test_blueprints_register_all_legacy_api_rules(self):
         rules = {(rule.rule, frozenset(rule.methods or ())) for rule in self.app.url_map.iter_rules()}

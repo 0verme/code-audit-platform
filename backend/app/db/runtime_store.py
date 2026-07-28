@@ -28,6 +28,10 @@ TASK_COLUMNS = """
 """
 
 AUDIT_RESULT_INSERT_BATCH_SIZE = 100
+TASK_IDEMPOTENCY_COLUMNS = """
+    id, repo, source_ref, workflow, status, revision, author,
+    operator_user, client_ip, source_type, ai_enabled, debug_enabled
+"""
 
 
 def fail_orphan_tasks() -> None:
@@ -56,6 +60,75 @@ def list_audit_tasks():
 def get_audit_task(task_id: int):
     with get_connection() as connection:
         return connection.execute(f"SELECT {TASK_COLUMNS} FROM {{{{table:audit_tasks}}}} WHERE id = ?", (task_id,)).fetchone()
+
+
+def get_audit_task_by_idempotency_key(idempotency_key: str):
+    with get_connection() as connection:
+        return connection.execute(
+            f"SELECT {TASK_IDEMPOTENCY_COLUMNS} FROM {{{{table:audit_tasks}}}} WHERE idempotency_key = ?",
+            (idempotency_key,),
+        ).fetchone()
+
+
+def create_audit_task(
+    *,
+    source_ref: str,
+    workflow: str,
+    revision: str,
+    operator_user: str,
+    client_ip: str,
+    started_at: str,
+    ai_enabled: bool,
+    debug_enabled: bool,
+    source_type: str,
+    idempotency_key: str | None,
+) -> int:
+    with get_connection() as connection:
+        cursor = connection.execute(
+            """
+            INSERT INTO {{table:audit_tasks}} (
+                repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
+                started_at, duration, ai_enabled, debug_enabled, progress, step, source_type,
+                idempotency_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                source_ref,
+                source_ref,
+                workflow,
+                "running",
+                revision,
+                operator_user,
+                operator_user,
+                client_ip,
+                started_at,
+                "0s",
+                int(ai_enabled),
+                int(debug_enabled),
+                0,
+                "queued",
+                source_type,
+                idempotency_key,
+            ),
+            expect_lastrowid=True,
+        )
+        return int(cursor.lastrowid)
+
+
+def is_unique_constraint_error(error: BaseException) -> bool:
+    """Recognize cross-driver unique violations without swallowing other DB failures."""
+
+    current: BaseException | None = error
+    while current is not None:
+        if getattr(current, "sqlstate", None) == "23505" or getattr(current, "pgcode", None) == "23505":
+            return True
+        if current.__class__.__name__ in {"IntegrityError", "UniqueViolation"}:
+            message = str(current).lower()
+            if "unique" in message or "duplicate" in message:
+                return True
+        next_error = current.__cause__ or current.__context__
+        current = next_error if isinstance(next_error, BaseException) else None
+    return False
 
 
 def get_task_row_payload(task_id: int) -> dict | None:

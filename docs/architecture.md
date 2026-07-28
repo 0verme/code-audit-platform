@@ -37,7 +37,7 @@ flowchart TD
 | 层 | 路径 | 职责 |
 |----|------|------|
 | 入口 | `backend/run.py` | 创建 Flask app；`__main__` 时按 settings 监听 |
-| App Factory | `backend/app/__init__.py` | 加载 `.env`、日志、CORS、注册 Blueprint、请求 ID、统一错误、可选孤儿任务恢复 |
+| App Factory | `backend/app/__init__.py` | 加载 `.env`、日志、CORS、注册 Blueprint、请求 ID 和统一错误；默认不修改任务状态 |
 | HTTP | `backend/app/routes/` | 参数读取、基础校验、HTTP 状态与 JSON；不写领域规则 |
 | 业务编排 | `backend/app/services/` | 任务创建/查询、报告、结果、血缘、健康检查；不依赖 Flask `request` |
 | 审计领域 | `backend/app/modules/audit/` | 任务引擎、工作流 runner、规则、来源、报告构建 |
@@ -146,12 +146,14 @@ app/modules/audit/
 
 - 任务通过 `threading.Thread(..., daemon=True)` 在**本进程**执行。
 - 进度 registry 在进程内存中；DB 保存任务行与报告。
-- `create_app(recover_tasks=True)` 启动时会 `recover_orphan_tasks` → 将库中 `running/queued` 等视为孤儿并失败收口。
+- `create_app()` 是无任务状态副作用的应用工厂。确认旧进程已经停止后，可执行一次
+  `python backend/scripts/recover_orphan_tasks.py`，将库中遗留的 `running/queued`
+  任务失败收口。无论直接运行还是由 WSGI 导入，创建应用都不会隐式恢复任务。
 
 因此：
 
 1. **必须使用单进程、单 worker**（例如 `gunicorn -w 1`、单实例 waitress）。
-2. 多 worker 或多实例启动时，后启动进程可能把仍在其他进程执行的任务标为失败。
+2. 多 worker 或多实例不受支持；当前没有持久化 owner/lease/heartbeat，不能保证任务只执行一次。
 3. 进程崩溃会丢失未落库的内存进度；daemon 线程随进程退出而终止。
 
 中长期演进方向：任务租约（`owner_id` / `lease_until` / heartbeat）、条件更新领取与 CAS 完成，或外部队列；在此之前不要假设水平扩展。

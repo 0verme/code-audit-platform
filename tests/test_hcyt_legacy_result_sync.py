@@ -7,10 +7,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_legacy_result_sync import (  # noqa: E402
-    save_hcyt_legacy_audit_results,
-    sync_hcyt_legacy_results,
-)
+from app.modules.audit.workflows.hcyt.legacy_sync import sync_hcyt_legacy_results  # noqa: E402
 
 
 def _sample_grouped_rows():
@@ -60,16 +57,6 @@ class HcytLegacyResultSyncTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "db write failed"):
             sync_hcyt_legacy_results(fail, grouped)
-
-    def test_compat_alias_uses_same_forwarding_contract(self):
-        grouped = _sample_grouped_rows()
-        calls = []
-
-        save_hcyt_legacy_audit_results(calls.append, grouped)
-
-        self.assertEqual(calls, [grouped])
-        self.assertIs(calls[0], grouped)
-
 
 if __name__ == "__main__":
     unittest.main()

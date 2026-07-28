@@ -74,6 +74,3 @@ def collect_hcyt_input_files(*, svn_result, re_service, hcyt, build_changes, bui
         changes=build_changes(svn_result, path_map),
         conflicts=build_conflicts(svn_result),
     )
-
-
-classify_hcyt_files = collect_hcyt_input_files

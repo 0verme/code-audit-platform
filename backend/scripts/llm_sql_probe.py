@@ -1,4 +1,4 @@
-"""Probe an unauthenticated OpenAI-compatible LLM with a SQL file.
+r"""Probe an unauthenticated OpenAI-compatible LLM with a SQL file.
 
 PowerShell example:
 

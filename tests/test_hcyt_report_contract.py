@@ -8,7 +8,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
 
 
 class FakeReService:
@@ -197,6 +197,7 @@ class HcytReportContractTests(unittest.TestCase):
                 "assetIssues",
                 "unifiedAssetIssues",
                 "lineageSummary",
+                "sourceFiles",
                 "lineageOverlay",
                 "metadataProfile",
             ],

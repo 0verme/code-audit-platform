@@ -7,8 +7,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.workflows.hcyt.rule_runner import run_hcyt_rules  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
 
 
 class FakeReService:
@@ -111,7 +111,7 @@ class HcytRuleRunnerTests(unittest.TestCase):
         self.assertEqual(set(grouped.keys()), {"dws", "hive", "python", "sbin", "config", "recv"})
         self.assertEqual(
             [key for key, _value in partials],
-            ["sqlChecks", "dws", "sqlChecks", "hive", "sbin", "recv", "config", "configFiles"],
+            ["sqlChecks", "dws", "sqlChecks", "hive", "sbin", "recv", "configFiles", "config"],
         )
         self.assertEqual(partials[0][1]["dws"]["downloadUrl"], "download://dws.sql")
         self.assertEqual(partials[2][1]["dws"]["downloadUrl"], "download://dws.sql")

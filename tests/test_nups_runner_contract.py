@@ -8,9 +8,9 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.nups_runner import run_nups  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
-from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
+from app.modules.audit.workflows.nups.runner import run_nups  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
+from app.modules.audit.core.runtime import WorkflowRuntimeContext  # noqa: E402
 
 
 class NupsRunnerContractTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class NupsRunnerContractTests(unittest.TestCase):
             ),
         )
 
-        context = WorkflowRuntimeContext(
+        context = WorkflowRuntimeContext.from_legacy(
             mods=mods,
             workflow="nups",
             repo="svn://repo/nups/demo",
@@ -104,6 +104,7 @@ class NupsRunnerContractTests(unittest.TestCase):
                 "conflicts",
                 "sqlChecks",
                 "pyScripts",
+                "sourceFiles",
                 "assetIssues",
                 "unifiedAssetIssues",
             ],

@@ -112,7 +112,6 @@ class HcytAtomicCompletionTests(unittest.TestCase):
         run = self._run()
         report = self._report()
         legacy_completion = Mock()
-        legacy_results = Mock()
         events = []
         original_set_partial = run.set_partial
         run.set_partial = lambda key, value: (
@@ -122,7 +121,7 @@ class HcytAtomicCompletionTests(unittest.TestCase):
 
         with self._faulty_connections(lambda _sql, _params: False, events), patch.object(
             audit_engine, "persist_task_run_completion", legacy_completion
-        ), patch.object(audit_engine, "replace_audit_results", legacy_results):
+        ):
             run.finish("pass", report=report)
 
         task, stored_report, rows = self._state()
@@ -134,7 +133,6 @@ class HcytAtomicCompletionTests(unittest.TestCase):
         self.assertNotIn("line_no", rows[0])
         self.assertEqual(events, ["commit", "final_ready"])
         legacy_completion.assert_not_called()
-        legacy_results.assert_not_called()
         self.assertEqual(run.run_state.status.value, "success")
         self.assertEqual(run.run_state.partial_report["finalReport"], report)
 

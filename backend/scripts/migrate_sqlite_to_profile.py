@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,7 +48,7 @@ class SQLiteToProfileMigrator:
             raise FileNotFoundError(f"Source SQLite database does not exist: {self.source}")
 
         results: list[TableMigrationResult] = []
-        with sqlite3.connect(self.source) as source_connection:
+        with closing(sqlite3.connect(self.source)) as source_connection:
             source_connection.row_factory = sqlite3.Row
             for table in RUNTIME_TABLES:
                 results.append(self._migrate_table(source_connection, table))

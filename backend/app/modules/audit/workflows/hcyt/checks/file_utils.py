@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 
 from app.modules.metadata.services.public_data import all_job, all_program
-from ....shared.file_analysis import match_any, match_path
+from ....shared.path_export import match_any, match_path
 
 
 def is_dws_py(py_url):
@@ -125,7 +125,6 @@ def all_program_df(program_df):
 
 
 def get_yilai(input_string):
-    print('===================================get_yilai=================================')
     parts = input_string.split('|')
     filtered_parts = [part[3:] for part in parts if part.startswith("33:")]
     return filtered_parts
@@ -141,11 +140,6 @@ def get_yilai_table(input_string, merge_df):
             p = Path(third_last_column_value)
             folder = p.parent.name
             if '.' not in folder:
-                print('================ get_yilai_table public program debug ================', flush=True)
-                print(f'dependency_item: {item}', flush=True)
-                print(f'matched_rows_count: {len(matched_rows)}', flush=True)
-                print(f'program_path_value: {third_last_column_value}', flush=True)
-                print(f'parent_folder: {folder}', flush=True)
                 matched_values.append(item)
                 continue
             schame, table_name = folder.split('.', 1)

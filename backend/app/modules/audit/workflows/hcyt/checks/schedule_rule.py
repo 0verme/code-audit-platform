@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import time
+from enum import IntEnum
 
 import pandas as pd
 
@@ -24,6 +25,28 @@ from .description_rule import has_meaningful_job_description
 from app.config.audit_rules import get_audit_rules
 from ....shared.findings import CheckResult
 
+
+class JobColumn(IntEnum):
+    PLAN = 0
+    SEQUENCE = 1
+    JOB = 2
+    DESCRIPTION = 3
+    PROGRAM = 4
+    DOMAIN = 5
+    PRIORITY = 6
+    CALENDAR = 9
+    STATUS = 23
+    PARAMETERS = 25
+    DEPENDENCIES = 27
+
+
+def _job_cell(row, column: JobColumn) -> str:
+    index = int(column)
+    if len(row) <= index or row[index] is None or pd.isna(row[index]):
+        return ""
+    return str(row[index]).strip()
+
+
 def _schedule_rules():
     return get_audit_rules()["hcyt"]["schedule"]
 
@@ -40,9 +63,7 @@ def _normalize_dependency_value(value):
 
 
 def _job_parameter_value(row):
-    if len(row) <= 25 or row[25] is None or pd.isna(row[25]):
-        return ""
-    return str(row[25]).strip()
+    return _job_cell(row, JobColumn.PARAMETERS)
 
 
 def _collect_send_job_names(job_records, production_rows=None):
@@ -50,7 +71,7 @@ def _collect_send_job_names(job_records, production_rows=None):
     for row in production_rows or []:
         if len(row) <= 2:
             continue
-        job_name = _normalize_job_value(row[2])
+        job_name = _normalize_job_value(_job_cell(row, JobColumn.JOB))
         if job_name:
             production_parameters[job_name] = _job_parameter_value(row)
 
@@ -58,10 +79,10 @@ def _collect_send_job_names(job_records, production_rows=None):
     for row in job_records:
         if len(row) <= 2:
             continue
-        job_name = _normalize_job_value(row[2])
+        job_name = _normalize_job_value(_job_cell(row, JobColumn.JOB))
         if not job_name:
             continue
-        parameters = _job_parameter_value(row) if len(row) > 25 else production_parameters.get(job_name, "")
+        parameters = _job_parameter_value(row) or production_parameters.get(job_name, "")
         pronames = extract_pronames(parameters)
         if has_send_proname(parameters):
             send_jobs[job_name] = pronames
@@ -202,7 +223,6 @@ def collect_send_plan_names(job_df):
 
 
 def rule_excle_plan(df, send_plan_names=None):
-    print('===================================rule_excle_plan=================================')
     result = CheckResult()
     planname_lists = []
     upstream_system_ids = []
@@ -260,7 +280,6 @@ def rule_excle_plan(df, send_plan_names=None):
 
 
 def rule_excle_seq(df):
-    print('===================================rule_excle_seq=================================')
     real_seq = {
         str(row[0]).strip()
         for row in all_real_seq()
@@ -280,9 +299,18 @@ def rule_excle_seq(df):
 
 
 def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
-    print('===================================rule_excle_job=================================')
     result = CheckResult()
     rules = _schedule_rules()
+    required_columns = int(JobColumn.DEPENDENCIES) + 1
+    if df is None or len(getattr(df, "columns", ())) < required_columns:
+        actual_columns = len(getattr(df, "columns", ())) if df is not None else 0
+        result.add(
+            "hcyt.schedule.job.invalid_schema",
+            "JOB Excel 结构",
+            "err",
+            f"JOB Excel 至少需要 {required_columns} 列，实际 {actual_columns} 列",
+        )
+        return result
 
     def log_timing(message):
         if timing_log:
@@ -307,21 +335,23 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
         job_dependencies = {}
         for row in job_rows:
             if len(row) > 1:
-                r_planseq[row[1]] = row[0]
-                if not pd.isna(row[1]):
-                    r_seq.add(row[1])
-                    if row[0] in rules["real_job_plan_names"]:
-                        real_seq.add(row[1])
+                plan_name = _job_cell(row, JobColumn.PLAN)
+                sequence_name = _job_cell(row, JobColumn.SEQUENCE)
+                r_planseq[sequence_name] = plan_name
+                if sequence_name:
+                    r_seq.add(sequence_name)
+                    if plan_name in rules["real_job_plan_names"]:
+                        real_seq.add(sequence_name)
             if len(row) > 2:
-                r_seqjob[row[2]] = row[1]
-                r_planjob[row[2]] = row[0]
-                normalized_job_name = _normalize_job_value(row[2])
+                job_name = _job_cell(row, JobColumn.JOB)
+                r_seqjob[job_name] = _job_cell(row, JobColumn.SEQUENCE)
+                r_planjob[job_name] = _job_cell(row, JobColumn.PLAN)
+                normalized_job_name = _normalize_job_value(job_name)
                 if normalized_job_name:
-                    dependency = '' if len(row) <= 27 else _normalize_dependency_value(row[27])
+                    dependency = _normalize_dependency_value(_job_cell(row, JobColumn.DEPENDENCIES))
                     job_dependencies[normalized_job_name] = dependency
-                job_name = '' if pd.isna(row[2]) else str(row[2]).strip()
                 if job_name:
-                    job_status_value = '' if len(row) <= 23 or pd.isna(row[23]) else str(row[23]).strip()
+                    job_status_value = _job_cell(row, JobColumn.STATUS)
                     job_status = '禁用' if job_status_value in rules["disabled_status_values"] else '启用' if job_status_value in rules["enabled_status_values"] else job_status_value
                     r_job.add(job_name)
                     r_job_status[job_name] = job_status
@@ -408,16 +438,16 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
     stage_start = time.perf_counter()
     valid_cales = {str(row[0]).strip().upper() for row in all_cale() if row and not pd.isna(row[0])}
     for row in job_records:
-        plan_name = '' if pd.isna(row[0]) else str(row[0]).strip()
-        seq_name = '' if pd.isna(row[1]) else str(row[1]).strip()
-        job_name = '' if pd.isna(row[2]) else str(row[2]).strip()
-        miaoshu = '' if pd.isna(row[3]) else str(row[3]).strip()
-        program = '' if pd.isna(row[4]) else str(row[4]).strip()
-        domain = '' if pd.isna(row[5]) else str(row[5]).strip()
-        level = '' if pd.isna(row[6]) else str(row[6]).strip()
-        cale = '' if pd.isna(row[9]) else str(row[9]).strip()
-        didp_evt = '' if pd.isna(row[25]) else str(row[25]).strip()
-        depand = '' if pd.isna(row[27]) else str(row[27]).strip()
+        plan_name = _job_cell(row, JobColumn.PLAN)
+        seq_name = _job_cell(row, JobColumn.SEQUENCE)
+        job_name = _job_cell(row, JobColumn.JOB)
+        miaoshu = _job_cell(row, JobColumn.DESCRIPTION)
+        program = _job_cell(row, JobColumn.PROGRAM)
+        domain = _job_cell(row, JobColumn.DOMAIN)
+        level = _job_cell(row, JobColumn.PRIORITY)
+        cale = _job_cell(row, JobColumn.CALENDAR)
+        didp_evt = _job_cell(row, JobColumn.PARAMETERS)
+        depand = _job_cell(row, JobColumn.DEPENDENCIES)
         if job_name.upper() != job_name:
             result.add('hcyt.schedule.job.lowercase_job', '作业名大小写', 'err', f'作业名: {job_name} 不应该存在小写 请规范')
         if plan_name.upper() != plan_name:
@@ -447,11 +477,10 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
             result.add('hcyt.schedule.job.realtime_calendar', '实时作业日历', 'err', f'{job_name} 的执行日历 {cale} 不对  实际应该是每日跑批 SYS_EVERYDAY_CALENDAR')
         if cale and valid_cales and cale.upper() not in valid_cales:
             result.add('hcyt.schedule.job.invalid_calendar', '作业执行日历', 'err', f'{job_name} 的执行日历 {cale} 在日历表中不存在')
-        if rules["forbidden_domain_plan_keywords"][0] in plan_name and domain == rules["forbidden_domain"]:
-            result.add('hcyt.schedule.job.execution_domain', '作业执行域', 'err', f'{job_name} 执行域有误 不应为EDWS_DOMAIN')
-        if rules["forbidden_domain_plan_keywords"][1] in plan_name and domain == rules["forbidden_domain"]:
-            result.add('hcyt.schedule.job.execution_domain', '作业执行域', 'err', f'{job_name} 执行域有误 不应为EDWS_DOMAIN')
-        if rules["forbidden_domain_plan_keywords"][2] in plan_name and domain == rules["forbidden_domain"]:
+        if (
+            domain == rules["forbidden_domain"]
+            and any(keyword in plan_name for keyword in rules["forbidden_domain_plan_keywords"])
+        ):
             result.add('hcyt.schedule.job.execution_domain', '作业执行域', 'err', f'{job_name} 执行域有误 不应为EDWS_DOMAIN')
         if domain not in rules["allowed_domains"]:
             result.add('hcyt.schedule.job.invalid_domain', '作业执行域', 'err', f'{job_name} 执行域有误不应为 ' + domain)
@@ -464,26 +493,19 @@ def rule_excle_job(df, r_plan=None, timing_log=None, job_rows=None):
                     f'{seq_name} 计划流名称有误',
                 )
         job_list.append([plan_name, seq_name, job_name, domain, didp_evt, depand])
-        if rules["dependency_required_job_keywords"][0] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dwf_dependency', 'DWF 前置依赖', 'err', f'{job_name} DWF层为什么没有前置依赖')
-        elif any(keyword in job_name for keyword in rules["dependency_exceptions"]):
-            pass
-        elif rules["dependency_required_job_keywords"][1] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dwo_dependency', 'DWO 前置依赖', 'err', f'{job_name} DWO层为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][2] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][3] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][4] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][5] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][6] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][7] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
-        elif rules["dependency_required_job_keywords"][8] in job_name and depand == '':
-            result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
+        if not depand:
+            dependency_keywords = rules["dependency_required_job_keywords"]
+            if dependency_keywords[0] in job_name:
+                result.add('hcyt.schedule.job.missing_dwf_dependency', 'DWF 前置依赖', 'err', f'{job_name} DWF层为什么没有前置依赖')
+            elif not any(keyword in job_name for keyword in rules["dependency_exceptions"]):
+                for index, keyword in enumerate(dependency_keywords[1:], start=1):
+                    if keyword not in job_name:
+                        continue
+                    if index == 1:
+                        result.add('hcyt.schedule.job.missing_dwo_dependency', 'DWO 前置依赖', 'err', f'{job_name} DWO层为什么没有前置依赖')
+                    else:
+                        result.add('hcyt.schedule.job.missing_dependency', '作业前置依赖', 'err', f'{job_name} 为什么没有前置依赖')
+                    break
         if '：' in depand:
             result.add('hcyt.schedule.job.chinese_dependency_colon', '依赖列中文冒号', 'err', f'{job_name} 依赖列存在中文的冒号 ： 请修改')
         job_depand = depand.split('|')

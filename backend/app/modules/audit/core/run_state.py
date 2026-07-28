@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+import threading
 from typing import Any
 
 
@@ -167,84 +168,134 @@ class AuditRunState:
     finished_at: datetime | None = None
     duration_ms: int | None = None
     error: str | None = None
+    _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
 
     def add_task(self, task: AuditTask) -> AuditTaskState:
-        if task.key in self.tasks:
-            raise ValueError(f"duplicate audit task key: {task.key}")
-        state = AuditTaskState(task=task)
-        self.tasks[task.key] = state
-        return state
+        with self._lock:
+            if task.key in self.tasks:
+                raise ValueError(f"duplicate audit task key: {task.key}")
+            state = AuditTaskState(task=task)
+            self.tasks[task.key] = state
+            return state
 
     def get_task(self, key: str) -> AuditTaskState:
-        try:
-            return self.tasks[key]
-        except KeyError as exc:
-            raise KeyError(f"unknown audit task key: {key}") from exc
+        with self._lock:
+            try:
+                return self.tasks[key]
+            except KeyError as exc:
+                raise KeyError(f"unknown audit task key: {key}") from exc
 
     def mark_running(self) -> None:
-        self.status = AuditTaskStatus.RUNNING
+        with self._lock:
+            self.status = AuditTaskStatus.RUNNING
 
     def mark_finished(self, error: Exception | str | None = None) -> None:
-        self.finished_at = _utc_now()
-        self.duration_ms = max(0, int((self.finished_at - self.started_at).total_seconds() * 1000))
-        self.error = str(error) if error else None
-        self.status = AuditTaskStatus.FAILED if error else AuditTaskStatus.SUCCESS
+        with self._lock:
+            self.finished_at = _utc_now()
+            self.duration_ms = max(0, int((self.finished_at - self.started_at).total_seconds() * 1000))
+            self.error = str(error) if error else None
+            self.status = AuditTaskStatus.FAILED if error else AuditTaskStatus.SUCCESS
 
     def ready_tasks(self) -> list[AuditTaskState]:
-        result = []
-        for state in self.tasks.values():
-            if state.status != AuditTaskStatus.QUEUED:
-                continue
-            if all(self.get_task(dep).is_terminal for dep in state.task.dependencies):
-                result.append(state)
-        return result
+        with self._lock:
+            result = []
+            for state in self.tasks.values():
+                if state.status != AuditTaskStatus.QUEUED:
+                    continue
+                if all(self.get_task(dep).is_terminal for dep in state.task.dependencies):
+                    result.append(state)
+            return result
 
     def set_section(self, key: str, value: Any) -> None:
-        self.partial_report[key] = value
+        with self._lock:
+            self.partial_report[key] = _json_safe(value)
 
-    def add_log(self, message: str, level: str = "INFO", now: datetime | None = None) -> None:
-        self.logs.append({
-            "ts": (now or _utc_now()).isoformat(),
+    def add_log(
+        self,
+        message: str,
+        level: str = "INFO",
+        now: datetime | None = None,
+        timestamp: str | None = None,
+    ) -> dict[str, Any]:
+        entry = {
+            "ts": timestamp or (now or _utc_now()).isoformat(),
             "level": level,
             "msg": str(message),
-        })
+        }
+        with self._lock:
+            self.logs.append(entry)
+        return dict(entry)
+
+    def replace_logs(self, logs: list[dict[str, Any]]) -> None:
+        with self._lock:
+            self.logs = [dict(entry) for entry in logs]
+
+    def logs_snapshot(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return _json_safe(self.logs)
+
+    def mark_task_running(self, key: str) -> None:
+        with self._lock:
+            state = self.get_task(key)
+            if state.status == AuditTaskStatus.QUEUED:
+                state.mark_running()
+
+    def mark_task_success(self, key: str, result: Any = None, summary: dict[str, Any] | None = None) -> None:
+        with self._lock:
+            state = self.get_task(key)
+            if not state.is_terminal:
+                state.mark_success(result=result, summary=summary)
+
+    def mark_task_skipped(self, key: str, reason: str = "") -> None:
+        with self._lock:
+            state = self.get_task(key)
+            if not state.is_terminal:
+                state.mark_skipped(reason)
+
+    def mark_task_failed(self, key: str, error: Exception | str) -> None:
+        with self._lock:
+            state = self.get_task(key)
+            if not state.is_terminal:
+                state.mark_failed(error)
 
     @property
     def progress(self) -> dict[str, Any]:
-        total_weight = sum(state.task.weight for state in self.tasks.values())
-        completed_weight = sum(
-            state.task.weight for state in self.tasks.values() if state.is_terminal
-        )
-        running = [
-            state.task.key for state in self.tasks.values()
-            if state.status == AuditTaskStatus.RUNNING
-        ]
-        return {
-            "total": len(self.tasks),
-            "completed": sum(1 for state in self.tasks.values() if state.is_terminal),
-            "failed": sum(1 for state in self.tasks.values() if state.status == AuditTaskStatus.FAILED),
-            "skipped": sum(1 for state in self.tasks.values() if state.status == AuditTaskStatus.SKIPPED),
-            "totalWeight": total_weight,
-            "completedWeight": completed_weight,
-            "percent": 100 if total_weight == 0 else int(completed_weight * 100 / total_weight),
-            "running": running,
-        }
+        with self._lock:
+            total_weight = sum(state.task.weight for state in self.tasks.values())
+            completed_weight = sum(
+                state.task.weight for state in self.tasks.values() if state.is_terminal
+            )
+            running = [
+                state.task.key for state in self.tasks.values()
+                if state.status == AuditTaskStatus.RUNNING
+            ]
+            return {
+                "total": len(self.tasks),
+                "completed": sum(1 for state in self.tasks.values() if state.is_terminal),
+                "failed": sum(1 for state in self.tasks.values() if state.status == AuditTaskStatus.FAILED),
+                "skipped": sum(1 for state in self.tasks.values() if state.status == AuditTaskStatus.SKIPPED),
+                "totalWeight": total_weight,
+                "completedWeight": completed_weight,
+                "percent": 100 if total_weight == 0 else int(completed_weight * 100 / total_weight),
+                "running": running,
+            }
 
     def to_dict(self, include_results: bool = False) -> dict[str, Any]:
-        return {
-            "runId": self.run_id,
-            "workflow": self.workflow,
-            "status": self.status.value,
-            "startedAt": _json_safe(self.started_at),
-            "finishedAt": _json_safe(self.finished_at),
-            "durationMs": self.duration_ms,
-            "error": self.error,
-            "errorMessage": self.error,
-            "progress": self.progress,
-            "tasks": {
-                key: state.to_dict(include_result=include_results)
-                for key, state in self.tasks.items()
-            },
-            "partialReport": _json_safe(self.partial_report),
-            "logs": _json_safe(self.logs),
-        }
+        with self._lock:
+            return {
+                "runId": self.run_id,
+                "workflow": self.workflow,
+                "status": self.status.value,
+                "startedAt": _json_safe(self.started_at),
+                "finishedAt": _json_safe(self.finished_at),
+                "durationMs": self.duration_ms,
+                "error": self.error,
+                "errorMessage": self.error,
+                "progress": self.progress,
+                "tasks": {
+                    key: state.to_dict(include_result=include_results)
+                    for key, state in self.tasks.items()
+                },
+                "partialReport": _json_safe(self.partial_report),
+                "logs": _json_safe(self.logs),
+            }

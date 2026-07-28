@@ -130,7 +130,6 @@ def run_dws_ddl_rules(sql_text):
 
 
 def _legacy_rule_dws(dws_url):
-    print('===================================nups_rule_dws=================================')
     data = read_data_from_file(dws_url)
     result = CheckResult()
     view_names = load_metadata_name_set(all_view_names())
@@ -172,7 +171,6 @@ def rule_dws(dws_url):
 
 
 def rule_dws_py(dws_url):
-    print('===================================nups_rule_dws_py=================================')
     kk = all_sstb()
     result = CheckResult()
     data = read_data_from_file(dws_url)

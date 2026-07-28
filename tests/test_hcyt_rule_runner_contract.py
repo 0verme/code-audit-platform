@@ -7,8 +7,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_rule_runner import run_hcyt_rules  # noqa: E402
-from app.modules.audit.findings import CheckResult  # noqa: E402
+from app.modules.audit.workflows.hcyt.rule_runner import run_hcyt_rules  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
 
 
 class FakeReService:
@@ -85,7 +85,7 @@ class HcytRuleRunnerContractTests(unittest.TestCase):
 
         self.assertEqual(
             partial_order,
-            ["sqlChecks", "dws", "sqlChecks", "hive", "sbin", "recv", "config", "configFiles"],
+            ["sqlChecks", "dws", "sqlChecks", "hive", "sbin", "recv", "configFiles", "config"],
         )
         self.assertEqual(
             [event[:2] for event in task_events],

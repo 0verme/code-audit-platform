@@ -1,6 +1,6 @@
 import unittest
 
-from app.modules.audit.nups_report_builder import build_nups_report
+from app.modules.audit.workflows.nups.report import build_nups_report
 
 
 class NupsReportBuilderTests(unittest.TestCase):
@@ -26,6 +26,7 @@ class NupsReportBuilderTests(unittest.TestCase):
                 "conflicts",
                 "sqlChecks",
                 "pyScripts",
+                "sourceFiles",
                 "assetIssues",
                 "unifiedAssetIssues",
             ],

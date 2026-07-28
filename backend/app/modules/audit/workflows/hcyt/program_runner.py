@@ -1,18 +1,7 @@
 from __future__ import annotations
 
-import time
-
 from ...shared.findings import CheckResult, finding_rows
-
-def _timed(label, fn, log_timing=None, **fields):
-    started = time.perf_counter()
-    if log_timing is not None:
-        log_timing(label, "start", **fields)
-    try:
-        return fn()
-    finally:
-        if log_timing is not None:
-            log_timing(label, "end", elapsed_ms=round((time.perf_counter() - started) * 1000, 1), **fields)
+from ...shared.timing import run_timed as _timed
 
 
 def _load_lineage_metadata(modules, log_timing):

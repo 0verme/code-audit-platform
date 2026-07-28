@@ -14,7 +14,7 @@ from urllib.parse import quote, unquote, urlsplit, urlunsplit
 import yaml
 
 from ..integrations.diagnostics import log_exception_event, log_task_event, log_warning_event
-from ..shared.file_analysis import get_export_base
+from ..shared.path_export import get_export_base
 from app.db.config_paths import DEFAULT_SVN_CONFIG
 from app.config.audit_rules import get_audit_rules
 
@@ -307,8 +307,12 @@ def get_branch_origin(project_config: dict, branch_url: str) -> tuple[str, str]:
         return source_url, copy_rev
 
     origin_url, origin_revision = resolve_origin(branch_url)
-    print('branch create revision:', origin_revision)
-    print('branch origin:', sanitize_svn_url_for_log(origin_url))
+    log_task_event(
+        "svn_branch_origin",
+        "resolved",
+        revision=origin_revision,
+        origin=sanitize_svn_url_for_log(origin_url),
+    )
     return origin_url, origin_revision
 
 
@@ -316,8 +320,12 @@ def diff_between_urls(project_config: dict, left_url: str, right_url: str) -> st
     code, stdout, stderr = run_svn_text(project_config, 'diff', '--summarize', left_url, right_url)
     if code != 0:
         raise RuntimeError(f'svn diff 执行失败:\n{_sanitize_svn_text_for_log(stderr, build_svn_command(project_config))}')
-    print('diff left:', sanitize_svn_url_for_log(left_url))
-    print('diff right:', sanitize_svn_url_for_log(right_url))
+    log_task_event(
+        "svn_diff",
+        "resolved",
+        left=sanitize_svn_url_for_log(left_url),
+        right=sanitize_svn_url_for_log(right_url),
+    )
     return stdout
 
 
@@ -329,7 +337,7 @@ def summarize_diff(diff_text: str):
             continue
         status = line[0]
         counts[status if status in counts else 'OTHER'] += 1
-    print('diff summary:', counts)
+    log_task_event("svn_diff", "summary", counts=counts)
 
 
 def diff_url_to_repo_rel_path(marker: str, path: str) -> str:
@@ -426,7 +434,7 @@ def svn_main(project: str, branch_url: str):
         trunk_changed_files = extract_active_files(marker, trunk_diff_text)
         trunk_conflict_files = sorted(set(branch_changed_files) & set(trunk_changed_files))
 
-        print('export file count:', len(branch_changed_files))
+        log_task_event("svn_export", "start", file_count=len(branch_changed_files))
         log_task_event(
             "svn_main.export",
             "start",
@@ -446,7 +454,11 @@ def svn_main(project: str, branch_url: str):
                     result_paths.append(future.result())
                 except Exception as exc:
                     safe_message = _sanitize_svn_text_for_log(exc, build_svn_command(project_config))
-                    print(f'export failed: {repo_rel_path} -> {safe_message}')
+                    log_warning_event(
+                        "SVN_EXPORT_FAILED",
+                        path=repo_rel_path,
+                        error=safe_message,
+                    )
                     _log_svn_exception(
                         "SVN_EXPORT_EXCEPTION", exc,
                         command=build_svn_command(project_config),

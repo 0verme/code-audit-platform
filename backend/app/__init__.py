@@ -11,11 +11,10 @@ from werkzeug.exceptions import BadRequest
 from .config.audit_rules import get_audit_rules
 from .logging_config import configure_logging
 from .routes import BLUEPRINTS
-from .services.audit_task_service import recover_orphan_tasks
 from .settings import get_runtime_security_settings, load_backend_dotenv
 
 
-def create_app(*, recover_tasks: bool = True) -> Flask:
+def create_app() -> Flask:
     load_backend_dotenv()
     configure_logging()
     get_audit_rules()
@@ -59,8 +58,6 @@ def create_app(*, recover_tasks: bool = True) -> Flask:
         logging.getLogger(__name__).exception("Unhandled request error", exc_info=error)
         return error_payload("INTERNAL_SERVER_ERROR", "服务端发生未预期异常", 500)
 
-    if recover_tasks:
-        recover_orphan_tasks()
     return app
 
 

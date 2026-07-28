@@ -12,8 +12,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.lineage import mapping_compat
-from app.modules.lineage import paths
+from app.modules.lineage import mapping_compat  # noqa: E402
+from app.modules.lineage import paths  # noqa: E402
 
 
 def workbook(path, header, row):

@@ -114,12 +114,11 @@ class NupsAtomicCompletionTests(unittest.TestCase):
         run = self._run()
         report = self._report()
         legacy_completion = Mock()
-        legacy_results = Mock()
         observations = []
 
         with self._faulty_connections(lambda _sql, _params: False, observations), patch.object(
             audit_engine, "persist_task_run_completion", legacy_completion
-        ), patch.object(audit_engine, "replace_audit_results", legacy_results):
+        ):
             run.finish("pass", report=report)
 
         task, stored_report, rows = self._state()
@@ -129,7 +128,6 @@ class NupsAtomicCompletionTests(unittest.TestCase):
             ("nups", "query.sql", "new finding")
         ])
         legacy_completion.assert_not_called()
-        legacy_results.assert_not_called()
         self.assertEqual(observations, ["opened", "commit"])
         self.assertEqual(run.run_state.status.value, "success")
 

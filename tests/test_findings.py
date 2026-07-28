@@ -8,7 +8,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.findings import CheckResult, Finding, finding_messages, finding_rows  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult, Finding, finding_messages, finding_rows  # noqa: E402
 
 
 def test_finding_validates_required_fields_and_level():

@@ -20,7 +20,7 @@ D:\miniconda3\python.exe
 ## Backend Tests
 
 ```powershell
-D:\miniconda3\python.exe -m unittest discover -s tests
+D:\miniconda3\python.exe backend\scripts\run_backend_tests.py
 D:\miniconda3\python.exe backend\dev_selfcheck.py
 ```
 

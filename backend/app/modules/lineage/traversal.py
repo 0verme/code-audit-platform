@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from collections import deque
+from contextlib import closing
 from pathlib import Path
 
 from .identifiers import compact_identifier, normalize_token, parse_input_table_name
@@ -29,14 +30,14 @@ def find_start_nodes_in_sqlite(table_name: str, column_name: str, db_path: str |
     if schema:
         query += " AND source_schema = ?"
         params.append(schema)
-    with sqlite3.connect(_require_mapping_db(db_path)) as conn:
+    with closing(sqlite3.connect(_require_mapping_db(db_path))) as conn:
         rows = conn.execute(query, params).fetchall()
     return [(row[0], row[1], row[2]) for row in rows]
 
 
 def walk_downstream_in_sqlite(start_nodes, db_path: str | Path = MAPPING_DB_PATH, max_depth: int | None = None):
     queue, visited, downstream_nodes, relation_rows = deque(), set(), set(), []
-    with sqlite3.connect(_require_mapping_db(db_path)) as conn:
+    with closing(sqlite3.connect(_require_mapping_db(db_path))) as conn:
         for start in start_nodes:
             queue.append((start, 0))
             visited.add(start)

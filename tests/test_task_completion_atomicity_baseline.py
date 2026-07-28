@@ -159,19 +159,14 @@ class TaskCompletionAtomicityBaselineTests(unittest.TestCase):
         self.assertEqual(report, {"version": "old"})
         self.assertEqual(observations, ["opened", "rollback"])
 
-    def test_current_results_replace_failure_restores_old_rows_in_its_local_transaction(self):
-        """Characterization baseline: SQLite rolls back delete plus partial inserts; reverse only if protocol changes."""
+    def test_current_results_batch_failure_restores_old_rows_in_its_local_transaction(self):
+        """SQLite rolls back the delete when the batched replacement insert fails."""
         self._seed_results()
-        inserted = 0
 
-        def fail_on_second_result_insert(sql, _params):
-            nonlocal inserted
-            if "INSERT INTO {{table:audit_results}}" in sql:
-                inserted += 1
-                return inserted == 2
-            return False
+        def fail_on_result_batch(sql, _params):
+            return "INSERT INTO {{table:audit_results}}" in sql
 
-        observations, connection_patch = self._faulty_runtime_connections(fail_on_second_result_insert)
+        observations, connection_patch = self._faulty_runtime_connections(fail_on_result_batch)
         with connection_patch, self.assertRaises(InjectedPersistenceFailure):
             runtime_store.replace_audit_results(self.task_id, {"sql": [self._result("new one"), self._result("new two")]})
 
@@ -208,15 +203,16 @@ class TaskCompletionAtomicityBaselineTests(unittest.TestCase):
         self.assertEqual([row["message"] for row in results], ["two"])
         self.assertEqual(len(results), 1)
 
-    def test_legacy_task_run_does_not_publish_memory_terminal_before_persistence(self):
-        """Legacy report paths now publish memory completion only after persistence succeeds."""
+    def test_task_run_does_not_publish_memory_terminal_before_atomic_persistence(self):
+        """Report paths publish memory completion only after atomic persistence succeeds."""
         run = audit_engine.TaskRun(999, "svn://example/task", "fine-report")
-        with patch.object(audit_engine, "persist_task_run_completion", side_effect=InjectedPersistenceFailure("boom")):
+        with patch.object(audit_engine, "persist_task_completion_atomic", side_effect=InjectedPersistenceFailure("boom")):
             with self.assertRaises(InjectedPersistenceFailure):
                 run.finish("pass", report={"task": {"status": "pass"}})
 
-        self.assertEqual(run.run_state.status.value, "running")
-        self.assertIsNone(run.run_state.finished_at)
+        self.assertEqual(run.run_state.status.value, "failed")
+        self.assertIsNotNone(run.run_state.finished_at)
+        self.assertNotIn("任务完成", [entry["msg"] for entry in run.logs])
 
 
 if __name__ == "__main__":

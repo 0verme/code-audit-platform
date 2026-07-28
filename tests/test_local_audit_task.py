@@ -15,7 +15,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
-from app.modules.audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
+from app.modules.audit.core.run_registry import remove_audit_run_state  # noqa: E402
+from app.modules.audit.source.svn import SvnCliNotFoundError  # noqa: E402
 from app.db import connection as db_connection  # noqa: E402
 from app.db import runtime_store  # noqa: E402
 from app.db.runtime_store import upsert_task_report  # noqa: E402
@@ -117,7 +118,10 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(row["operator_user"], "local-user")
                 self.assertTrue(row["client_ip"])
 
-                with patch("app.services.audit_task_service.validate_local_workspace"):
+                with (
+                    patch.object(audit_engine, "start_task", fake_start_task),
+                    patch("app.services.audit_task_service.validate_local_workspace"),
+                ):
                     for workflow in ("nups", "fine-report"):
                         response = app_module.create_app().test_client().post(
                             "/api/audit-tasks",
@@ -139,7 +143,6 @@ class LocalAuditTaskTests(unittest.TestCase):
             old_db_path = db_connection.DB_PATH
             db_connection.DB_PATH = db_path
             sys.modules.pop("app", None)
-            body = {}
             try:
                 init_db()
                 app_module = importlib.import_module("app")
@@ -238,7 +241,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(partial["partialReport"]["changes"], [{"path": "demo.sql"}])
             finally:
                 if body.get("id"):
-                    audit_engine._run_states.pop(body["id"], None)
+                    remove_audit_run_state(body["id"])
                 db_connection.DB_PATH = old_db_path
                 sys.modules.pop("app", None)
 
@@ -309,7 +312,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(run.run_state.status.value, "running")
                 self.assertEqual(audit_engine.get_audit_run_status(task_id)["status"], "running")
             finally:
-                audit_engine._run_states.pop(task_id, None)
+                remove_audit_run_state(task_id)
                 db_connection.DB_PATH = old_db_path
 
     def test_audit_run_partial_result_preserves_final_report_compatibility_fields(self):
@@ -460,7 +463,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertTrue(saved["logs"])
             finally:
                 audit_engine._mods = previous_mods
-                audit_engine._run_states.pop(task_id, None)
+                remove_audit_run_state(task_id)
                 db_connection.DB_PATH = old_db_path
 
     def test_task_run_svn_source_normalizes_report_source_fields(self):
@@ -498,7 +501,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(row["step"], "completed")
             finally:
                 audit_engine._mods = previous_mods
-                audit_engine._run_states.pop(task_id, None)
+                remove_audit_run_state(task_id)
                 db_connection.DB_PATH = old_db_path
 
     def test_task_run_local_source_uses_workspace_loader_contract(self):
@@ -539,7 +542,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertEqual(saved["logs"], run.logs)
             finally:
                 audit_engine._mods = previous_mods
-                audit_engine._run_states.pop(task_id, None)
+                remove_audit_run_state(task_id)
                 db_connection.DB_PATH = old_db_path
 
     def test_task_run_svn_cli_hint_only_applies_to_svn_source(self):
@@ -584,8 +587,8 @@ class LocalAuditTaskTests(unittest.TestCase):
                 self.assertNotIn("未找到 svn 命令行客户端，请安装 SVN 并加入 PATH", local_row["error"])
             finally:
                 audit_engine._mods = previous_mods
-                audit_engine._run_states.pop(svn_task_id, None)
-                audit_engine._run_states.pop(local_task_id, None)
+                remove_audit_run_state(svn_task_id)
+                remove_audit_run_state(local_task_id)
                 db_connection.DB_PATH = old_db_path
 
     def test_task_run_dispatches_to_matching_workflow_runner_only(self):
@@ -609,9 +612,9 @@ class LocalAuditTaskTests(unittest.TestCase):
                 )
 
                 with patch.object(audit_engine, "_load_real_modules", lambda: None):
-                    with patch("app.modules.audit.workflow_dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
-                        with patch("app.modules.audit.workflow_dispatcher.run_nups", return_value={"task": {"status": "pass"}}) as run_nups:
-                            with patch("app.modules.audit.workflow_dispatcher.run_fine", return_value={"task": {"status": "pass"}}) as run_fine:
+                    with patch("app.modules.audit.core.dispatcher.run_hcyt", return_value={"task": {"status": "pass"}}) as run_hcyt:
+                        with patch("app.modules.audit.core.dispatcher.run_nups", return_value={"task": {"status": "pass"}}) as run_nups:
+                            with patch("app.modules.audit.core.dispatcher.run_fine", return_value={"task": {"status": "pass"}}) as run_fine:
                                 for repo, expected_runner in cases:
                                     task_id = self._insert_task(repo)
                                     run = audit_engine.TaskRun(task_id, repo, "hcyt", source_type="svn")
@@ -631,7 +634,7 @@ class LocalAuditTaskTests(unittest.TestCase):
                                     run_hcyt.reset_mock()
                                     run_nups.reset_mock()
                                     run_fine.reset_mock()
-                                    audit_engine._run_states.pop(task_id, None)
+                                    remove_audit_run_state(task_id)
             finally:
                 audit_engine._mods = previous_mods
                 db_connection.DB_PATH = old_db_path

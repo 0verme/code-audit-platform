@@ -15,6 +15,7 @@ from .ddl_rule import (
 from app.modules.metadata.services.public_data import all_function_names, all_sstb, all_tab_partitions, all_view_names
 from app.modules.audit.rules.portal_link_builder import build_portal_link
 from ....shared.findings import CheckResult
+from ....shared.timing import run_timed as _timed
 from ....shared.file_analysis import (
     detect_file_format,
     extract_tables,
@@ -34,23 +35,6 @@ gjz_lists = [
     'UTILS.DIDP_BASE_FRAME',
     'UTILS.DIDP_PROCESS_TOOLS',
 ]
-
-
-def _timed(label, fn, log_timing=None, result_fields=None, **fields):
-    started = time.perf_counter()
-    if log_timing is not None:
-        log_timing(label, 'start', **fields)
-    result = None
-    try:
-        result = fn()
-        return result
-    finally:
-        if log_timing is not None:
-            end_fields = dict(fields)
-            if result_fields is not None and result is not None:
-                end_fields.update(result_fields(result))
-            end_fields['elapsed_ms'] = round((time.perf_counter() - started) * 1000, 1)
-            log_timing(label, 'end', **end_fields)
 
 
 def _load_cached_metadata(cache, key, label, loader, log_timing=None, result_fields=None, **fields):
@@ -127,7 +111,6 @@ def has_partition_rollback_step(text):
 
 
 def rule_sbin(sbin_url):
-    print('===================================sbin_name=================================')
     result = CheckResult()
     for i in sbin_url:
         data = read_data_from_file(i)
@@ -140,7 +123,6 @@ def rule_sbin(sbin_url):
 
 
 def rule_config(config_names):
-    print('===================================rule_config=================================')
     result = CheckResult()
     for i in config_names:
         yuan = Path(i).name
@@ -155,7 +137,6 @@ def rule_config(config_names):
 
 
 def rule_recv_json(recv_lists):
-    print('===================================rule_recv_json=================================')
     result = CheckResult()
     for recv_url in recv_lists:
         data = read_data_from_file(recv_url)
@@ -175,7 +156,6 @@ def rule_recv_json(recv_lists):
 
 
 def rule_dwf(dwf_url):
-    print('===================================rule_dwf_py=================================')
     result = CheckResult()
     data = read_data_from_file(dwf_url)
     if "SRC_TBL_ENG_NM = ''".upper() in data.upper() or "SRC_CD_FLD_ENG_NM = ''".upper() in data.upper():
@@ -184,7 +164,6 @@ def rule_dwf(dwf_url):
 
 
 def rule_dwo(dwo_url):
-    print('===================================rule_dwo_py=================================')
     result = CheckResult()
     data = read_data_from_file(dwo_url)
     if "版 本 号: v 1.0".upper() in data.upper() and "功能描述: 湖仓联通加工算法".upper() in data.upper():
@@ -193,7 +172,6 @@ def rule_dwo(dwo_url):
 
 
 def rule_dws_py(dws_url, *, log_timing=None, file_name=None, metadata_cache=None):
-    print('===================================rule_dws_py=================================')
     timing_fields = {'file': file_name} if file_name else {}
     metadata_cache = metadata_cache if metadata_cache is not None else {}
     kk = _load_cached_metadata(

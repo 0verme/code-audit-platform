@@ -9,7 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
-from app.modules.audit.checks import re_service  # noqa: E402
+from app.modules.audit.shared import file_analysis as re_service  # noqa: E402
 
 
 class ReServiceProxy:

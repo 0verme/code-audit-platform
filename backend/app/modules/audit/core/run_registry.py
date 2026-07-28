@@ -29,6 +29,13 @@ def get_audit_run_state(task_id: int) -> AuditRunState | None:
         return _run_states.get(int(task_id))
 
 
+def remove_audit_run_state(task_id: int) -> AuditRunState | None:
+    """Remove one in-process run snapshot without exposing registry internals."""
+
+    with _run_state_lock:
+        return _run_states.pop(int(task_id), None)
+
+
 def status_from_task_status(status: str) -> str:
     if status in {"running", "queued"}:
         return "running"

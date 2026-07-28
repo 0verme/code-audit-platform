@@ -1,5 +1,10 @@
 # Async Parallel Audit Acceptance Report
 
+> Historical acceptance record. The isolated executor prototype described here
+> was never the production execution owner and has since been removed. The
+> supported runtime model is currently one process/one worker with workflow-local
+> concurrency only.
+
 ## Scope
 
 This report covers phases 4-7 of the async audit and progressive report page rollout.

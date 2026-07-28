@@ -162,6 +162,6 @@ def test_app_factory_validates_rules_before_startup(monkeypatch):
     monkeypatch.setattr(app, "get_audit_rules", fail_validation)
 
     with pytest.raises(AuditRulesConfigError) as exc_info:
-        app.create_app(recover_tasks=False)
+        app.create_app()
 
     assert exc_info.value is error

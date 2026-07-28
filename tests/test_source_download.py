@@ -12,12 +12,12 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
-from app.modules.audit.source_download import (  # noqa: E402
+from app.modules.audit.source.download import (  # noqa: E402
     build_source_download_url,
     resolve_source_download_path,
     source_relative_paths,
 )
-from app.modules.audit.fine_report_builder import build_fine_report  # noqa: E402
+from app.modules.audit.workflows.fine_report.report import build_fine_report  # noqa: E402
 
 
 class SourceDownloadTests(unittest.TestCase):

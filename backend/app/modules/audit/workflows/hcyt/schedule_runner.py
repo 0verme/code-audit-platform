@@ -1,26 +1,10 @@
 from __future__ import annotations
 
 import inspect
-import time
 from pathlib import Path
 
 from ...shared.findings import CheckResult, finding_messages
-
-def _timed(label, fn, log_timing=None, result_fields=None, **fields):
-    started = time.perf_counter()
-    if log_timing is not None:
-        log_timing(label, "start", **fields)
-    result = None
-    try:
-        result = fn()
-        return result
-    finally:
-        if log_timing is not None:
-            end_fields = dict(fields)
-            if result_fields is not None and result is not None:
-                end_fields.update(result_fields(result))
-            end_fields["elapsed_ms"] = round((time.perf_counter() - started) * 1000, 1)
-            log_timing(label, "end", **end_fields)
+from ...shared.timing import run_timed as _timed
 
 
 def run_hcyt_schedule(

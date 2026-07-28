@@ -45,7 +45,7 @@
 │   ├── scripts/                   # 启动、迁移、自检、种子数据等脚本
 │   ├── tests/                     # 后端包内单元/集成测试
 │   └── app/
-│       ├── __init__.py            # create_app：Blueprint、CORS、请求日志、孤儿任务恢复
+│       ├── __init__.py            # create_app：Blueprint、CORS、请求日志（无任务状态副作用）
 │       ├── settings.py            # 运行时安全与监听配置
 │       ├── auth.py                # 权限扩展点（当前默认可放行，待接身份源）
 │       ├── routes/                # HTTP 层
@@ -169,7 +169,7 @@ waitress-serve run:app
 # 或 gunicorn -w 1 -b 127.0.0.1:5088 run:app
 ```
 
-**重要：当前任务执行使用进程内线程 + 内存 registry。请保持单进程、单 worker。** 多 worker / 多实例会导致运行中任务被错误标记失败。详见 [架构文档 · 部署约束](docs/architecture.md#部署约束)。
+**重要：当前任务执行使用进程内线程 + 内存 registry。请保持单进程、单 worker。** 多 worker / 多实例没有 owner/lease 保证，可能重复执行或产生状态竞争。确认旧进程已停止后，使用 `python backend/scripts/recover_orphan_tasks.py` 做一次性孤儿任务恢复。详见 [架构文档 · 部署约束](docs/architecture.md#部署约束)。
 
 默认监听 `http://127.0.0.1:5088`，健康检查：
 
@@ -239,7 +239,7 @@ npm run dev
 仓库根级用例（unittest）：
 
 ```powershell
-python -m unittest discover -s tests
+python backend/scripts/run_backend_tests.py
 ```
 
 后端包内测试与静态检查（在 `backend` 目录）：

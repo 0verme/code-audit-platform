@@ -8,7 +8,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.checks.hcyt import python_rule  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks import python_rule  # noqa: E402
 
 
 class HcytPythonRuleTimingTests(unittest.TestCase):

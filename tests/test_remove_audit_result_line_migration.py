@@ -2,6 +2,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -52,7 +53,7 @@ class RemoveAuditResultLineMigrationTests(unittest.TestCase):
         self.assertEqual(versions, ["0001", "0002", "0003", "0004"])
 
     def test_line_removal_migration_preserves_existing_findings(self):
-        with sqlite3.connect(":memory:") as connection:
+        with closing(sqlite3.connect(":memory:")) as connection, connection:
             profile = DatabaseProfile("legacy", "sqlite", {"type": "sqlite"})
             table = qualified_table_name("audit_results", profile)
             connection.executescript(

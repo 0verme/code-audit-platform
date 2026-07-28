@@ -7,8 +7,8 @@ from app.config.audit_rules import get_audit_rules
 from ...compat import build_legacy_fine_audit_result_rows
 from ...core.runtime import WorkflowRuntimeContext
 from ...shared.findings import CheckResult, finding_messages
-from ...shared.report_helpers import build_source_file
 from ...shared.result_normalizer import dedupe_tables, normalize_table
+from ...shared.source_files import resolve_source_file
 from ...shared.table_annotations import annotate_table, build_result_table_sys_name_map
 from .report import build_fine_report
 
@@ -22,7 +22,7 @@ def get_fine_report_preview_url() -> str:
 
 
 def run_fine(context: WorkflowRuntimeContext) -> dict:
-    mods = context.mods
+    mods = context.services.mods
     svn_result = context.source_payload
     exported = svn_result["exported_paths"]
 
@@ -40,19 +40,6 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         elif conventions["authority_filename"] in path:
             authority_url = path
 
-    def source_file(path, section, kind):
-        if not path:
-            return None
-        if callable(context.build_source_file):
-            return context.build_source_file(path, section=section, kind=kind)
-        return build_source_file(
-            path,
-            section=section,
-            kind=kind,
-            download_url=context.download_url,
-            relative_path=mods.re_service.safe_remove_prefix,
-        )
-
     source_files = [
         descriptor
         for path, section, kind in (
@@ -60,50 +47,50 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
             (authority_url, "authority", "authority"),
             *((path, "reports", "template") for path in cpt_lists),
         )
-        if (descriptor := source_file(path, section, kind))
+        if (descriptor := resolve_source_file(context, path, section=section, kind=kind))
     ]
 
-    context.update(progress=40, step="目录与权限检查")
+    context.progress.update(progress=40, step="目录与权限检查")
     menu_section = authority_section = None
     menu_lists = []
     if menu_url:
-        table = context.safe(
+        table = context.services.safe(
             "目录表(menu.txt)",
             lambda: mods.re_service.load_txt_to_df(menu_url, ["后台目录", "前台目录", "预览方式"]),
             None,
         )
-        result = context.safe("目录规则(rule_menu)", lambda: mods.fine_rule.rule_menu(menu_url), CheckResult())
+        result = context.services.safe("目录规则(rule_menu)", lambda: mods.fine_rule.rule_menu(menu_url), CheckResult())
         menu_lists = result.artifacts.get("menu_entries", [])
         menu_section = {
             "file": mods.re_service.get_filename(menu_url),
-            "downloadUrl": context.download_url(menu_url),
+            "downloadUrl": context.services.download_url(menu_url),
             "columns": ["后台目录", "前台目录", "预览方式"],
             "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
             "messages": finding_messages(result.findings),
         }
     if authority_url:
-        table = context.safe(
+        table = context.services.safe(
             "权限表(authority.txt)",
             lambda: mods.re_service.load_txt_to_df2(authority_url, ["前台目录", "赋予权限"]),
             None,
         )
-        result = context.safe(
+        result = context.services.safe(
             "权限规则(rule_authority)",
             lambda: mods.fine_rule.rule_authority(authority_url, menu_lists),
             CheckResult(),
         )
         authority_section = {
             "file": mods.re_service.get_filename(authority_url),
-            "downloadUrl": context.download_url(authority_url),
+            "downloadUrl": context.services.download_url(authority_url),
             "columns": ["前台目录", "赋予权限"],
             "rows": table.fillna("").astype(str).values.tolist() if table is not None else [],
             "messages": finding_messages(result.findings),
         }
 
-    context.update(progress=55, step="帆软模板检查")
-    metadata_profile = context.get_active_profile_name()
+    context.progress.update(progress=55, step="帆软模板检查")
+    metadata_profile = context.services.get_active_profile_name()
     catalog_loader = getattr(mods, "load_result_table_catalog_snapshot", None)
-    catalog = context.safe(
+    catalog = context.services.safe(
         "结果表登记库(lineage)",
         lambda: catalog_loader(profile=metadata_profile) if callable(catalog_loader) else None,
         None,
@@ -111,20 +98,20 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
     registered = set(
         catalog.registered
         if catalog is not None
-        else context.safe(
+        else context.services.safe(
             "结果表登记库(lineage)",
             lambda: mods.load_registered_result_tables(profile=metadata_profile),
             set(),
         )
     )
     para_tables = set(
-        context.safe(
+        context.services.safe(
             "码值参数表(all_para_table_lists)",
             lambda: {normalize_table(row[0]) for row in mods.public_data.all_para_table_lists() if row and row[0]},
             set(),
         )
     )
-    disabled, sys_name_map = context.safe(
+    disabled, sys_name_map = context.services.safe(
         "结果表标注信息",
         lambda: (
             set(catalog.disabled) if catalog is not None else {
@@ -143,7 +130,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
     reports, all_ref_tables = [], []
     for path in cpt_lists:
         file_name = mods.re_service.get_filename(path)
-        result = context.safe(f"帆软规则({file_name})", lambda p=path: mods.fine_rule.rule_fine(p), CheckResult())
+        result = context.services.safe(f"帆软规则({file_name})", lambda p=path: mods.fine_rule.rule_fine(p), CheckResult())
         issues, ref_tables = [], []
         title, conn, engine_flag, sheets, datasets = file_name, "-", "", [], []
         viewlet = ""
@@ -163,7 +150,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
             engine_flag = str(detail.get("engine") or "")
             sheets = list(detail.get("sheets") or [])
             sql_tables = dedupe_tables(detail.get("sql_tables", []))
-            sql_text = context.safe("数据集 SQL 提取", lambda p=path: mods.fine_rule.get_cpt_sql(p), "")
+            sql_text = context.services.safe("数据集 SQL 提取", lambda p=path: mods.fine_rule.get_cpt_sql(p), "")
             if sql_text:
                 datasets = [{"name": "数据集 SQL", "sql": (sql_text or "").strip(), "rows": "-"}]
             for name in sql_tables:
@@ -192,7 +179,7 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                 "engine": engine_flag,
                 "sheets": sheets,
                 "previewUrl": preview_url,
-                "downloadUrl": context.download_url(path),
+                "downloadUrl": context.services.download_url(path),
                 "datasets": datasets,
                 "issues": issues,
                 "refTables": ref_tables,
@@ -220,13 +207,13 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
         for msg in section["messages"]
         if msg["level"] == "warn"
     )
-    ai = context.build_ai(cpt_lists, errors, warnings)
-    status = context.status_of(errors, warnings)
+    ai = context.services.build_ai(cpt_lists, errors, warnings)
+    status = context.reports.status_of(errors, warnings)
 
-    context.save_category_rows(build_legacy_fine_audit_result_rows(reports))
+    context.services.save_category_rows(build_legacy_fine_audit_result_rows(reports))
 
     return build_fine_report(
-        task=context.build_task_meta(
+        task=context.reports.build_task_meta(
             svn_result,
             status,
             {
@@ -236,8 +223,8 @@ def run_fine(context: WorkflowRuntimeContext) -> dict:
                 "warnings": warnings,
             },
         ),
-        svn=context.build_svn_section(svn_result),
-        changes=context.build_changes(svn_result),
+        svn=context.reports.build_svn_section(svn_result),
+        changes=context.reports.build_changes(svn_result),
         menu_section=menu_section,
         authority_section=authority_section,
         reports=reports,

@@ -1,4 +1,5 @@
 import sys
+import os
 import types
 import unittest
 from unittest.mock import patch
@@ -34,6 +35,11 @@ class _FakeTable:
 
 
 class FineRunnerTests(unittest.TestCase):
+    def setUp(self):
+        self._environment = patch.dict(os.environ, {}, clear=True)
+        self._environment.start()
+        self.addCleanup(self._environment.stop)
+
     def _build_context(self):
         saved_groups = []
         updates = []
@@ -82,7 +88,7 @@ class FineRunnerTests(unittest.TestCase):
                 logs.append((label, str(exc)))
                 return default
 
-        context = WorkflowRuntimeContext(
+        context = WorkflowRuntimeContext.from_legacy(
             mods=mods,
             workflow="fine-report",
             repo="svn://repo/fine/demo",
@@ -207,7 +213,7 @@ class FineRunnerTests(unittest.TestCase):
 
     def test_run_fine_only_highlights_disabled_or_configured_source_system_tables(self):
         context, *_ = self._build_context()
-        context.mods.fine_rule.rule_fine = lambda _path: CheckResult(artifacts={
+        context.services.mods.fine_rule.rule_fine = lambda _path: CheckResult(artifacts={
             "viewlet": "ReportA",
             "connection": "",
             "engine": "",
@@ -219,14 +225,14 @@ class FineRunnerTests(unittest.TestCase):
                 "dwm.m_normal",
             ],
         })
-        context.mods.load_registered_result_tables = lambda *, profile: {
+        context.services.mods.load_registered_result_tables = lambda *, profile: {
             "DWF.F_ORDINARY",
             "DWF.F_CONFIGURED",
             "DWF.F_DISABLED",
             "DWM.M_NORMAL",
         }
-        context.mods.public_data.all_disabled_result_tables = lambda: [("dwf.f_disabled",)]
-        context.mods.public_data.all_result_table_sys_names = lambda: [
+        context.services.mods.public_data.all_disabled_result_tables = lambda: [("dwf.f_disabled",)]
+        context.services.mods.public_data.all_result_table_sys_names = lambda: [
             ("dwf.f_ordinary", "核心系统"),
             ("dwf.f_ordinary", "核心系统"),
             ("dwf.f_configured", "普通系统"),
@@ -268,17 +274,17 @@ class FineRunnerTests(unittest.TestCase):
     def test_run_fine_uses_configured_preview_endpoint(self):
         context, *_ = self._build_context()
 
-        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "http://10.133.6.11/fine/svn_check.html/"}):
+        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "https://reports.example.test/fine/svn_check.html/"}):
             report = run_fine(context)
 
         self.assertEqual(
             report["reports"][0]["previewUrl"],
-            "http://10.133.6.11/fine/svn_check.html?viewlet=ReportA",
+                "https://reports.example.test/fine/svn_check.html?viewlet=ReportA",
         )
 
     def test_run_fine_encodes_chinese_viewlet_path(self):
         context, *_ = self._build_context()
-        context.mods.fine_rule.rule_fine = lambda _path: CheckResult(artifacts={
+        context.services.mods.fine_rule.rule_fine = lambda _path: CheckResult(artifacts={
             "viewlet": r"数据仓库\数字金融部\信贷新老表对比.cpt",
             "connection": "",
             "engine": "",
@@ -286,12 +292,12 @@ class FineRunnerTests(unittest.TestCase):
             "sql_tables": [],
         })
 
-        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "http://10.133.6.11/fine/svn_check.html"}):
+        with patch.dict("os.environ", {"FINE_REPORT_PREVIEW_URL": "https://reports.example.test/fine/svn_check.html"}):
             report = run_fine(context)
 
         self.assertEqual(
             report["reports"][0]["previewUrl"],
-            "http://10.133.6.11/fine/svn_check.html"
+                "https://reports.example.test/fine/svn_check.html"
             "?viewlet=%E6%95%B0%E6%8D%AE%E4%BB%93%E5%BA%93%2F%E6%95%B0%E5%AD%97%E9%87%91%E8%9E%8D%E9%83%A8"
             "%2F%E4%BF%A1%E8%B4%B7%E6%96%B0%E8%80%81%E8%A1%A8%E5%AF%B9%E6%AF%94.cpt",
         )

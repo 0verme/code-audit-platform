@@ -6,7 +6,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.checks.fine_rule import rule_menu  # noqa: E402
+from app.modules.audit.workflows.fine_report.checks import rule_menu  # noqa: E402
 
 
 def test_rule_menu_ignores_blank_lines_and_trailing_newline(tmp_path):

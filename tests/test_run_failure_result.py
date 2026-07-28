@@ -9,12 +9,12 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
-from app.modules.audit.run_failure_result import (  # noqa: E402
+from app.modules.audit.core.failure_result import (  # noqa: E402
     SVN_CLI_MISSING_HINT,
     build_engine_load_failure_result,
     build_failure_result,
 )
-from app.modules.audit.checks.svn_service import SvnCliNotFoundError  # noqa: E402
+from app.modules.audit.source.svn import SvnCliNotFoundError  # noqa: E402
 
 
 class RunFailureResultTests(unittest.TestCase):
@@ -30,10 +30,12 @@ class RunFailureResultTests(unittest.TestCase):
         run.repo = "svn://example.com/repos/branches/hcyt/demo"
         run.workflow = "hcyt"
         run.source_type = source_type
-        run.logs = []
-        run.log = lambda msg, level="INFO": run.logs.append(
+        captured_logs = []
+        run.log = lambda msg, level="INFO": captured_logs.append(
             {"level": level, "msg": str(msg)}
         )
+        run.logs = captured_logs
+        run.captured_logs = captured_logs
         run.update = lambda *args, **kwargs: None
         run.task_running = lambda *args, **kwargs: None
         run.task_success = lambda *args, **kwargs: None
@@ -89,7 +91,7 @@ class RunFailureResultTests(unittest.TestCase):
             any(
                 log["level"] == "ERR"
                 and log["msg"] == "任务异常: svn missing" + SVN_CLI_MISSING_HINT
-                for log in run.logs
+                for log in run.captured_logs
             )
         )
 
@@ -111,7 +113,7 @@ class RunFailureResultTests(unittest.TestCase):
         self.assertTrue(
             any(
                 log["level"] == "ERR" and log["msg"] == "任务异常: workflow boom"
-                for log in run.logs
+                for log in run.captured_logs
             )
         )
 

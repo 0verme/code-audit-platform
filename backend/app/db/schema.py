@@ -12,7 +12,8 @@ from pathlib import Path
 from .connection import _resolve_profile as resolve_runtime_profile
 from .connection import get_connection, split_sql_statements
 from .profiles import DatabaseProfile
-from .tables import RUNTIME_TABLES, render_table_tokens
+from .tables import RUNTIME_TABLES as RUNTIME_TABLES
+from .tables import render_table_tokens
 
 SQL_DIR = Path(__file__).resolve().parent / "sql"
 SCHEMA_FILES = {

@@ -6,12 +6,14 @@ from datetime import datetime
 
 import app.modules.audit.engine as audit_engine
 from app.db.runtime_store import (
+    create_audit_task,
     fail_orphan_tasks,
     get_audit_task as load_audit_task,
+    get_audit_task_by_idempotency_key,
     get_task_report_row,
+    is_unique_constraint_error,
     list_audit_tasks,
 )
-from app.db.sql_runner import execute_insert, execute_one
 from app.modules.audit.source.workspace import validate_local_workspace
 from app.modules.audit.source.resolver import (
     LOCAL_WORKFLOW_UNSUPPORTED_MESSAGE,
@@ -90,12 +92,7 @@ def get_report_json(task_id: int) -> str:
 
 
 def _load_task_by_idempotency_key(idempotency_key: str) -> dict | None:
-    row = execute_one(
-        """SELECT id, repo, source_ref, workflow, status, revision, author,
-                  operator_user, client_ip, source_type, ai_enabled, debug_enabled
-           FROM {{table:audit_tasks}} WHERE idempotency_key = ?""",
-        (idempotency_key,),
-    )
+    row = get_audit_task_by_idempotency_key(idempotency_key)
     return dict(row) if row is not None else None
 
 
@@ -196,23 +193,25 @@ def create_task(payload: dict, *, client_ip: str, idempotency_key: str | None = 
             )
             return _task_creation_response(existing, deduplicated=True)
 
-    insert_sql = """INSERT INTO {{table:audit_tasks}} (
-            repo, source_ref, workflow, status, revision, author, operator_user, client_ip,
-            started_at, duration, ai_enabled, debug_enabled, progress, step, source_type,
-            idempotency_key
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
-    insert_params = (
-        source_ref, source_ref, workflow, "running", payload.get("revision") or "-", operator_user,
-        operator_user, effective_ip, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "0s",
-        int(ai_enabled), int(debug_enabled), 0, "queued", source_type, normalized_idempotency_key,
-    )
     try:
-        task_id = execute_insert(insert_sql, insert_params)
-    except Exception:
+        task_id = create_audit_task(
+            source_ref=source_ref,
+            workflow=workflow,
+            revision=payload.get("revision") or "-",
+            operator_user=operator_user,
+            client_ip=effective_ip,
+            started_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ai_enabled=ai_enabled,
+            debug_enabled=debug_enabled,
+            source_type=source_type,
+            idempotency_key=normalized_idempotency_key,
+        )
+    except Exception as exc:
+        if not normalized_idempotency_key or not is_unique_constraint_error(exc):
+            raise
         existing = (
             _load_task_by_idempotency_key(normalized_idempotency_key)
-            if normalized_idempotency_key
-            else None
+            if normalized_idempotency_key else None
         )
         if existing is None:
             raise

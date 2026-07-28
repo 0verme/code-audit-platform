@@ -8,8 +8,8 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.config.audit_rules import refresh_audit_rules  # noqa: E402
-from app.modules.audit.checks.hcyt import python_rule, sql_rule  # noqa: E402
-from app.modules.audit.checks.hcyt.ddl_rule import is_asset_review_required_table  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks import python_rule, sql_rule  # noqa: E402
+from app.modules.audit.workflows.hcyt.checks.ddl_rule import is_asset_review_required_table  # noqa: E402
 
 
 def test_python_asset_review_issues_only_include_required_schemas():

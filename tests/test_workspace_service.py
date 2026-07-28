@@ -1,11 +1,10 @@
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 
 
-from app.modules.audit.checks.workspace_service import load_local_workspace  # noqa: E402
+from app.modules.audit.source.workspace import load_local_workspace  # noqa: E402
 from app.settings import RuntimeSecuritySettings  # noqa: E402
 
 

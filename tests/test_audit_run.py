@@ -1,7 +1,8 @@
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 
-from app.modules.audit.run import AuditRunState, AuditTask, AuditTaskStatus
+from app.modules.audit.core.run_state import AuditRunState, AuditTask, AuditTaskStatus
 
 
 class AuditRunModelTest(unittest.TestCase):
@@ -88,6 +89,33 @@ class AuditRunModelTest(unittest.TestCase):
         self.assertEqual(payload["partialReport"], {"changes": [{"path": "demo.sql"}]})
         self.assertEqual(payload["tasks"]["changes"]["summary"], {"files": 1})
         self.assertEqual(payload["logs"][0]["msg"], "changes ready")
+
+    def test_concurrent_updates_produce_detached_consistent_snapshots(self):
+        run = AuditRunState(run_id=10, workflow="hcyt")
+        for index in range(20):
+            run.add_task(AuditTask(f"task-{index}", f"Task {index}"))
+
+        def update(index):
+            run.mark_task_running(f"task-{index}")
+            run.set_section(f"section-{index}", {"value": [index]})
+            run.add_log(f"log-{index}")
+            run.mark_task_success(f"task-{index}", summary={"index": index})
+            return run.to_dict()
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            snapshots = list(pool.map(update, range(20)))
+
+        final = run.to_dict()
+        self.assertEqual(final["progress"]["completed"], 20)
+        self.assertEqual(len(final["logs"]), 20)
+        self.assertEqual(len(final["partialReport"]), 20)
+        self.assertTrue(all(snapshot["progress"]["completed"] <= 20 for snapshot in snapshots))
+
+        final["logs"].append({"msg": "external mutation"})
+        final["partialReport"]["section-0"]["value"].append("external mutation")
+        detached = run.to_dict()
+        self.assertEqual(len(detached["logs"]), 20)
+        self.assertEqual(detached["partialReport"]["section-0"], {"value": [0]})
 
 
 if __name__ == "__main__":

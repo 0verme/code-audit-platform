@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import closing
 from datetime import datetime
 import logging
 from pathlib import Path
@@ -16,7 +17,7 @@ def load_mapping_meta(db_path: str | Path, *, sqlite3_module) -> dict[str, str]:
     if not db_path.exists():
         logger.warning("lineage mapping cache unavailable: %s", db_path)
         return {}
-    with sqlite3_module.connect(db_path) as conn:
+    with closing(sqlite3_module.connect(db_path)) as conn:
         rows = conn.execute("SELECT key, value FROM lineage_meta").fetchall()
     return {key: value for key, value in rows}
 
@@ -39,7 +40,7 @@ def recreate_mapping_sqlite(xlsx_path: str | Path, db_path: str | Path, *, ensur
         raise FileNotFoundError(f"Lineage mapping Excel does not exist: {xlsx_path}")
     ensure_db_parent_func(db_path)
     rows = load_lineage_edges_from_xlsx_func(xlsx_path)
-    with sqlite3_module.connect(db_path) as conn:
+    with closing(sqlite3_module.connect(db_path)) as conn, conn:
         conn.execute("DROP TABLE IF EXISTS lineage_edge")
         conn.execute("DROP TABLE IF EXISTS lineage_meta")
         conn.execute("""

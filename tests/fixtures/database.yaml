@@ -1,0 +1,22 @@
+default_profile: local_pg
+metadata_profile: local_pg
+
+profiles:
+  local_pg:
+    type: postgresql
+    host: 127.0.0.1
+    port: 1
+    database: audit_test
+    username: audit_test
+    password: test-only
+    schema: public
+    connect_timeout: 1
+  dev_partition_dws:
+    type: postgresql
+    host: 127.0.0.1
+    port: 1
+    database: audit_test
+    username: audit_test
+    password: test-only
+    schema: public
+    connect_timeout: 1

@@ -8,8 +8,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_runner import run_hcyt  # noqa: E402
-from app.modules.audit.workflow_runtime import WorkflowRuntimeContext  # noqa: E402
+from app.modules.audit.workflows.hcyt.runner import run_hcyt  # noqa: E402
+from app.modules.audit.core.runtime import WorkflowRuntimeContext  # noqa: E402
 
 
 class _InputFiles:
@@ -42,7 +42,7 @@ class HcytRunnerContractTests(unittest.TestCase):
         saved_groups = []
 
         return (
-            WorkflowRuntimeContext(
+            WorkflowRuntimeContext.from_legacy(
                 mods=types.SimpleNamespace(re_service=types.SimpleNamespace(), hcyt=types.SimpleNamespace()),
                 workflow="hcyt",
                 repo="svn://repo/hcyt/demo",

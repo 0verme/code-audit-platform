@@ -13,14 +13,14 @@ from . import registered_tables as registered_tables_helpers
 from . import traversal as traversal_helpers
 from . import xlsx_loader as xlsx_loader_helpers
 from .identifiers import (
-    compact_identifier,
+    compact_identifier as compact_identifier,
     normalize_identifier,
-    normalize_registered_table_name,
+    normalize_registered_table_name as normalize_registered_table_name,
     normalize_token,
     normalize_value,
-    parse_input_table_name,
+    parse_input_table_name as parse_input_table_name,
 )
-from .paths import MAPPING_DB_PATH, MAPPING_XLSX_PATH, resolve_mapping_db_path, resolve_mapping_xlsx_path
+from .paths import resolve_mapping_db_path, resolve_mapping_xlsx_path
 
 
 HEADER_ALIASES = {

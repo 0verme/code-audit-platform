@@ -1,6 +1,6 @@
 import unittest
 
-from app.modules.audit.fine_report_builder import build_fine_report
+from app.modules.audit.workflows.fine_report.report import build_fine_report
 
 
 class FineReportBuilderTests(unittest.TestCase):
@@ -28,6 +28,7 @@ class FineReportBuilderTests(unittest.TestCase):
                 "authority",
                 "reports",
                 "refTables",
+                "sourceFiles",
                 "assetIssues",
                 "unifiedAssetIssues",
             ],

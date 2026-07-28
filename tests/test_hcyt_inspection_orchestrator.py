@@ -1,6 +1,6 @@
 import unittest
 
-from app.modules.audit.hcyt_inspection_orchestrator import (
+from app.modules.audit.workflows.hcyt.orchestrator import (
     build_schedule_shape_mismatch_result,
     run_hcyt_inspections,
 )

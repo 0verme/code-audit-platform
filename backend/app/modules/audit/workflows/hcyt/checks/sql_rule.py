@@ -101,7 +101,6 @@ def collect_created_table_review_issues(dws_url, source_module='hcyt', source_fi
 
 
 def rule_dws(dws_url):
-    print('===================================rule_dws=================================')
     data = read_data_from_file(dws_url)
     result = CheckResult()
     view_names = load_metadata_name_set(all_view_names())

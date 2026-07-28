@@ -37,6 +37,7 @@ from .workflows.hcyt.subworkflow_runtime import (
 )
 from .workflows.nups.runner import run_nups as _run_nups
 from .shared.lineage_payload import empty_lineage_summary, json_safe, lineage_warning
+from .shared.path_export import get_export_base
 from .shared.report_helpers import (
     build_ai as _build_ai,
     build_changes as _build_changes,
@@ -77,14 +78,19 @@ from .source.download import (
     svn_export_root,
 )
 from .core.dispatcher import WorkflowRunContext, run_workflow
-from .core.runtime import WorkflowRuntimeContext
+from .core.runtime import (
+    AuditServices,
+    HcytServices,
+    ReportSupport,
+    RunProgress,
+    WorkflowRuntimeContext,
+)
 from app.db.profiles import get_metadata_profile
 from app.config.audit_rules import get_audit_rules
 from app.db.runtime_store import (
     finalize_task_persistence_failure,
     persist_task_completion_atomic,
     persist_task_run_completion,
-    replace_audit_results,
     update_task_runtime_state,
 )
 
@@ -93,9 +99,9 @@ _empty_lineage_summary = empty_lineage_summary
 get_active_profile = get_metadata_profile
 
 try:
-    from .core.run_state import AuditRunState, AuditTask, AuditTaskStatus
+    from .core.run_state import AuditRunState, AuditTask
 except ImportError:  # pragma: no cover - direct module execution fallback
-    from run import AuditRunState, AuditTask, AuditTaskStatus
+    from run import AuditRunState, AuditTask
 
 # 把拷贝进来的真实项目加入模块搜索路径，保持其内部 `from core...`、
 # `from services...`、`from shared...` 等绝对导入原样可用。
@@ -318,13 +324,13 @@ class TaskRun:
         self.debug_enabled = bool(debug_enabled)
         self.author = author
         self.source_type = (source_type or "svn").lower()
-        self.logs = []
         self.start_ts = time.time()
         self.run_state = create_audit_run_state(task_id, workflow)
         self.run_state.mark_running()
         self._source_download_paths = {}
         self._source_download_by_relative = {}
         self._source_download_root = None
+        self._pending_audit_results = {}
 
     # ---- 日志 / 进度 ----
 
@@ -334,20 +340,29 @@ class TaskRun:
             self.run_state.mark_running()
         return self.run_state
 
+    @property
+    def logs(self):
+        return self._ensure_run_state().logs_snapshot()
+
+    @logs.setter
+    def logs(self, value):
+        self._ensure_run_state().replace_logs(list(value or []))
+
     def log(self, msg, level="INFO", detail=False):
         message = str(msg)
         is_detail = detail or message.startswith("[timing]") or message.startswith("Traceback (most recent call last):")
         if is_detail and not self.debug_enabled:
             return
-        entry = {"ts": datetime.now().strftime("%H:%M:%S"), "level": level, "msg": message}
-        self.logs.append(entry)
-        self._ensure_run_state().add_log(message, level=level)
-        print(f"[task {self.task_id}] {level} {message}", flush=True)
+        self._ensure_run_state().add_log(
+            message,
+            level=level,
+            timestamp=datetime.now().strftime("%H:%M:%S"),
+        )
 
     def update(self, progress=None, step=None):
         update_task_runtime_state(
             self.task_id,
-            json.dumps(self.logs, ensure_ascii=False),
+            json.dumps(self._ensure_run_state().logs_snapshot(), ensure_ascii=False),
             progress=progress,
             step=step,
         )
@@ -355,19 +370,13 @@ class TaskRun:
             self.log(f"当前步骤：{step}")
 
     def task_running(self, key):
-        state = self._ensure_run_state().get_task(key)
-        if state.status == AuditTaskStatus.QUEUED:
-            state.mark_running()
+        self._ensure_run_state().mark_task_running(key)
 
     def task_success(self, key, result=None, summary=None):
-        state = self._ensure_run_state().get_task(key)
-        if not state.is_terminal:
-            state.mark_success(result=result, summary=summary)
+        self._ensure_run_state().mark_task_success(key, result=result, summary=summary)
 
     def task_skipped(self, key, reason=""):
-        state = self._ensure_run_state().get_task(key)
-        if not state.is_terminal:
-            state.mark_skipped(reason)
+        self._ensure_run_state().mark_task_skipped(key, reason)
 
     def set_partial(self, key, value):
         self._ensure_run_state().set_section(key, value)
@@ -403,15 +412,13 @@ class TaskRun:
                     "INFO",
                 )
 
-        if self.workflow in {"hcyt", "nups"} and report is not None:
-            # Both workflows have complete reports and final legacy-result
-            # projections on this path. Keep every completion fact in the
-            # repository transaction.
-            audit_results = (
-                build_legacy_hcyt_audit_result_rows(report)
-                if self.workflow == "hcyt"
-                else build_legacy_nups_audit_result_rows(report.get("sqlChecks", []))
-            )
+        if report is not None:
+            if self.workflow == "hcyt":
+                audit_results = build_legacy_hcyt_audit_result_rows(report)
+            elif self.workflow == "nups":
+                audit_results = build_legacy_nups_audit_result_rows(report.get("sqlChecks", []))
+            else:
+                audit_results = dict(getattr(self, "_pending_audit_results", {}) or {})
             self.task_running("summary")
             try:
                 persist("task.persistence.atomic", lambda: persist_task_completion_atomic(
@@ -422,19 +429,15 @@ class TaskRun:
             except Exception as exc:
                 # TaskRun.run() must not turn a failed atomic completion into a
                 # legacy, non-atomic completion attempt.
-                summary_state = self._ensure_run_state().get_task("summary")
-                if not summary_state.is_terminal:
-                    summary_state.mark_failed(exc)
+                self._ensure_run_state().mark_task_failed("summary", exc)
                 self._ensure_run_state().mark_finished(error=exc)
                 self._atomic_completion_failed = True
                 persistence_error = f"审查报告保存失败: {exc}"
-                failure_entry = {
-                    "ts": datetime.now().strftime("%H:%M:%S"),
-                    "level": "ERR",
-                    "msg": persistence_error,
-                }
-                self.logs.append(failure_entry)
-                self._ensure_run_state().add_log(persistence_error, level="ERR")
+                self._ensure_run_state().add_log(
+                    persistence_error,
+                    level="ERR",
+                    timestamp=datetime.now().strftime("%H:%M:%S"),
+                )
                 try:
                     finalize_task_persistence_failure(
                         self.task_id,
@@ -451,9 +454,11 @@ class TaskRun:
             self.set_partial("finalReport", report)
             self.task_success("summary", summary={"status": status})
             self._ensure_run_state().mark_finished()
-            self.logs.append(completion_entry)
-            self._ensure_run_state().add_log(completion_entry["msg"], level=completion_entry["level"])
-            print(f"[task {self.task_id}] INFO {completion_entry['msg']}", flush=True)
+            self._ensure_run_state().add_log(
+                completion_entry["msg"],
+                level=completion_entry["level"],
+                timestamp=completion_entry["ts"],
+            )
             return
 
         persist("task.persistence", lambda: persist_task_run_completion(
@@ -463,62 +468,66 @@ class TaskRun:
             logs=terminal_logs if report is not None else self.logs,
             report=report,
         ))
-        if report is not None:
-            self.set_partial("finalReport", report)
-            self.task_success("summary", summary={"status": status})
-            self._ensure_run_state().mark_finished()
-            self.logs.append(completion_entry)
-            self._ensure_run_state().add_log(completion_entry["msg"], level=completion_entry["level"])
-            print(f"[task {self.task_id}] INFO {completion_entry['msg']}", flush=True)
-        else:
-            self._ensure_run_state().mark_finished(error=error or status)
+        self._ensure_run_state().mark_finished(error=error or status)
 
     def save_category_rows(self, grouped_rows):
-        """Sync audit_results to preserve the legacy /api/audit-results endpoint."""
-        replace_audit_results(self.task_id, grouped_rows)
+        """Stage compatibility rows for the repository-owned completion transaction."""
+
+        self._pending_audit_results = {
+            str(category): [dict(row) for row in rows]
+            for category, rows in (grouped_rows or {}).items()
+        }
 
 
     # ---- 主入口 ----
 
     def build_workflow_runtime(self, svn_result):
         return WorkflowRuntimeContext(
-            mods=_mods,
             workflow=self.workflow,
             repo=self.repo,
             task_id=self.task_id,
             ai_enabled=getattr(self, "ai_enabled", False),
             source_payload=svn_result,
-            safe=self.safe,
-            log=self.log,
-            update=self.update,
-            task_running=self.task_running,
-            task_success=self.task_success,
-            task_skipped=self.task_skipped,
-            set_partial=self.set_partial,
-            save_category_rows=self.save_category_rows,
-            download_url=self.download_url,
-            build_task_meta=self.build_task_meta,
-            build_svn_section=self.build_svn_section,
-            build_changes=self.build_changes,
-            build_conflicts=self.build_conflicts,
-            build_lineage_summary=_build_lineage_summary_payload,
-            build_config_files=self.build_config_files,
-            build_job_table=self.build_job_table,
-            build_ai=self.build_ai,
-            get_active_profile_name=self.get_active_profile_name,
-            collect_hcyt_input_files=collect_hcyt_input_files,
-            build_source_classified_progress=build_source_classified_progress,
-            publish_hcyt_progress=publish_hcyt_progress,
-            run_hcyt_rules=run_hcyt_rules,
-            run_hcyt_inspections=run_hcyt_inspections,
-            run_hcyt_ai_review=run_hcyt_ai_review,
-            sync_hcyt_legacy_results=sync_hcyt_legacy_results,
-            build_hcyt_report=build_hcyt_report,
-            run_hcyt_schedule=self.run_hcyt_schedule,
-            run_hcyt_programs=self.run_hcyt_programs,
-            status_of=self.status_of,
-            count_levels=self.count_levels,
-            build_source_file=self.build_source_file,
+            progress=RunProgress(
+                log=self.log,
+                update=self.update,
+                task_running=self.task_running,
+                task_success=self.task_success,
+                task_skipped=self.task_skipped,
+                set_partial=self.set_partial,
+            ),
+            services=AuditServices(
+                mods=_mods,
+                safe=self.safe,
+                save_category_rows=self.save_category_rows,
+                download_url=self.download_url,
+                build_ai=self.build_ai,
+                get_active_profile_name=self.get_active_profile_name,
+            ),
+            reports=ReportSupport(
+                build_task_meta=self.build_task_meta,
+                build_svn_section=self.build_svn_section,
+                build_changes=self.build_changes,
+                build_conflicts=self.build_conflicts,
+                build_lineage_summary=_build_lineage_summary_payload,
+                build_config_files=self.build_config_files,
+                build_job_table=self.build_job_table,
+                status_of=self.status_of,
+                count_levels=self.count_levels,
+                build_source_file=self.build_source_file,
+            ),
+            hcyt=HcytServices(
+                collect_input_files=collect_hcyt_input_files,
+                build_source_classified_progress=build_source_classified_progress,
+                publish_progress=publish_hcyt_progress,
+                run_rules=run_hcyt_rules,
+                run_inspections=run_hcyt_inspections,
+                run_ai_review=run_hcyt_ai_review,
+                sync_legacy_results=sync_hcyt_legacy_results,
+                build_report=build_hcyt_report,
+                run_schedule=self.run_hcyt_schedule,
+                run_programs=self.run_hcyt_programs,
+            ),
         )
 
     def run(self):
@@ -650,7 +659,7 @@ class TaskRun:
             self._source_download_root = Path(root).resolve()
             self._source_download_paths = source_relative_paths(svn_result.get("exported_paths", []), root)
         else:
-            self._source_download_root = svn_export_root(self.repo, _mods.re_service.get_export_base())
+            self._source_download_root = svn_export_root(self.repo, get_export_base())
             self._source_download_paths = source_relative_paths_from_changes(
                 svn_result.get("exported_paths", []), svn_result.get("branch_changed_files", [])
             )

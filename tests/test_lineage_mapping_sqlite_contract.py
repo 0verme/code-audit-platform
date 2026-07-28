@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
+from contextlib import closing
 from unittest.mock import patch
 
 from openpyxl import Workbook
@@ -14,7 +15,6 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from app.modules.lineage import mapping_compat as mapping_sqlite  # noqa: E402
-from app.modules.lineage import mapping_compat as new_mapping  # noqa: E402
 
 
 def alias(field_name: str) -> str:
@@ -138,7 +138,7 @@ class MappingSqliteContractTests(unittest.TestCase):
                 self.assertTrue(status["xlsx_exists"])
                 self.assertTrue(status["is_fresh"])
 
-                with sqlite3.connect(db_path) as conn:
+                with closing(sqlite3.connect(db_path)) as conn:
                     tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                     edge_rows = conn.execute(
                         "SELECT source_schema, source_table, source_column, target_schema, target_table, target_column "
@@ -167,7 +167,7 @@ class MappingSqliteContractTests(unittest.TestCase):
             with self.tracked_sqlite_connections():
                 mapping_sqlite.recreate_mapping_sqlite(xlsx_path, db_path)
 
-                with sqlite3.connect(db_path) as conn:
+                with closing(sqlite3.connect(db_path)) as conn:
                     conn.execute("UPDATE lineage_meta SET value = '0' WHERE key = 'source_xlsx_size'")
                     conn.commit()
 
@@ -246,7 +246,7 @@ class MappingSqliteContractTests(unittest.TestCase):
             tmp_path = Path(tmpdir)
             db_path = tmp_path / "mapping.db"
             with self.tracked_sqlite_connections():
-                with sqlite3.connect(db_path) as conn:
+                with closing(sqlite3.connect(db_path)) as conn:
                     conn.execute(
                         """
                         CREATE TABLE lineage_edge (

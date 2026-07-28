@@ -1,11 +1,9 @@
 import logging
-import sys
 import unittest
-from pathlib import Path
 
 
 
-from app.modules.audit.checks import re_service  # noqa: E402
+from app.modules.audit.shared import file_analysis as re_service  # noqa: E402
 
 
 class RowLike:

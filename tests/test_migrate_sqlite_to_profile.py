@@ -3,6 +3,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 
 
@@ -22,7 +23,7 @@ def sqlite_profile(name: str, path: Path) -> DatabaseProfile:
 
 
 def seed_source(path: Path) -> None:
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.executescript(
             """
             CREATE TABLE projects (
@@ -218,7 +219,7 @@ class MigrationScriptTests(unittest.TestCase):
             initialize_schema(profile)
             runner = SQLRunner(profile)
             SQLiteToProfileMigrator(source, "target", runner=runner).migrate()
-            with sqlite3.connect(target) as connection:
+            with closing(sqlite3.connect(target)) as connection:
                 report_json = connection.execute(
                     f"SELECT report_json FROM {qualified_table_name('task_reports', profile)} WHERE task_id = 1"
                 ).fetchone()[0]

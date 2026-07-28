@@ -10,12 +10,12 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.hcyt_subworkflow_runtime import (  # noqa: E402
+from app.modules.audit.workflows.hcyt.subworkflow_runtime import (  # noqa: E402
     run_hcyt_programs,
     run_hcyt_schedule,
 )
-from app.modules.audit.findings import CheckResult  # noqa: E402
-from app.modules.audit.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
+from app.modules.audit.shared.findings import CheckResult  # noqa: E402
+from app.modules.audit.shared.result_normalizer import dedupe_tables, normalize_table  # noqa: E402
 
 
 class ScheduleModules:
@@ -23,7 +23,7 @@ class ScheduleModules:
         self.re_service = types.SimpleNamespace(
             load_xls_to_df=lambda path: {
                 "plan.xlsx": pd.DataFrame([["PLAN_A", "", "", "", "JOB_A"]]),
-                "seq.xlsx": pd.DataFrame([["PLAN_A", "FLOW_A", "desc"]]),
+                "seq.xlsx": pd.DataFrame([["PLAN_A", "FLOW_A", "desc", ""]]),
                 "cale.xlsx": pd.DataFrame([["daily", "1"]], columns=["cycle", "value"]),
                 "job.xlsx": pd.DataFrame([["JOB_A", "task"]]),
             }[path]
@@ -35,7 +35,8 @@ class ScheduleModules:
         job_result = CheckResult()
         job_result.add("hcyt.schedule.job.demo", "作业示例", "err", "job err")
         self.hcyt = types.SimpleNamespace(
-            rule_excle_plan=lambda _df: plan_result,
+            collect_send_plan_names=lambda _job_source: set(),
+            rule_excle_plan=lambda _df, **_kwargs: plan_result,
             rule_excle_seq=lambda _df: seq_result,
             rule_excle_job=lambda _df, **_kwargs: job_result,
         )

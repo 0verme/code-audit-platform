@@ -9,6 +9,7 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 import app.modules.audit.engine as audit_engine  # noqa: E402
+from app.modules.audit.source.resolver import resolve_workflow  # noqa: E402
 
 
 class EngineOrchestrationContractTests(unittest.TestCase):
@@ -40,9 +41,9 @@ class EngineOrchestrationContractTests(unittest.TestCase):
         )
         return run
 
-    def test_detect_workflow_remains_exported_from_engine_for_api_layer(self):
+    def test_workflow_resolution_uses_the_source_boundary(self):
         self.assertEqual(
-            audit_engine.detect_workflow("svn://repo/branches/fine-report/demo", "hcyt"),
+            resolve_workflow("svn://repo/branches/fine-report/demo", "hcyt"),
             "fine-report",
         )
 

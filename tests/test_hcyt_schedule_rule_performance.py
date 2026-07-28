@@ -42,6 +42,14 @@ def job_row(
 
 
 class HcytScheduleRulePerformanceTests(unittest.TestCase):
+    def test_job_workbook_schema_is_rejected_before_metadata_queries(self):
+        result = schedule_rule.rule_excle_job(pd.DataFrame([["JOB_A", "task"]]))
+
+        self.assertEqual(
+            [finding.rule_code for finding in result.findings],
+            ["hcyt.schedule.job.invalid_schema"],
+        )
+
     def test_missing_send_plan_is_identified_from_job_proname(self):
         plan_name = "PLAN_CUSTOM_EXPORT_DAY"
         plan_df = pd.DataFrame([[plan_name, ""]], columns=["计划名", "前置依赖"])

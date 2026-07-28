@@ -6,7 +6,7 @@ from app import create_app
 
 class AuditConfigurationTests(unittest.TestCase):
     def setUp(self):
-        self.client = create_app(recover_tasks=False).test_client()
+        self.client = create_app().test_client()
 
     @patch("app.routes.audit_configuration.load_svn_config")
     @patch("app.routes.audit_configuration.get_audit_rules")

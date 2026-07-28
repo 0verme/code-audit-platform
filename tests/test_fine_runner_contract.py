@@ -51,7 +51,7 @@ class FineRunnerContractTests(unittest.TestCase):
                 logs.append(f"{label}:{exc}")
                 return default
 
-        context = WorkflowRuntimeContext(
+        context = WorkflowRuntimeContext.from_legacy(
             mods=mods,
             workflow="fine-report",
             repo="svn://repo/fine/demo",

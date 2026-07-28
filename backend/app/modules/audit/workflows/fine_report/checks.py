@@ -149,7 +149,6 @@ def get_cpt_yuan(fine_name):
 
 
 def rule_menu(authority_name):
-    print('===========rule_menu==========')
     result = CheckResult()
     try:
         menu_rules = get_audit_rules()["fine_report"]["menu_normalization"]
@@ -227,7 +226,6 @@ def has_valid_org_tree_default_sql(data):
 
 
 def rule_authority(authority_name,memu_url):
-    print('===========rule_authority==========')
     role_lists, fine_lists = all_role(), all_fine()
 
     result = CheckResult()
@@ -248,7 +246,6 @@ def rule_authority(authority_name,memu_url):
             authority_lists.append([repot_name, r_lists])
             for j in r_lists:
                 if j not in role_lists:
-                    print(j)
                     result.add('fine.authority.missing_role', '生产角色登记', 'err', f'{j} 生产没有该角色 ')
             if repot_name and repot_name not in valid_report_names:
                 result.add('fine.authority.missing_menu', '报表目录登记', 'err', f'{repot_name} 未有该目录 ')
@@ -258,10 +255,8 @@ def rule_authority(authority_name,memu_url):
         return result
 
 def rule_fine(fine_name):
-    print('===========rule_fine==========')
     sstb_name = []
     viewlet_url = str(extract_sub_path(fine_name))
-    print(fine_name)
     result = CheckResult()
     data = read_data_from_file(fine_name)
     f_name = fine_name.split('/')[-1]

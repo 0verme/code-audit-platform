@@ -7,8 +7,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.modules.audit.result_normalizer import normalize_table  # noqa: E402
-from app.modules.audit.result_table_annotations import (  # noqa: E402
+from app.modules.audit.shared.result_normalizer import normalize_table  # noqa: E402
+from app.modules.audit.shared.table_annotations import (  # noqa: E402
     annotate_table,
     build_result_table_sys_name_map,
     load_result_table_annotations,

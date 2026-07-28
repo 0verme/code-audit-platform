@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 from ...core.runtime import WorkflowRuntimeContext
-from ...shared.report_helpers import build_source_file
+from ...shared.source_files import resolve_source_file
 
 
 def build_sql_analysis_message(*, dws_url, hive_url):
@@ -52,27 +52,27 @@ def build_hcyt_timing_milestone(
 
 
 def run_hcyt(context: WorkflowRuntimeContext) -> dict:
-    mods = context.mods
+    mods = context.services.mods
     svn_result = context.source_payload
 
     def timed(label, fn):
         started = time.perf_counter()
-        context.log(f"[timing] {label} start", "INFO")
+        context.progress.log(f"[timing] {label} start", "INFO")
         try:
             return fn()
         finally:
-            context.log(
+            context.progress.log(
                 f"[timing] {label} end elapsed_ms={round((time.perf_counter() - started) * 1000, 1)}",
                 "INFO",
             )
 
-    context.task_running("classify_files")
-    input_files = timed("hcyt.classify_files", lambda: context.collect_hcyt_input_files(
+    context.progress.task_running("classify_files")
+    input_files = timed("hcyt.classify_files", lambda: context.hcyt.collect_input_files(
         svn_result=svn_result,
         re_service=mods.re_service,
         hcyt=mods.hcyt,
-        build_changes=context.build_changes,
-        build_conflicts=context.build_conflicts,
+        build_changes=context.reports.build_changes,
+        build_conflicts=context.reports.build_conflicts,
     ))
     (
         dws_url,
@@ -97,19 +97,6 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
     has_schedule = any((plan_xls, seq_xls, cale_xls, job_xls))
     has_programs = bool(py_lists)
 
-    def source_file(path, section, kind):
-        if not path:
-            return None
-        if callable(context.build_source_file):
-            return context.build_source_file(path, section=section, kind=kind)
-        return build_source_file(
-            path,
-            section=section,
-            kind=kind,
-            download_url=context.download_url,
-            relative_path=mods.re_service.safe_remove_prefix,
-        )
-
     source_specs = [
         (dws_url, "dws", "dws"),
         (hive_url, "hive", "hive"),
@@ -130,12 +117,12 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
     source_files = [
         descriptor
         for path, section, kind in source_specs
-        if (descriptor := source_file(path, section, kind))
+        if (descriptor := resolve_source_file(context, path, section=section, kind=kind))
     ]
 
     def log_timing(label, phase, **fields):
         suffix = " ".join(f"{key}={value}" for key, value in fields.items())
-        context.log(f"[timing] {label} {phase}" + (f" {suffix}" if suffix else ""), "INFO")
+        context.progress.log(f"[timing] {label} {phase}" + (f" {suffix}" if suffix else ""), "INFO")
         milestone = build_hcyt_timing_milestone(
             label,
             phase,
@@ -144,21 +131,21 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
             **fields,
         )
         if milestone:
-            context.log(milestone, "INFO")
+            context.progress.log(milestone, "INFO")
 
-    context.publish_hcyt_progress(
-        context.set_partial,
-        context.build_source_classified_progress(changes=changes, conflicts=conflicts),
+    context.hcyt.publish_progress(
+        context.progress.set_partial,
+        context.hcyt.build_source_classified_progress(changes=changes, conflicts=conflicts),
     )
-    context.set_partial("sourceFiles", source_files)
-    context.task_success("classify_files", summary={"changedFiles": len(changes)})
-    context.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
+    context.progress.set_partial("sourceFiles", source_files)
+    context.progress.task_success("classify_files", summary={"changedFiles": len(changes)})
+    context.progress.task_success("trunk_conflicts", result=conflicts, summary={"conflicts": len(conflicts)})
 
-    context.update(progress=35, step="SQL 与配置规则检查")
+    context.progress.update(progress=35, step="SQL 与配置规则检查")
     sql_analysis_message = build_sql_analysis_message(dws_url=dws_url, hive_url=hive_url)
     if sql_analysis_message:
-        context.log(sql_analysis_message, "INFO")
-    sql_checks, asset_issues, config_files = timed("hcyt.rules", lambda: context.run_hcyt_rules(
+        context.progress.log(sql_analysis_message, "INFO")
+    sql_checks, asset_issues, config_files = timed("hcyt.rules", lambda: context.hcyt.run_rules(
         dws_url,
         hive_url,
         schame_config_lists,
@@ -166,7 +153,7 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         recv_lists,
         dwo_lists,
         dwf_lists,
-        safe=context.safe,
+        safe=context.services.safe,
         modules=type(
             "HcytRuleRunnerModules",
             (),
@@ -194,21 +181,21 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
             },
         )(),
         grouped=grouped,
-        task_running=context.task_running,
-        task_success=context.task_success,
-        task_skipped=context.task_skipped,
-        set_partial=context.set_partial,
-        download_url=context.download_url,
-        build_config_files=context.build_config_files,
+        task_running=context.progress.task_running,
+        task_success=context.progress.task_success,
+        task_skipped=context.progress.task_skipped,
+        set_partial=context.progress.set_partial,
+        download_url=context.services.download_url,
+        build_config_files=context.reports.build_config_files,
         log_timing=log_timing,
     ))
 
-    context.update(progress=50, step="调度规范检查")
+    context.progress.update(progress=50, step="调度规范检查")
     if has_schedule:
-        context.log("打印待上线调度信息", "INFO")
-        context.log("分析调度规范", "INFO")
-    context.task_running("schedule")
-    inspections = timed("hcyt.inspections", lambda: context.run_hcyt_inspections(
+        context.progress.log("打印待上线调度信息", "INFO")
+        context.progress.log("分析调度规范", "INFO")
+    context.progress.task_running("schedule")
+    inspections = timed("hcyt.inspections", lambda: context.hcyt.run_inspections(
         plan_xls=plan_xls,
         seq_xls=seq_xls,
         cale_xls=cale_xls,
@@ -217,15 +204,15 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         program_xls=program_xls,
         task_id=context.task_id,
         initial_asset_issues=asset_issues,
-        run_schedule=context.run_hcyt_schedule,
-        run_programs=context.run_hcyt_programs,
-        build_lineage_summary=context.build_lineage_summary,
+        run_schedule=context.hcyt.run_schedule,
+        run_programs=context.hcyt.run_programs,
+        build_lineage_summary=context.reports.build_lineage_summary,
         modules=mods,
-        log_schedule_warning=lambda msg: context.log(msg, "WARN"),
-        update_progress=context.update,
-        task_running=context.task_running,
-        task_success=context.task_success,
-        set_partial=context.set_partial,
+        log_schedule_warning=lambda msg: context.progress.log(msg, "WARN"),
+        update_progress=context.progress.update,
+        task_running=context.progress.task_running,
+        task_success=context.progress.task_success,
+        set_partial=context.progress.set_partial,
         grouped=grouped,
         log_timing=log_timing,
     ))
@@ -237,18 +224,18 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
     unified_asset_issues = inspections.unified_asset_issues
     lineage_summary = inspections.lineage_summary
 
-    errors, warnings = context.count_levels(list(grouped.values()) + [schedule["rows"]])
-    ai = timed("hcyt.ai_review", lambda: context.run_hcyt_ai_review(
+    errors, warnings = context.reports.count_levels(list(grouped.values()) + [schedule["rows"]])
+    ai = timed("hcyt.ai_review", lambda: context.hcyt.run_ai_review(
         py_lists=py_lists,
         dws_url=dws_url,
         errors=errors,
         warnings=warnings,
         ai_enabled=context.ai_enabled,
-        update_progress=context.update,
-        build_ai=context.build_ai,
+        update_progress=context.progress.update,
+        build_ai=context.services.build_ai,
     ))
 
-    status = context.status_of(errors + len(conflicts), warnings)
+    status = context.reports.status_of(errors + len(conflicts), warnings)
     checks = sum(
         1
         for flag in (
@@ -266,8 +253,8 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         if flag
     )
 
-    return timed("hcyt.report", lambda: context.build_hcyt_report(
-        task=context.build_task_meta(
+    return timed("hcyt.report", lambda: context.hcyt.build_report(
+        task=context.reports.build_task_meta(
             svn_result,
             status,
             {
@@ -279,7 +266,7 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
                 "sqlFiles": len(svn_result["exported_paths"]),
             },
         ),
-        svn=context.build_svn_section(svn_result),
+        svn=context.reports.build_svn_section(svn_result),
         changes=changes,
         conflicts=conflicts,
         grouped=grouped,
@@ -293,6 +280,6 @@ def run_hcyt(context: WorkflowRuntimeContext) -> dict:
         unified_asset_issues=unified_asset_issues,
         lineage_summary=lineage_summary,
         source_files=source_files,
-        metadata_profile=context.get_active_profile_name(),
+        metadata_profile=context.services.get_active_profile_name(),
         ai=ai,
     ))

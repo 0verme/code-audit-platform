@@ -1,5 +1,10 @@
 # Async Parallel Audit Design
 
+> Historical design note. The unintegrated `BoundedAuditExecutor` prototype was
+> retired in July 2026. Production execution remains the workflow-owned,
+> single-process path; any future multi-instance design must start from durable
+> owner/lease/CAS semantics rather than restoring the in-memory prototype.
+
 ## Current Execution Flow
 
 The current API already creates an `audit_tasks` row and starts work in a
