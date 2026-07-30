@@ -14,6 +14,7 @@ from .ddl_rule import (
 )
 from app.modules.metadata.services.public_data import all_function_names, all_sstb, all_tab_partitions, all_view_names
 from app.modules.audit.rules.portal_link_builder import build_portal_link
+from ....shared.d_date_rules import detect_d_date_issues
 from ....shared.findings import CheckResult
 from ....shared.timing import run_timed as _timed
 from ....shared.file_analysis import (
@@ -331,6 +332,7 @@ def rule_dws_py(dws_url, *, log_timing=None, file_name=None, metadata_cache=None
             continue
         if i.upper() in data.upper():
             result.add('hcyt.program.forbidden_table', '错误表引用', 'err', f'用错表 {i}', evidence={'table': i})
+    d_date_issues = detect_d_date_issues(data)
     data = data.replace(' ', '').replace('\t', '').upper()
     if '=(SELECT' in data:
         result.add('hcyt.program.scalar_subquery', '标量子查询', 'err', '存在 = ( select 子查询 注意跑批效率 和 万一数据多条导致程序报错')
@@ -339,18 +341,17 @@ def rule_dws_py(dws_url, *, log_timing=None, file_name=None, metadata_cache=None
         result.add('hcyt.program.in_subquery', 'IN 子查询', 'warn', '存在 in ( select 子查询 注意跑批效率')
     if '.END_DT>=' in data:
         result.add('hcyt.program.end_dt_range', '拉链结束日期范围', 'err', '检测到 END_DT>= 注意拉链数据重复')
-    if "D_DATE=TO_DATE('" in data:
+    if 'd_date_to_date' in d_date_issues:
         result.add('hcyt.program.d_date_to_date', '主题表日期写法', 'err', "存在关键字 D_DATE=TO_DATE(' 使用主题表请改为 d_date ='YYYYMMDD' ")
-    if "D_DATE=DATE'" in data:
+    if 'd_date_literal' in d_date_issues:
         result.add('hcyt.program.d_date_literal', '主题表日期写法', 'err', "存在关键 D_DATE = DATE' 使用主题表请改为 d_date ='YYYYMMDD' ")
-    if "DATE(D_DATE)" in data:
+    if 'd_date_function' in d_date_issues:
         result.add('hcyt.program.d_date_function', '主题表日期写法', 'err', "存在关键 DATE(D_DATE) 使用主题表请改为 d_date ='YYYYMMDD' ")
-    if "TO_DATE(D_DATE," in data:
+    if 'to_date_d_date' in d_date_issues:
         result.add('hcyt.program.to_date_d_date', '主题表日期写法', 'err', "存在关键 TO_DATE(D_DATE, 使用主题表请改为 d_date ='YYYYMMDD' ")
-    data = data.replace('END_DATE', '').upper()
-    if "D_DATE<" in data:
+    if 'd_date_less_than' in d_date_issues:
         result.add('hcyt.program.d_date_less_than', '主题表日期区间', 'err', '存在关键字 D_DATE< 请检查，如果使用全量主题表 不允许使用区间')
-    if "D_DATE>" in data:
+    if 'd_date_greater_than' in d_date_issues:
         result.add('hcyt.program.d_date_greater_than', '主题表日期区间', 'err', '存在关键字 D_DATE> 请检查，如果使用全量主题表 不允许使用区间')
     if log_timing is not None:
         log_timing(

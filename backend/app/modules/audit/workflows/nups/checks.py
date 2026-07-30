@@ -27,6 +27,7 @@ from ...shared.file_analysis import (
     read_data_from_file,
 )
 from app.config.audit_rules import get_audit_rules
+from ...shared.d_date_rules import detect_d_date_issues
 from ...shared.dws_sql_review import run_configured_dws_sql_reviews
 from ...shared.findings import CheckResult, Finding
 
@@ -262,6 +263,7 @@ def rule_dws_py(dws_url):
         if item.upper() in data.upper():
             result.add('nups.program.forbidden_table', '错误表引用', 'err', f'用错表 {item}')
 
+    d_date_issues = detect_d_date_issues(data)
     normalized_data = data.replace(' ', '').replace('\t', '').upper()
     if '=(SELECT' in normalized_data:
         result.add('nups.program.scalar_subquery', '标量子查询', 'err', '存在 = ( select 子查询，请注意跑批效率，以及万一数据多条导致程序报错')
@@ -270,18 +272,17 @@ def rule_dws_py(dws_url):
         result.add('nups.program.in_subquery', 'IN 子查询', 'err', '存在 in ( select 子查询，请注意跑批效率')
     if '.END_DT>=' in normalized_data:
         result.add('nups.program.end_dt_range', '拉链结束日期范围', 'err', '检测到 END_DT>=，注意拉链数据重复')
-    if "D_DATE=TO_DATE('" in normalized_data:
+    if 'd_date_to_date' in d_date_issues:
         result.add('nups.program.d_date_to_date', '主题表日期写法', 'err', "存在关键字 D_DATE=TO_DATE('，使用主题表请改为 d_date ='YYYYMMDD' ")
-    if "D_DATE=DATE'" in normalized_data:
+    if 'd_date_literal' in d_date_issues:
         result.add('nups.program.d_date_literal', '主题表日期写法', 'err', "存在关键字 D_DATE = DATE'，使用主题表请改为 d_date ='YYYYMMDD' ")
-    if 'DATE(D_DATE)' in normalized_data:
+    if 'd_date_function' in d_date_issues:
         result.add('nups.program.d_date_function', '主题表日期写法', 'err', "存在关键字 DATE(D_DATE)，使用主题表请改为 d_date ='YYYYMMDD' ")
-    if 'TO_DATE(D_DATE,' in normalized_data:
+    if 'to_date_d_date' in d_date_issues:
         result.add('nups.program.to_date_d_date', '主题表日期写法', 'err', "存在关键字 TO_DATE(D_DATE,，使用主题表请改为 d_date ='YYYYMMDD' ")
-    normalized_data = normalized_data.replace('END_DATE', '')
-    if 'D_DATE<' in normalized_data:
+    if 'd_date_less_than' in d_date_issues:
         result.add('nups.program.d_date_less_than', '主题表日期区间', 'err', '存在关键字 D_DATE<，请检查；如果使用全量主题表，不允许使用区间')
-    if 'D_DATE>' in normalized_data:
+    if 'd_date_greater_than' in d_date_issues:
         result.add('nups.program.d_date_greater_than', '主题表日期区间', 'err', '存在关键字 D_DATE>，请检查；如果使用全量主题表，不允许使用区间')
     result.artifacts['sql_tables'] = sql_table
     return result
