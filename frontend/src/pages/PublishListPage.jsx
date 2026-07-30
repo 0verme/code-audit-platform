@@ -84,7 +84,7 @@ export default function PublishListPage() {
             <div><strong>上线明细</strong><small>计划上线 {summary.total || 0} 项 · 日期 {selectedDate}</small></div>
           </div>
           <div className="publish-list-filters" role="group" aria-label="按审核状态筛选">
-            {["all", "pending", "reviewing", "passed", "rejected", "launched"].map((key) => (
+            {["all", "passed", "completed", "reviewing", "processing", "launched"].map((key) => (
               <button key={key} type="button" className={status === key ? "active" : ""} onClick={() => setStatus(key)}>
                 {key === "all" ? "全部" : STATUS[key].label}
               </button>
