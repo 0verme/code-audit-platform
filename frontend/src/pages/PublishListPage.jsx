@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../components/ui";
 import { reviewService } from "../services/reviewService";
 
@@ -14,6 +14,8 @@ const STATUS = {
   unknown: { label: "未知状态", tone: "unknown" },
 };
 
+const REQUIREMENT_TYPES = ["开发维护", "运行维护", "数据修改"];
+
 function localDateString(value = new Date()) {
   const offset = value.getTimezoneOffset() * 60_000;
   return new Date(value.getTime() - offset).toISOString().slice(0, 10);
@@ -26,8 +28,17 @@ function ownerInitial(name) {
 export default function PublishListPage() {
   const [selectedDate, setSelectedDate] = useState(localDateString);
   const [status, setStatus] = useState("all");
+  const [selectedTypes, setSelectedTypes] = useState(() => new Set(REQUIREMENT_TYPES));
   const [refreshKey, setRefreshKey] = useState(0);
   const [state, setState] = useState({ data: null, loading: true, error: null });
+  const selectAllTypesRef = useRef(null);
+  const allTypesSelected = selectedTypes.size === REQUIREMENT_TYPES.length;
+
+  useEffect(() => {
+    if (selectAllTypesRef.current) {
+      selectAllTypesRef.current.indeterminate = selectedTypes.size > 0 && !allTypesSelected;
+    }
+  }, [allTypesSelected, selectedTypes]);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,9 +55,24 @@ export default function PublishListPage() {
 
   const visibleItems = useMemo(() => {
     const items = state.data?.items || [];
-    return status === "all" ? items : items.filter((item) => item.status === status);
-  }, [state.data?.items, status]);
+    return items.filter((item) => (
+      (status === "all" || item.status === status) && selectedTypes.has(item.type)
+    ));
+  }, [selectedTypes, state.data?.items, status]);
   const summary = state.data?.summary || {};
+
+  const toggleAllTypes = () => {
+    setSelectedTypes(allTypesSelected ? new Set() : new Set(REQUIREMENT_TYPES));
+  };
+
+  const toggleType = (type) => {
+    setSelectedTypes((current) => {
+      const next = new Set(current);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  };
 
   return (
     <main className="publish-list-page">
@@ -91,6 +117,28 @@ export default function PublishListPage() {
             ))}
           </div>
         </div>
+        <div className="publish-list-type-filter" role="group" aria-label="按需求类型筛选">
+          <span>需求类型</span>
+          <label>
+            <input
+              ref={selectAllTypesRef}
+              type="checkbox"
+              checked={allTypesSelected}
+              onChange={toggleAllTypes}
+            />
+            全选
+          </label>
+          {REQUIREMENT_TYPES.map((type) => (
+            <label key={type}>
+              <input
+                type="checkbox"
+                checked={selectedTypes.has(type)}
+                onChange={() => toggleType(type)}
+              />
+              {type}
+            </label>
+          ))}
+        </div>
 
         {state.error ? (
           <div className="publish-list-message error"><Icon name="x" size={20} /><strong>上线清单加载失败</strong><span>{state.error.message || "请检查后端服务与数据库字段映射。"}</span></div>
@@ -132,7 +180,7 @@ export default function PublishListPage() {
         )}
 
         <footer className="publish-list-card-footer">
-          <span>共 {visibleItems.length} 条{status !== "all" ? "（已筛选）" : ""}{state.data?.truncated ? "，仅展示前 1000 条" : ""}</span>
+          <span>共 {visibleItems.length} 条{status !== "all" || !allTypesSelected ? "（已筛选）" : ""}{state.data?.truncated ? "，仅展示前 1000 条" : ""}</span>
         </footer>
       </section>
     </main>

@@ -26,6 +26,10 @@
 .publish-list-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .publish-list-filters button { height: 30px; padding: 0 11px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-2); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
 .publish-list-filters button:hover, .publish-list-filters button.active { border-color: var(--accent-line); background: var(--accent-weak); color: var(--accent); }
+.publish-list-type-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 18px; padding: 11px 18px; border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-sm); }
+.publish-list-type-filter > span { color: var(--text-3); font-size: var(--fs-xs); font-weight: 600; }
+.publish-list-type-filter label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.publish-list-type-filter input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); cursor: pointer; }
 .publish-list-table-wrap { overflow-x: auto; }
 .publish-list-table-wrap table { width: 100%; min-width: 980px; border-collapse: collapse; }
 .publish-list-table-wrap th { padding: 11px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); color: var(--text-3); font-size: var(--fs-xs); font-weight: 600; text-align: left; white-space: nowrap; }
@@ -59,4 +63,4 @@ a.publish-list-id:hover { text-decoration: underline; }
 .publish-list-message span { max-width: 620px; font-size: var(--fs-sm); }
 .publish-list-card-footer { display: flex; justify-content: flex-end; padding: 11px 18px; border-top: 1px solid var(--border); background: var(--surface-2); color: var(--text-3); font-size: var(--fs-xs); }
 @media (max-width: 900px) { .publish-list-stats { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 640px) { .publish-list-page { padding: 24px 14px 40px; } .publish-list-header { align-items: stretch; } .publish-list-actions { width: 100%; } .publish-list-date { flex: 1; } .pl-button { flex: 1; } .publish-list-toolbar { padding: 13px 14px; } }
+@media (max-width: 640px) { .publish-list-page { padding: 24px 14px 40px; } .publish-list-header { align-items: stretch; } .publish-list-actions { width: 100%; } .publish-list-date { flex: 1; } .pl-button { flex: 1; } .publish-list-toolbar { padding: 13px 14px; } .publish-list-type-filter { padding: 11px 14px; } }
