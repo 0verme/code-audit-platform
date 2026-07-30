@@ -40,7 +40,7 @@ a.publish-list-id:hover { text-decoration: underline; }
 .publish-list-owner i { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-weak); color: var(--accent); font-size: 11px; font-style: normal; font-weight: 700; }
 .publish-list-badge { display: inline-flex; align-items: center; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .publish-list-badge.pending, .publish-list-badge.unknown { background: var(--surface-3); color: var(--text-2); }
-.publish-list-badge.reviewing { background: var(--info-bg); color: var(--info-fg); }
+.publish-list-badge.reviewing { background: var(--warn-bg); color: var(--warn-fg); }
 .publish-list-badge.passed { background: var(--ok-bg); color: var(--ok-fg); }
 .publish-list-badge.completed { background: color-mix(in oklab, #ec4899 16%, var(--surface)); color: color-mix(in oklab, #db2777 78%, var(--text)); }
 .publish-list-badge.processing { background: var(--surface-3); color: var(--text-2); }
