@@ -108,7 +108,11 @@ export default function PublishListPage() {
                   const statusMeta = STATUS[item.status] || STATUS.unknown;
                   return (
                     <tr key={`${item.id}-${index}`}>
-                      <td><span className="publish-list-id">{item.id || "-"}</span></td>
+                      <td>
+                        {item.detailUrl ? (
+                          <a className="publish-list-id" href={item.detailUrl} target="_blank" rel="noreferrer">{item.id || "-"}</a>
+                        ) : <span className="publish-list-id">{item.id || "-"}</span>}
+                      </td>
                       <td>{item.type || "-"}</td>
                       <td><span className="publish-list-owner"><i>{ownerInitial(item.owner)}</i>{item.owner || "-"}</span></td>
                       <td><strong className="publish-list-title">{item.title || "-"}</strong></td>
