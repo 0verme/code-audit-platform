@@ -1,5 +1,11 @@
 import { Icon, OkState, Panel, ViolationTable } from "../components/ui";
 import { ChangeFilesSection } from "../components/results/ChangeFilesSection";
+import {
+  ModuleProgressBoard,
+  NUPS_MODULE_TASKS,
+  ProgressiveRunPanel,
+  RunLogs,
+} from "../components/results/HcytRunProgress";
 import { AiSection, AssetIssuesSection } from "../components/results/SharedResultSections";
 import { StatusHero } from "../components/results/StatusHero";
 import {
@@ -118,10 +124,13 @@ function NupsPySection({ d, reg }) {
   );
 }
 
-export function NupsResultsPage({ d, aiEnabled, reg }) {
+export function NupsResultsPage({ d, aiEnabled, reg, onJump }) {
   return (
     <div className="results-page fade-in">
+      <ProgressiveRunPanel d={d} moduleTasks={NUPS_MODULE_TASKS} />
+      <RunLogs d={d} />
       <NupsStatusHeader d={d} />
+      <ModuleProgressBoard d={d} onJump={onJump} modules={NUPS_MODULE_TASKS} />
       <ChangeFilesSection changes={getNupsChanges(d)} registerRef={reg} hideWhenEmpty={false} />
       <ConflictSection d={d} reg={reg} />
       <NupsSqlSection d={d} reg={reg} />

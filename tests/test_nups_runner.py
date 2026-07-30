@@ -17,6 +17,8 @@ class NupsRunnerTests(unittest.TestCase):
     def _build_context(self):
         saved_groups = []
         updates = []
+        task_events = []
+        partials = {}
 
         sql_result = CheckResult()
         sql_result.add("nups.sql.demo", "SQL 示例", "err", "bad sql")
@@ -52,10 +54,10 @@ class NupsRunnerTests(unittest.TestCase):
             safe=lambda _label, fn, _default: fn(),
             log=lambda *_args, **_kwargs: None,
             update=lambda **kwargs: updates.append(kwargs),
-            task_running=lambda *_args, **_kwargs: None,
-            task_success=lambda *_args, **_kwargs: None,
-            task_skipped=lambda *_args, **_kwargs: None,
-            set_partial=lambda *_args, **_kwargs: None,
+            task_running=lambda key: task_events.append(("running", key)),
+            task_success=lambda key, **_kwargs: task_events.append(("success", key)),
+            task_skipped=lambda key, _reason="": task_events.append(("skipped", key)),
+            set_partial=lambda key, value: partials.__setitem__(key, value),
             save_category_rows=lambda rows: saved_groups.append(rows),
             download_url=lambda path: f"download://{Path(path).name}",
             build_task_meta=lambda _svn_result, status, extra: {"status": status, **extra},
@@ -87,10 +89,10 @@ class NupsRunnerTests(unittest.TestCase):
             status_of=lambda errors, warnings: "fail" if errors else ("warn" if warnings else "pass"),
             count_levels=lambda _rows: (0, 0),
         )
-        return context, saved_groups, updates
+        return context, saved_groups, updates, task_events, partials
 
     def test_run_nups_preserves_sql_python_and_legacy_shapes(self):
-        context, saved_groups, updates = self._build_context()
+        context, saved_groups, updates, task_events, partials = self._build_context()
 
         report = run_nups(context)
 
@@ -104,6 +106,14 @@ class NupsRunnerTests(unittest.TestCase):
         self.assertEqual(report["conflicts"], ["conflict.sql"])
         self.assertEqual(saved_groups, [])
         self.assertEqual(report["ai"]["targets"], ["/tmp/job.py"])
+        self.assertIn(("running", "classify_files"), task_events)
+        self.assertIn(("success", "classify_files"), task_events)
+        self.assertIn(("running", "dws_sql"), task_events)
+        self.assertIn(("success", "dws_sql"), task_events)
+        self.assertIn(("running", "python_scripts"), task_events)
+        self.assertIn(("success", "python_scripts"), task_events)
+        self.assertEqual(partials["sqlChecks"], report["sqlChecks"])
+        self.assertEqual(partials["pyScripts"], report["pyScripts"])
 
 
 if __name__ == "__main__":

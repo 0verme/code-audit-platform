@@ -11,7 +11,11 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
     mods = context.services.mods
     svn_result = context.source_payload
     exported = svn_result["exported_paths"]
+
+    context.progress.task_running("classify_files")
     sql_lists, py_lists = mods.nups_rule.get_nups_type(exported)
+    changes = context.reports.build_changes(svn_result)
+    conflicts = context.reports.build_conflicts(svn_result)
 
     source_files = [
         descriptor
@@ -21,8 +25,34 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
         )
         if (descriptor := resolve_source_file(context, path, section=section, kind=kind))
     ]
+    context.progress.set_partial("changes", changes)
+    context.progress.set_partial("conflicts", conflicts)
+    context.progress.set_partial("sourceFiles", source_files)
+    context.progress.task_success(
+        "classify_files",
+        summary={
+            "changedFiles": len(changes),
+            "sqlFiles": len(sql_lists or []),
+            "pythonFiles": len(py_lists or []),
+        },
+    )
+    context.progress.task_success(
+        "trunk_conflicts",
+        result=conflicts,
+        summary={"conflicts": len(conflicts)},
+    )
+    for task_key in (
+        "hive_sql",
+        "config_files",
+        "post_scripts",
+        "recv_config",
+        "schedule",
+        "lineage",
+    ):
+        context.progress.task_skipped(task_key, "NUPS 工作流不适用")
 
     context.progress.update(progress=45, step="NUPS SQL 检查")
+    context.progress.task_running("dws_sql")
     sql_checks = []
     for path in sql_lists or []:
         result = context.services.safe("NUPS SQL 规则", lambda p=path: mods.nups_rule.rule_dws(p), CheckResult())
@@ -33,8 +63,18 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
                 "messages": finding_messages(result.findings),
             }
         )
+    context.progress.set_partial("sqlChecks", sql_checks)
+    if sql_lists:
+        context.progress.task_success(
+            "dws_sql",
+            result=sql_checks,
+            summary={"files": len(sql_checks)},
+        )
+    else:
+        context.progress.task_skipped("dws_sql", "未识别到 NUPS SQL 脚本")
 
     context.progress.update(progress=65, step="NUPS 加工程序检查")
+    context.progress.task_running("python_scripts")
     py_scripts = []
     for path in py_lists or []:
         file_name = mods.re_service.get_filename(path)
@@ -55,13 +95,21 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
                 "sqlRefs": sql_tables,
             }
         )
+    context.progress.set_partial("pyScripts", py_scripts)
+    if py_lists:
+        context.progress.task_success(
+            "python_scripts",
+            result=py_scripts,
+            summary={"files": len(py_scripts)},
+        )
+    else:
+        context.progress.task_skipped("python_scripts", "未识别到 NUPS 加工程序")
 
     all_rows = [{"level": msg["level"], "msg": msg["msg"]} for check in sql_checks for msg in check["messages"]]
     all_rows += [{"level": msg["level"], "msg": msg["msg"]} for script in py_scripts for msg in script["messages"]]
     errors = sum(1 for row in all_rows if row["level"] == "err")
     warnings = sum(1 for row in all_rows if row["level"] == "warn")
     ai = context.services.build_ai(py_lists or sql_lists or [], errors, warnings)
-    conflicts = context.reports.build_conflicts(svn_result)
     status = context.reports.status_of(errors + len(conflicts), warnings)
 
     return build_nups_report(
@@ -77,7 +125,7 @@ def run_nups(context: WorkflowRuntimeContext) -> dict:
             },
         ),
         svn=context.reports.build_svn_section(svn_result),
-        changes=context.reports.build_changes(svn_result),
+        changes=changes,
         conflicts=conflicts,
         sql_checks=sql_checks,
         py_scripts=py_scripts,

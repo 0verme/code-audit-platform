@@ -43,6 +43,30 @@ const TASK_STATUS_META = {
   failed: { tone: "err", label: "检查异常" },
 };
 
+export const NUPS_MODULE_TASKS = [
+  {
+    key: "source_load",
+    section: "changes",
+    label: "读取工作区 / SVN",
+    icon: "download",
+  },
+  { key: "classify_files", section: "changes", label: "变更文件", icon: "git" },
+  {
+    key: "trunk_conflicts",
+    section: "conflict",
+    label: "trunk 冲突",
+    icon: "conflict",
+  },
+  { key: "dws_sql", section: "nups-sql", label: "NUPS SQL", icon: "db" },
+  {
+    key: "python_scripts",
+    section: "nups-py",
+    label: "NUPS 加工程序",
+    icon: "python",
+  },
+  { key: "summary", section: "overview", label: "保存审查报告", icon: "check" },
+];
+
 function formatDurationMs(value) {
   if (value == null) return "";
   const seconds = Math.round(Number(value) / 1000);
@@ -57,15 +81,17 @@ function elapsedSince(value) {
   return formatDurationMs(Math.max(0, Date.now() - started));
 }
 
-export function ProgressiveRunPanel({ d }) {
+export function ProgressiveRunPanel({ d, moduleTasks = MODULE_TASKS }) {
   const run = d.__auditRun;
   if (!run || run.finalReportReady) return null;
   const tasks = run.tasks || {};
-  const taskValues = Object.values(tasks);
+  const taskValues = moduleTasks
+    .map((module) => tasks[module.key])
+    .filter(Boolean);
   const completed = taskValues.filter((task) =>
     ["success", "skipped", "failed"].includes(task.status),
   ).length;
-  const total = run.progress?.total || taskValues.length || MODULE_TASKS.length;
+  const total = moduleTasks.length;
   const percent = Math.max(
     0,
     Math.min(100, Number(run.progress?.percent || 0)),
@@ -129,7 +155,7 @@ export function ProgressiveRunPanel({ d }) {
   );
 }
 
-export function ModuleProgressBoard({ d, onJump }) {
+export function ModuleProgressBoard({ d, onJump, modules = MODULE_TASKS }) {
   const run = d.__auditRun;
   if (!run) return null;
   const tasks = run.tasks || {};
@@ -140,7 +166,7 @@ export function ModuleProgressBoard({ d, onJump }) {
         <Icon name="grid" size={12} /> 模块执行状态
       </div>
       <div className="module-progress-grid">
-        {MODULE_TASKS.map((module) => {
+        {modules.map((module) => {
           const state = tasks[module.key] || {};
           const status = state.status || "queued";
           const meta = TASK_STATUS_META[status] || TASK_STATUS_META.queued;
@@ -149,7 +175,7 @@ export function ModuleProgressBoard({ d, onJump }) {
             <button
               key={module.key}
               className={`module-progress-card ${status}`}
-              onClick={() => onJump(module.section)}
+              onClick={() => onJump?.(module.section)}
             >
               <span className="mp-icon">
                 <Icon name={module.icon} size={14} />

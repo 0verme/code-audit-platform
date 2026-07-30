@@ -314,7 +314,7 @@ export default function App() {
     if (isNups) {
       return (
         <Suspense fallback={<TaskPageFallback />}>
-          <NupsResultsPage d={data} aiEnabled={aiEnabled} reg={reg} />
+          <NupsResultsPage d={data} aiEnabled={aiEnabled} reg={reg} onJump={jump} />
         </Suspense>
       );
     }

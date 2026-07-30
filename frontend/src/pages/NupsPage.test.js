@@ -24,3 +24,12 @@ test("NUPS conflict files reuse task-scoped download URLs", () => {
   assert.match(pageSource, /changes\.find\(\(change\) => change\.path === path\)/);
   assert.match(pageSource, /<ConflictSection d=\{d\} reg=\{reg\} \/>/);
 });
+
+test("NUPS renders live progress, module states, and execution logs", () => {
+  assert.match(pageSource, /<ProgressiveRunPanel d=\{d\} moduleTasks=\{NUPS_MODULE_TASKS\} \/>/);
+  assert.match(pageSource, /<RunLogs d=\{d\} \/>/);
+  assert.match(
+    pageSource,
+    /<ModuleProgressBoard d=\{d\} onJump=\{onJump\} modules=\{NUPS_MODULE_TASKS\} \/>/,
+  );
+});
