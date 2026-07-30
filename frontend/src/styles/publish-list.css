@@ -42,6 +42,7 @@ a.publish-list-id:hover { text-decoration: underline; }
 .publish-list-badge.pending, .publish-list-badge.unknown { background: var(--surface-3); color: var(--text-2); }
 .publish-list-badge.reviewing { background: var(--info-bg); color: var(--info-fg); }
 .publish-list-badge.passed { background: var(--ok-bg); color: var(--ok-fg); }
+.publish-list-badge.completed { background: color-mix(in oklab, #ec4899 16%, var(--surface)); color: color-mix(in oklab, #db2777 78%, var(--text)); }
 .publish-list-badge.rejected { background: var(--err-bg); color: var(--err-fg); }
 .publish-list-badge.launched { background: var(--accent-weak); color: var(--accent); }
 .publish-list-link { display: inline-flex; padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--text-2); text-decoration: none; }

@@ -6,7 +6,7 @@ import { reviewService } from "../services/reviewService";
 const STATUS = {
   pending: { label: "待审核", tone: "pending" },
   passed: { label: "等待上线", tone: "passed" },
-  completed: { label: "处理完成", tone: "passed" },
+  completed: { label: "处理完成", tone: "completed" },
   reviewing: { label: "审核中", tone: "reviewing" },
   rejected: { label: "已驳回", tone: "rejected" },
   launched: { label: "已上线", tone: "launched" },
