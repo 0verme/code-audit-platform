@@ -10,7 +10,7 @@ const STATUS = {
   reviewing: { label: "审核中", tone: "reviewing" },
   rejected: { label: "已驳回", tone: "rejected" },
   launched: { label: "已上线", tone: "launched" },
-  processing: { label: "处理中", tone: "reviewing" },
+  processing: { label: "处理中", tone: "processing" },
   unknown: { label: "未知状态", tone: "unknown" },
 };
 
@@ -84,7 +84,7 @@ export default function PublishListPage() {
             <div><strong>上线明细</strong><small>计划上线 {summary.total || 0} 项 · 日期 {selectedDate}</small></div>
           </div>
           <div className="publish-list-filters" role="group" aria-label="按审核状态筛选">
-            {["all", "passed", "completed", "reviewing", "processing", "launched"].map((key) => (
+            {["all", "launched", "passed", "completed", "reviewing", "processing"].map((key) => (
               <button key={key} type="button" className={status === key ? "active" : ""} onClick={() => setStatus(key)}>
                 {key === "all" ? "全部" : STATUS[key].label}
               </button>

@@ -35,7 +35,7 @@ _STATUS_ALIASES = {
     "processing": "processing", "处理中": "processing",
     "completed": "completed", "处理完成": "completed",
 }
-_STATUS_SORT_ORDER = {"等待上线": 0, "处理完成": 1, "审核中": 2, "处理中": 3}
+_STATUS_SORT_ORDER = {"已上线": 0, "等待上线": 1, "处理完成": 2, "审核中": 3, "处理中": 4}
 _TYPE_SORT_ORDER = {"开发维护": 0, "数据修改": 1, "运行维护": 2}
 _COLUMN_CACHE_TTL_SECONDS = 300.0
 _column_cache_lock = threading.Lock()

@@ -145,7 +145,7 @@ class PublishListServiceTests(unittest.TestCase):
 
         payload = get_publish_list(date(2026, 7, 22), profile=FakeProfile(), runner=runner)
 
-        self.assertEqual([item["id"] for item in payload["items"]], ["REQ-3", "REQ-2", "REQ-7", "REQ-5", "REQ-4", "REQ-1", "REQ-8", "REQ-6"])
+        self.assertEqual([item["id"] for item in payload["items"]], ["REQ-6", "REQ-3", "REQ-2", "REQ-7", "REQ-5", "REQ-4", "REQ-1", "REQ-8"])
 
     def test_normalizes_processing_statuses_and_counts_them_separately(self):
         rows = [
