@@ -5,12 +5,12 @@ import { reviewService } from "../services/reviewService";
 
 const STATUS = {
   pending: { label: "待审核", tone: "pending" },
+  passed: { label: "等待上线", tone: "passed" },
+  completed: { label: "处理完成", tone: "passed" },
   reviewing: { label: "审核中", tone: "reviewing" },
-  passed: { label: "已通过", tone: "passed" },
   rejected: { label: "已驳回", tone: "rejected" },
   launched: { label: "已上线", tone: "launched" },
   processing: { label: "处理中", tone: "reviewing" },
-  completed: { label: "处理完成", tone: "passed" },
   unknown: { label: "未知状态", tone: "unknown" },
 };
 
@@ -42,11 +42,10 @@ export default function PublishListPage() {
     return () => { cancelled = true; };
   }, [selectedDate, refreshKey]);
 
-  const items = state.data?.items || [];
-  const visibleItems = useMemo(
-    () => status === "all" ? items : items.filter((item) => item.status === status),
-    [items, status],
-  );
+  const visibleItems = useMemo(() => {
+    const items = state.data?.items || [];
+    return status === "all" ? items : items.filter((item) => item.status === status);
+  }, [state.data?.items, status]);
   const summary = state.data?.summary || {};
 
   return (
@@ -73,7 +72,7 @@ export default function PublishListPage() {
 
       <section className="publish-list-stats" aria-label="上线概览">
         <div><span>计划上线</span><strong>{summary.total || 0}<small>项</small></strong></div>
-        <div><span>已通过 / 待上线</span><strong>{summary.passed || 0}<small>项</small></strong></div>
+        <div><span>等待上线 / 处理完成</span><strong>{(summary.passed || 0) + (summary.completed || 0)}<small>项</small></strong></div>
         <div><span>审核中</span><strong>{summary.reviewing || 0}<small>项</small></strong></div>
         <div><span>处理中</span><strong>{summary.processing || 0}<small>项</small></strong></div>
       </section>
