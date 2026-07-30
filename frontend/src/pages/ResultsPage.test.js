@@ -97,6 +97,24 @@ test("Python script details omit the review focus while FineReport keeps its foc
   );
 });
 
+test("HCYT temporary tables reuse the FineReport blue middle-table treatment", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  const referenceTableSource = readFileSync(
+    new URL("../components/ReferenceTableList.jsx", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    scriptSource,
+    /title="中间临时表"[\s\S]*?defaultType="mid"/,
+  );
+  assert.match(
+    referenceTableSource,
+    /TABLE_TYPE_META\[item\.type\] \|\| TABLE_TYPE_META\[defaultType\]/,
+  );
+  assert.match(sharedStyleSource, /\.chip\.mid \{ background: var\(--info-bg\)/);
+});
+
 test("Python script navigation prefers paths while retaining filename compatibility", () => {
   const nestedScript = { script: "load.py", path: "jobs/daily/load.py", lint: [{ level: "err" }], result: [] };
   const legacyScript = { script: "legacy.py", lint: [{ level: "warn" }], result: [] };

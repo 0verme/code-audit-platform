@@ -109,12 +109,12 @@ function CmpCell({ value, note, side, row }) {
   );
 }
 
-function ListBlock({ title, items = [], icon }) {
+function ListBlock({ title, items = [], icon, defaultType }) {
   return (
     <div className="sd-block">
       <div className="subhead"><Icon name={icon} size={12} /> {title} <span className="sd-num mono">{items.length}</span></div>
       {items.length ? (
-        <ReferenceTableList items={items} />
+        <ReferenceTableList items={items} defaultType={defaultType} />
       ) : (
         <div className="sd-empty">无</div>
       )}
@@ -216,7 +216,7 @@ export function ScriptDetailAccordion({ script, detailId, open, onClose }) {
           </div>
 
           <ListBlock title="码值参数表" items={script.codeval} icon="grid" />
-          <ListBlock title="中间临时表" items={sortReferenceTableNames(script.temp)} icon="layers" />
+          <ListBlock title="中间临时表" items={sortReferenceTableNames(script.temp)} icon="layers" defaultType="mid" />
         </div>
       </div>
     </section>

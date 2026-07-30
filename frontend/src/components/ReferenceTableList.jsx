@@ -12,14 +12,14 @@ function normalizeItem(item) {
   return item || {};
 }
 
-export function ReferenceTableList({ items = [], emptyText = "无", stacked = false }) {
+export function ReferenceTableList({ items = [], emptyText = "无", stacked = false, defaultType = "src" }) {
   if (!items.length) return <div className="sd-empty">{emptyText}</div>;
 
   return (
     <div className={`chips reference-table-list${stacked ? " stacked" : ""}`}>
       {items.map((rawItem, index) => {
         const item = normalizeItem(rawItem);
-        const type = TABLE_TYPE_META[item.type] || TABLE_TYPE_META.src;
+        const type = TABLE_TYPE_META[item.type] || TABLE_TYPE_META[defaultType] || TABLE_TYPE_META.src;
         const notes = [
           item.disabled ? "禁用" : null,
           item.sysNames?.length ? item.sysNames.join("/") : null,
