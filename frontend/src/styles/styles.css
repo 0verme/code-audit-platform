@@ -44,6 +44,8 @@
   --accent-fg: #ffffff;
   --accent-weak: #eaeefb;
   --accent-line: #c5d0f5;
+  --selection-bg: #b8c7fa;
+  --selection-fg: #142044;
 
   --ok-bg: #e7f4ec;   --ok-bd: #b8e0c8;
   --warn-bg: #fbf2dc; --warn-bd: #ecd49a;
@@ -72,6 +74,8 @@
   --accent-fg: #0b0f15;
   --accent-weak: #1a2540;
   --accent-line: #2c3e6b;
+  --selection-bg: #3557a8;
+  --selection-fg: #ffffff;
 
   --ok: #34c27e;  --ok-fg: #43d089;
   --warn: #e0a82e; --warn-fg: #edb84a;
@@ -117,7 +121,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 .mono { font-family: var(--font-mono); font-feature-settings: "zero" 1; }
-::selection { background: var(--accent-weak); }
+::selection {
+  color: var(--selection-fg);
+  background: var(--selection-bg);
+}
 
 /* scrollbars */
 *::-webkit-scrollbar { width: 11px; height: 11px; }
