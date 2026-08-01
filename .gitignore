@@ -45,7 +45,10 @@ Thumbs.db
 # Local HCYT test workspace
 test-hcyt/
 test-fine-report/
-deploy/
+/deploy/*
+!/deploy/nginx/
+/deploy/nginx/*
+!/deploy/nginx/code-audit.conf
 
 # Static prototype workspace
 静态原型代码/

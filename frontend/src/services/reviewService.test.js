@@ -47,3 +47,38 @@ test("audit polling bypasses browser caches", async () => {
 
   assert.equal(capturedOptions.cache, "no-store");
 });
+
+test("publish-list reports an actionable error when the reverse proxy returns HTML", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 404,
+    headers: { get: () => "text/html; charset=utf-8" },
+    text: async () => "<html><body><h1>404 Not Found</h1></body></html>",
+  });
+
+  try {
+    await assert.rejects(
+      reviewService.getPublishList("2026-08-01"),
+      /API 请求失败（404）.*Nginx \/api\//,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("API errors use the backend JSON message instead of stringifying the error object", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 400,
+    headers: { get: () => "application/json" },
+    text: async () => JSON.stringify({ error: { code: "BAD_REQUEST", message: "日期格式无效" } }),
+  });
+
+  try {
+    await assert.rejects(reviewService.getPublishList("invalid"), { message: "日期格式无效" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

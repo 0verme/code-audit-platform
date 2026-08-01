@@ -15,6 +15,28 @@ default is an empty allowlist and wildcard origins are rejected. Keep
 deployment needs local workspaces, it must also set `AUDIT_LOCAL_SOURCE_ROOTS`
 to existing allowed roots (a JSON array is recommended, especially on Windows).
 
+## Nginx reverse proxy
+
+Production frontend builds use the same-origin API base `/api`. Install the
+tracked Nginx template before enabling it:
+
+```bash
+sudo cp deploy/nginx/code-audit.conf /etc/nginx/sites-available/code-audit
+sudo ln -sfn /etc/nginx/sites-available/code-audit /etc/nginx/sites-enabled/code-audit
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+The `proxy_pass` URL intentionally has no trailing slash. Flask registers its
+routes under `/api/*`; adding a trailing slash would strip the `/api` prefix.
+Verify both the backend listener and the public proxy after deployment:
+
+```bash
+curl -fsS http://127.0.0.1:5088/api/health
+curl -fsS https://audit.overme.cn/api/health
+curl -fsS "https://audit.overme.cn/api/publish-list?date=2026-08-01"
+```
+
 ## Asset portal term roots
 
 Term-root validation reads the asset portal API, rather than the audit
