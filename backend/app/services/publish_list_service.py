@@ -151,26 +151,44 @@ def _safe_detail_url(value: Any) -> str:
     return ""
 
 
-def _query_rows(runner: Any, selected_date: date, schema: str, table: str, columns: dict[str, str]) -> list[dict[str, Any]]:
+def _query_rows(
+    runner: Any,
+    selected_date: date,
+    schema: str,
+    table: str,
+    columns: dict[str, str],
+    *,
+    limit: int | None = 1000,
+) -> list[dict[str, Any]]:
     select_parts = []
     for field in _FIELDS:
         column = columns.get(field)
         select_parts.append(f"{column} AS {field}" if column else f"NULL AS {field}")
     sql = (
         f"SELECT {', '.join(select_parts)} FROM {schema}.{table} "
-        f"WHERE {columns['date']} = ? ORDER BY {columns['id']} LIMIT 1000"
+        f"WHERE {columns['date']} = ? ORDER BY {columns['id']}"
     )
+    if limit is not None:
+        sql += f" LIMIT {max(0, int(limit))}"
     return runner.query_all(sql, (selected_date.isoformat(),))
 
 
-def _load_rows(selected_date: date, profile: Any, schema: str, table: str, configured: dict[str, str]) -> list[dict[str, Any]]:
+def _load_rows(
+    selected_date: date,
+    profile: Any,
+    schema: str,
+    table: str,
+    configured: dict[str, str],
+    *,
+    limit: int | None = 1000,
+) -> list[dict[str, Any]]:
     last_error: Exception | None = None
     for attempt in range(2):
         try:
             with publish_list_connection(profile) as connection:
                 runner = TransactionRunner(profile, connection)
                 columns = _cached_columns(profile, runner, schema, table, configured)
-                return _query_rows(runner, selected_date, schema, table, columns)
+                return _query_rows(runner, selected_date, schema, table, columns, limit=limit)
         except Exception as exc:
             last_error = exc
             _invalidate_column_cache(profile, schema, table, configured)
@@ -179,14 +197,20 @@ def _load_rows(selected_date: date, profile: Any, schema: str, table: str, confi
     raise last_error or RuntimeError("publish-list query failed")
 
 
-def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRunner | None = None) -> dict[str, Any]:
+def get_publish_list(
+    selected_date: date,
+    *,
+    profile: Any = None,
+    runner: SQLRunner | None = None,
+    limit: int | None = 1000,
+) -> dict[str, Any]:
     profile = profile or get_metadata_profile()
     schema, table, configured = _configured_model(profile)
     if runner is None:
-        rows = _load_rows(selected_date, profile, schema, table, configured)
+        rows = _load_rows(selected_date, profile, schema, table, configured, limit=limit)
     else:
         columns = _resolve_columns(runner, schema, table, configured)
-        rows = _query_rows(runner, selected_date, schema, table, columns)
+        rows = _query_rows(runner, selected_date, schema, table, columns, limit=limit)
     items = []
     for row in rows:
         normalized_status = _normalize_status(row.get("status"))
@@ -213,4 +237,9 @@ def get_publish_list(selected_date: date, *, profile: Any = None, runner: SQLRun
     for item in items:
         summary[item["status"]] += 1
     summary["total"] = len(items)
-    return {"date": selected_date.isoformat(), "items": items, "summary": summary, "truncated": len(items) == 1000}
+    return {
+        "date": selected_date.isoformat(),
+        "items": items,
+        "summary": summary,
+        "truncated": limit is not None and len(items) == limit,
+    }

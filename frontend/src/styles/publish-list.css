@@ -12,6 +12,7 @@
 .pl-button:hover { border-color: var(--border-strong); color: var(--text); }
 .pl-button.primary { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
 .pl-button:disabled { opacity: .65; cursor: wait; }
+.publish-list-export-error { margin: -10px 0 18px; padding: 10px 13px; border: 1px solid var(--err-fg); border-radius: 9px; background: var(--err-bg); color: var(--err-fg); font-size: var(--fs-sm); }
 .publish-list-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
 .publish-list-stats > div { display: flex; flex-direction: column; gap: 7px; padding: 16px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-sm); }
 .publish-list-stats span { color: var(--text-2); font-size: var(--fs-xs); }

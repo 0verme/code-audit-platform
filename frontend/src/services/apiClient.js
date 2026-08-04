@@ -39,8 +39,37 @@ async function request(path, options = {}) {
   return response.json();
 }
 
+function downloadFilename(disposition, fallback) {
+  const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      return fallback;
+    }
+  }
+  return disposition.match(/filename="?([^";]+)"?/i)?.[1] || fallback;
+}
+
+async function requestBlob(path, { fallbackFilename = "download.xlsx", ...options } = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    cache: "no-store",
+    ...options,
+  });
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response));
+  }
+
+  return {
+    blob: await response.blob(),
+    filename: downloadFilename(response.headers?.get?.("content-disposition") || "", fallbackFilename),
+  };
+}
+
 export const apiClient = {
   get: (path) => request(path, { cache: "no-store" }),
+  getBlob: (path, options) => requestBlob(path, options),
   post: (path, body, options = {}) =>
     request(path, {
       method: "POST",

@@ -82,3 +82,60 @@ test("API errors use the backend JSON message instead of stringifying the error 
     globalThis.fetch = originalFetch;
   }
 });
+
+test("publish-list export sends repeated filters and decodes the download filename", async () => {
+  const originalFetch = globalThis.fetch;
+  let capturedUrl;
+  let capturedOptions;
+  globalThis.fetch = async (url, options) => {
+    capturedUrl = url;
+    capturedOptions = options;
+    return {
+      ok: true,
+      status: 200,
+      headers: {
+        get: (name) => name.toLowerCase() === "content-disposition"
+          ? "attachment; filename=export.xlsx; filename*=UTF-8''%E4%B8%8A%E7%BA%BF%E6%B8%85%E5%8D%95_2026-08-04.xlsx"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      },
+      blob: async () => new Blob(["xlsx"]),
+    };
+  };
+
+  try {
+    const result = await reviewService.exportPublishList("2026-08-04", {
+      status: "passed",
+      types: ["开发维护", "数据修改"],
+    });
+    const url = new URL(capturedUrl, "https://example.test");
+    assert.equal(url.pathname, "/api/publish-list/export");
+    assert.equal(url.searchParams.get("date"), "2026-08-04");
+    assert.equal(url.searchParams.get("status"), "passed");
+    assert.deepEqual(url.searchParams.getAll("type"), ["开发维护", "数据修改"]);
+    assert.equal(result.filename, "上线清单_2026-08-04.xlsx");
+    assert.equal(result.blob.size, 4);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(capturedOptions.cache, "no-store");
+});
+
+test("publish-list export surfaces backend JSON errors", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: false,
+    status: 400,
+    headers: { get: () => "application/json" },
+    text: async () => JSON.stringify({ error: { message: "导出状态无效" } }),
+  });
+
+  try {
+    await assert.rejects(
+      reviewService.exportPublishList("2026-08-04", { status: "bogus" }),
+      { message: "导出状态无效" },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

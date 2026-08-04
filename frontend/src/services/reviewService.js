@@ -49,4 +49,12 @@ export const reviewService = {
     const query = new URLSearchParams({ date });
     return apiClient.get(`${API_PATHS.publishList}?${query}`);
   },
+  exportPublishList(date, { status, types } = {}) {
+    const query = new URLSearchParams({ date });
+    if (status && status !== "all") query.set("status", status);
+    for (const type of types || []) query.append("type", type);
+    return apiClient.getBlob(`${API_PATHS.publishListExport}?${query}`, {
+      fallbackFilename: `上线清单_${date}.xlsx`,
+    });
+  },
 };

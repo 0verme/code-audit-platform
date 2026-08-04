@@ -16,6 +16,7 @@ export const API_PATHS = {
   fineReportItems: "/fine-report/items",
   auditWorkflows: "/audit-configuration/workflows",
   publishList: "/publish-list",
+  publishListExport: "/publish-list/export",
   auditTask: (id) => `/audit-tasks/${id}`,
   auditTaskReport: (id) => `/audit-tasks/${id}/report`,
   auditTaskLineage: (id) => `/audit-tasks/${id}/lineage/subgraph`,

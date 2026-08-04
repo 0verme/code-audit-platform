@@ -31,6 +31,7 @@ export default function PublishListPage() {
   const [selectedTypes, setSelectedTypes] = useState(() => new Set(REQUIREMENT_TYPES));
   const [refreshKey, setRefreshKey] = useState(0);
   const [state, setState] = useState({ data: null, loading: true, error: null });
+  const [exportState, setExportState] = useState({ loading: false, error: null });
   const selectAllTypesRef = useRef(null);
   const allTypesSelected = selectedTypes.size === REQUIREMENT_TYPES.length;
 
@@ -74,6 +75,25 @@ export default function PublishListPage() {
     });
   };
 
+  const exportXlsx = async () => {
+    setExportState({ loading: true, error: null });
+    try {
+      const types = REQUIREMENT_TYPES.filter((type) => selectedTypes.has(type));
+      const { blob, filename } = await reviewService.exportPublishList(selectedDate, { status, types });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setExportState({ loading: false, error: null });
+    } catch (error) {
+      setExportState({ loading: false, error });
+    }
+  };
+
   return (
     <main className="publish-list-page">
       <header className="publish-list-header">
@@ -90,11 +110,25 @@ export default function PublishListPage() {
           <button type="button" className="pl-button" onClick={() => setSelectedDate(localDateString())}>
             <Icon name="calendar" size={15} /> 今天
           </button>
+          <button
+            type="button"
+            className="pl-button"
+            disabled={state.loading || Boolean(state.error) || selectedTypes.size === 0 || exportState.loading}
+            onClick={exportXlsx}
+          >
+            <Icon name="download" size={15} /> {exportState.loading ? "导出中" : "导出 XLSX"}
+          </button>
           <button type="button" className="pl-button primary" disabled={state.loading} onClick={() => setRefreshKey((key) => key + 1)}>
             <Icon name="refresh" size={15} /> {state.loading ? "加载中" : "刷新"}
           </button>
         </div>
       </header>
+
+      {exportState.error ? (
+        <div className="publish-list-export-error" role="alert">
+          XLSX 导出失败：{exportState.error.message || "请稍后重试。"}
+        </div>
+      ) : null}
 
       <section className="publish-list-stats" aria-label="上线概览">
         <div><span>计划上线</span><strong>{summary.total || 0}<small>项</small></strong></div>
