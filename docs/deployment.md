@@ -5,7 +5,7 @@
 Set `AUDIT_HOST`, `AUDIT_PORT`, and `AUDIT_DEBUG` explicitly for a deployment.
 
 For local or single-machine deployments, these values may also be placed in
-`backend/.env`; `backend/app.py` loads that file automatically. Process/system
+`backend/.env`; `backend/run.py` loads that file automatically. Process/system
 environment variables always override `.env` values. Do not deploy or commit
 `backend/.env`; use `backend/.env.example` as the template.
 Their defaults are `127.0.0.1`, `5088`, and `false`. Configure
@@ -52,8 +52,10 @@ configured. Do not commit a real token.
 - 整个平台只能选择一套数据库：
   - 全量 PostgreSQL
   - 全量 DWS
-- 平台运行表和元数据查询必须使用同一个 profile
+- 平台运行表与元数据查询默认使用同一个 profile；只读 metadata 镜像可通过 `CODE_AUDIT_METADATA_DB_PROFILE` 单独指定
 - 启动时不会再创建或回退到 SQLite
+
+当前物理表、字段和方言差异见 [数据库表结构](database_schema.md)。
 
 ## 准备配置
 
@@ -98,18 +100,18 @@ profiles:
 
 ## 初始化元数据表
 
-`backend/init_pg.py` 现在会直接读取当前活动 profile，并在该库上执行元数据 DDL。
+`backend/scripts/init_pg.py` 会读取当前活动 profile，并在该库上执行 metadata DDL。
 
 ```bash
 cd backend
-python init_pg.py
+python scripts/init_pg.py
 ```
 
 ## 启动后端
 
 ```bash
 cd backend
-python app.py
+python run.py
 ```
 
 如果 profile 缺失、类型非法或字段不完整，进程会直接报错退出，不会创建本地 SQLite 文件。
@@ -119,7 +121,7 @@ python app.py
 ```bash
 export CODE_AUDIT_DB_PROFILE=prod_pg
 export CODE_AUDIT_METADATA_DB_PROFILE=local_pg  # optional read-only metadata mirror
-python backend/app.py
+python backend/run.py
 ```
 
 或：
@@ -127,7 +129,7 @@ python backend/app.py
 ```powershell
 $env:CODE_AUDIT_DB_PROFILE = "prod_pg"
 $env:CODE_AUDIT_METADATA_DB_PROFILE = "local_pg" # optional read-only metadata mirror
-python backend\app.py
+python backend\run.py
 ```
 
 ## 验证项
@@ -135,8 +137,9 @@ python backend\app.py
 启动后确认：
 
 1. 日志中没有 SQLite 创建或回退信息。
-2. `projects`、`audit_tasks`、`audit_results`、`task_reports` 等运行表创建在当前 profile 的 `schema` 下。
+2. `p_audit_project_config`、`p_audit_run`、`p_audit_run_issue`、`p_audit_run_report` 等运行表创建在当前 profile 的 `schema` 下。
 3. 元数据查询也能在同一 profile 下访问 `dwp.p_*` 表。
+4. `python scripts/schema_migrate.py status` 不报告未知版本或校验和漂移。
 ## Audit-rule deployment
 
 The tracked `backend/configs/audit_rules.yaml` is the complete, single source

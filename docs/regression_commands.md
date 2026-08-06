@@ -1,6 +1,6 @@
 # Regression Commands
 
-本文档固化当前新平台推荐回归命令。命令从仓库根目录 `E:/AI生成代码/代码审查平台` 执行，除前端构建外不要切换目录。
+本文档固化当前推荐回归命令。除前端构建外，命令均从仓库根目录执行。
 
 ## Python Environment
 
@@ -15,13 +15,13 @@ D:\miniconda3\python.exe
 - 系统 `python` 不在 PATH。
 - Codex bundled Python 缺少部分项目依赖。
 - `requests` dependency warning 是既有 warning，不作为本轮阻断项。
-- `backend/dev_selfcheck.py` 中 DB catalog 降级输出是既有降级，不作为本轮阻断项。
+- `backend/scripts/dev_selfcheck.py` 中 DB catalog 降级输出是既有降级，不作为本轮阻断项。
 
 ## Backend Tests
 
 ```powershell
 D:\miniconda3\python.exe backend\scripts\run_backend_tests.py
-D:\miniconda3\python.exe backend\dev_selfcheck.py
+D:\miniconda3\python.exe backend\scripts\dev_selfcheck.py
 ```
 
 ## Single Tests

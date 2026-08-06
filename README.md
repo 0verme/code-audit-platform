@@ -72,8 +72,6 @@
 └── 静态原型代码/                   # 历史静态原型（非运行时）
 ```
 
-> 历史路径 `backend/svn_check`、`backend/app.py`、`backend/engine.py` 已退役。若文档或脚本仍引用它们，以本 README 与 `backend/README.md` 为准。
-
 ## 快速开始
 
 ### 环境要求
@@ -270,7 +268,7 @@ npm run build
 - 不在 README、截图、mock 数据中大段暴露真实系统名、真实表名、真实字段名。
 - 生产保持 `AUDIT_LOCAL_SOURCE_ENABLED=false`、`AUDIT_DEBUG=false`，CORS 使用明确 Origin。
 - 当前 API 默认无强认证，**不要**暴露到不可信网络。
-- 公开发布前按 [发布检查清单](docs/public_release_checklist.md) 与 [历史清理计划](docs/public_release_history_cleanup_plan.md) 执行。
+- 公开发布前按 [发布检查清单](docs/public_release_checklist.md) 执行。
 
 ## Roadmap
 
@@ -287,7 +285,9 @@ npm run build
 
 | 文档 | 内容 |
 |------|------|
+| [docs/README.md](docs/README.md) | 文档索引 |
 | [docs/architecture.md](docs/architecture.md) | 系统架构与数据流 |
+| [docs/database_schema.md](docs/database_schema.md) | 当前数据库表结构 |
 | [docs/deployment.md](docs/deployment.md) | 部署 |
 | [docs/development.md](docs/development.md) | 开发环境与本地源配置 |
 | [docs/configuration.md](docs/configuration.md) | 数据库 profile 等配置 |

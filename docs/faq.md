@@ -2,7 +2,7 @@
 
 ## 没有生产元数据能不能运行？
 
-可以。前后端和 SQLite 平台运行库不依赖生产元数据。缺少元数据时，部分依赖、登记、禁用状态、源系统标注等检查会降级，报告中需要人工复核的内容会增多。
+可以。平台运行库仍需配置 PostgreSQL 或 DWS profile，但可以不具备完整的外部业务元数据。缺少元数据时，部分依赖、登记、禁用状态、源系统标注等检查会降级，报告中需要人工复核的内容会增多。
 
 ## 没有部署数据资产门户能不能运行？
 
@@ -18,22 +18,19 @@
 
 ## 数据库连接失败怎么排查？
 
-先区分两类数据库：
-
-- SQLite：平台运行库，默认 `backend/data/app.db`，首次启动自动创建。
-- Postgres/GaussDB：规则元数据库，用于增强元数据检查。
+先区分两类用途：runtime 表保存平台任务与报告，metadata 表供规则只读查询。两者默认使用同一个 PostgreSQL 或 DWS profile，也可以为 metadata 配置独立只读镜像；SQLite 只用于测试和迁移兼容。
 
 排查步骤：
 
 1. 检查 `backend/configs/database.yaml` 是否存在。
 2. 检查 `AUDIT_DATABASE_CONFIG` 和 `CODE_AUDIT_DB_PROFILE` 环境变量是否覆盖了 YAML。
 3. 用数据库客户端验证 host、port、库名、用户、schema。
-4. 确认 Postgres 已执行 `python backend/init_pg.py`。
+4. 确认已在 `backend` 目录执行 `python scripts/schema_migrate.py apply`；需要兼容 metadata 表时再执行 `python scripts/init_pg.py`。
 5. 如果只是元数据库不可用，平台仍可运行，但部分规则会降级。
 
 ## 前端访问后端跨域怎么处理？
 
-开发模式下 `backend/app.py` 已对 `/api/*` 启用 CORS。生产环境建议通过 Nginx 同域代理 `/api/`，并将 `VITE_API_BASE_URL` 设置为 `/api`。
+开发模式下 `backend/run.py` 启动的应用会按 `AUDIT_CORS_ORIGINS` 为 `/api/*` 配置 CORS。生产环境建议通过 Nginx 同域代理 `/api/`，并将 `VITE_API_BASE_URL` 设置为 `/api`。
 
 ## 定时任务失败怎么看数据日期？
 

@@ -14,8 +14,8 @@
 ## 2. 配置与密钥
 
 - 不提交 `frontend/.env`。
-- 不提交真实 `backend/svn_check/configs/database.yaml`。
-- 不提交含真实账号的 `backend/svn_check/configs/svn.yaml`。
+- 不提交真实 `backend/configs/database.yaml`。
+- 不提交含真实账号的 `backend/configs/svn.yaml`。
 - 只提交 `.example` 模板。
 - 模板中只使用 `example.com`、`127.0.0.1`、`localhost`、`demo_user`、`demo_db` 等示例值。
 
@@ -47,10 +47,11 @@ git status --short
 
 如果敏感信息曾经进入 Git 历史：
 
-- 先确认是否必须公开原仓库历史。
-- 必要时使用历史清理工具重写历史。
-- 清理后轮换所有已暴露账号、密码、token。
-- 参考 `docs/public_release_history_cleanup_plan.md`。
+- 扫描所有 branch、tag 和历史提交，且不要把真实命中值复制到公开报告。
+- 优先新建干净公开仓库，只迁移已复核的当前文件；必须保留仓库身份时再评估 `git filter-repo` 或 BFG。
+- 重写历史前创建离线备份，并通知所有协作者重新同步；重写会改变 commit hash、tag、PR、CI 和部署引用。
+- 清理文件或重写历史后，仍须轮换所有可能暴露的账号、密码和 token。
+- 无法确认完整历史、二进制、截图、数据库文件和旧远端镜像均干净时，不要直接公开现有仓库。
 
 ## 7. 发布前确认
 

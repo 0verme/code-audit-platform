@@ -2,8 +2,7 @@
 
 本文档基于**当前仓库代码结构**描述系统架构，不包含未实现能力的承诺。
 
-> 历史路径说明：`backend/svn_check`、`backend/app.py`、`backend/engine.py` 已退役。  
-> 当前入口为 `backend/run.py`，领域代码在 `backend/app/`。若其它文档仍写旧路径，以本文与根目录 [README.md](../README.md)、[backend/README.md](../backend/README.md) 为准。
+当前入口为 `backend/run.py`，领域代码在 `backend/app/`。
 
 ## 总体架构图
 
@@ -122,6 +121,7 @@ app/modules/audit/
 - 运行表与元数据查询默认同 profile；可配置只读元数据 profile 做镜像查询。
 - 元数据库不可用时允许降级：部分依赖、禁用状态、分区或登记检查弱化为提示或空结果，静态规则仍可运行。
 - 资产门户词根（term roots）可通过 `ASSET_PORTAL_BASE_URL` 拉取，失败时用进程内/文件缓存，不阻塞核心审计启动。
+- runtime 结构与 metadata 兼容表保持独立，详见 [数据库表结构](database_schema.md)。
 
 ## 与数据资产门户/外部系统的关系
 
@@ -202,8 +202,7 @@ app/modules/audit/
 - 无内置 Dockerfile / docker-compose / Helm。
 - Git 来源未实现。
 - audit 模块存在迁移期双轨路径（扁平兼容文件 + `workflows`/`core`/`source`）。
-- 部分 logger 名称仍可能带历史前缀（如 `svn_check.*`），不影响功能。
-- 历史原型、mock 与部分 docs 迁移记录需在公开发布前复核脱敏与归档。
+- 部分兼容 logger 名称可能保留旧前缀，不影响功能。
 
 ## 未来规划
 
@@ -222,5 +221,5 @@ app/modules/audit/
 - [deployment.md](deployment.md) — 部署
 - [development.md](development.md) — 本地开发
 - [configuration.md](configuration.md) — DB profile
+- [database_schema.md](database_schema.md) — 当前表结构
 - [db_migration.md](db_migration.md) — 迁移
-- [project_architecture_audit.md](project_architecture_audit.md) — 历史工程体检（部分问题可能已部分修复，以代码为准）

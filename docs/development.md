@@ -7,7 +7,7 @@ The UI variable `VITE_ENABLE_LOCAL_SOURCE` only controls whether the local optio
 is shown; it never grants backend access. Enable both sides explicitly for local
 development, and do not enable local workspace auditing in production.
 
-When started through `backend/app.py` or either `backend/scripts/start_backend.*`,
+When started through `backend/run.py` or either `backend/scripts/start_backend.*`,
 the backend automatically loads `backend/.env` if it exists. Copy
 `backend/.env.example` to `backend/.env` as a starting point. Values already
 provided by the operating system take precedence over values in that file.
@@ -44,7 +44,7 @@ settings accept `1/true/yes/on` and `0/false/no/off`.
 
 ## Lineage mapping resources
 
-Lineage imports use `backend/data/lineage/mapping.xlsx`; the rebuildable SQLite cache is `backend/data/lineage/mapping_lineage.db`. Neither production resource is stored in Git. Deployment must provide the Excel file, then rebuild the cache through the existing importer, or set `LINEAGE_MAPPING_EXCEL_PATH` and `LINEAGE_MAPPING_DB_PATH`. Empty overrides use the defaults; relative overrides are resolved from `backend`, not the process working directory. A missing Excel or cache is reported as `unavailable` with its path and is never treated as a successful empty lineage result. These resources no longer use `backend/svn_check`.
+Lineage imports use `backend/data/lineage/mapping.xlsx`; the rebuildable SQLite cache is `backend/data/lineage/mapping_lineage.db`. Neither production resource is stored in Git. Deployment must provide the Excel file, then rebuild the cache through the existing importer, or set `LINEAGE_MAPPING_EXCEL_PATH` and `LINEAGE_MAPPING_DB_PATH`. Empty overrides use the defaults; relative overrides are resolved from `backend`, not the process working directory. A missing Excel or cache is reported as `unavailable` with its path and is never treated as a successful empty lineage result.
 
 ## 本地开发环境准备
 

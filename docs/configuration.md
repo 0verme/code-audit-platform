@@ -2,6 +2,8 @@
 
 项目数据库配置已收敛为单一 profile 驱动模式。
 
+表结构与物理表名见 [数据库表结构](database_schema.md)，迁移操作见 [数据库迁移](db_migration.md)。
+
 ## 配置文件
 
 - 模板文件：`backend/configs/database.example.yaml`
@@ -15,6 +17,7 @@
 
 - 只支持两种数据库类型：`postgresql`、`dws`
 - 平台运行表与元数据查询共用同一个 profile
+- 可通过 `CODE_AUDIT_METADATA_DB_PROFILE` 为只读元数据查询选择独立镜像 profile
 - 不再支持 `sqlite`
 - 不再支持旧结构：
   - `backend: postgres|gaussdb`
@@ -89,3 +92,13 @@ section in `backend/configs/database.yaml`; see the example. SQL templates stay
 in code and only identifiers matching `[A-Za-z_][A-Za-z0-9_]*` are rendered.
 Invalid mappings safely fall back to built-in compatibility values. The active
 profile is used for registered result-table queries; `czcb` is not implicit.
+
+## 表名配置
+
+runtime 代码使用逻辑表名，物理表名由 profile 解析：
+
+- `schema`：PostgreSQL/DWS schema，默认 `dwp`
+- `table_prefix`：运行表前缀，默认 `p_audit_`
+- `table_name_stems`：按逻辑表覆盖名称主体
+
+`fine_report_items` 当前不添加 `table_prefix`。生产环境修改表名配置前，应同步准备对应迁移并验证所有 runtime 查询；不要只修改配置后直接指向不存在的表。
