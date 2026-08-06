@@ -30,13 +30,6 @@
 .lineage-state p { color: var(--text-2); }
 .lineage-notice { margin-bottom: 10px; padding: 9px 12px; border: 1px solid var(--warn-bd); border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: var(--fs-sm); }
 
-.pas-row-shell { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
-.pas-row-shell .pas-row { min-width: 0; border-bottom: none; }
-.pas-lineage { flex: none; margin-right: var(--pad-card); white-space: nowrap; }
-.accordion-item .pas-row-shell { border-bottom: none; }
-.accordion-item.open .pas-row-shell { background: var(--surface-2); }
-.accordion-item.open .pas-row { background: transparent; }
-
 @media (max-width: 1080px) {
   .lineage-layout { grid-template-columns: 1fr; }
   .lineage-detail { max-height: none; }
@@ -46,6 +39,4 @@
   .lineage-view-tools { position: static; border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
   .lineage-canvas { height: 54vh; min-height: 380px; }
   .lineage-canvas.lineage-canvas-compact { height: 320px; min-height: 280px; }
-  .pas-row-shell { align-items: stretch; flex-direction: column; }
-  .pas-lineage { align-self: flex-end; margin: 0 12px 9px; }
 }

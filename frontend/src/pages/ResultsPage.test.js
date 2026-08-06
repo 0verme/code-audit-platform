@@ -266,3 +266,48 @@ test("structured findings keep ruleCode additive and support all three levels", 
   assert.match(source, /row\.rule/);
   assert.match(source, /row\.msg/);
 });
+
+test("Python scripts render as independent scoped cards", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+  const styleSource = readFileSync(new URL("../styles/script-audit.css", import.meta.url), "utf8");
+
+  // every script maps to one card, keyed and anchored by its own element id
+  assert.match(scriptSource, /className="pas-list py-script-cards"/);
+  assert.match(scriptSource, /scripts\.map\(\(script\) =>/);
+  assert.match(scriptSource, /key=\{scriptKey\}/);
+  assert.match(scriptSource, /id=\{scriptElementId\}/);
+  assert.match(scriptSource, /accordion-item py-script-card/);
+
+  // cards own a visible border and rounded corners so multiple scripts read apart
+  assert.match(styleSource, /\.py-script-cards \.accordion-item \{[\s\S]*border: 1px solid var\(--border\)[\s\S]*border-radius: 10px/);
+  assert.match(styleSource, /\.py-script-cards \{ gap: 14px/);
+});
+
+test("expanding one Python script leaves the other scripts' summary untouched", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+
+  // expansion is resolved per script from the shared key set, so toggling one
+  // script only ever flips its own card
+  assert.match(scriptSource, /const isOpen = openScriptIds\.has\(scriptKey\)/);
+  assert.match(scriptSource, /isOpen=\{isOpen\}/);
+  assert.match(scriptSource, /open=\{isOpen\}/);
+  assert.match(scriptSource, /aria-expanded=\{isOpen\}/);
+  assert.match(scriptSource, /aria-controls=\{detailId\}/);
+});
+
+test("Python script summaries keep check, dependency, and action entry points", () => {
+  const scriptSource = readFileSync(new URL("./ScriptAudit.jsx", import.meta.url), "utf8");
+
+  // check + dependency tallies remain rendered from the single scriptAudit source
+  assert.match(scriptSource, /audit\.lintErr/);
+  assert.match(scriptSource, /audit\.lintWarn/);
+  assert.match(scriptSource, /audit\.miss/);
+  assert.match(scriptSource, /audit\.extra/);
+  assert.match(scriptSource, /<span className="pas-grp-label">检查<\/span>/);
+  assert.match(scriptSource, /<span className="pas-grp-label">依赖<\/span>/);
+
+  // download, lineage, and expand/collapse entry points remain present
+  assert.match(scriptSource, /下载代码/);
+  assert.match(scriptSource, /查看血缘/);
+  assert.match(scriptSource, /aria-label="收起详情"/);
+});

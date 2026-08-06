@@ -44,7 +44,7 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLi
     >
       <SourceFileLinks files={auxiliaryScripts} label="DWO / DWF 脚本" />
       <div className="panel-body flush">
-        <div className="pas-list">
+        <div className="pas-list py-script-cards">
           {scripts.map((script) => {
             const audit = scriptAudit(script);
             const scriptKey = getScriptKey(script);
@@ -53,46 +53,78 @@ export function PyScriptAuditSection({ d, reg, openScriptIds, onToggle, onViewLi
             const isOpen = openScriptIds.has(scriptKey);
             const lineageKey = getScriptLineageKey(script);
             return (
-              <div id={scriptElementId} key={scriptKey} className={`accordion-item${isOpen ? " open" : ""}`}>
-                <div className="pas-row-shell">
-                <button className="pas-row" onClick={() => onToggle(scriptKey)} aria-expanded={isOpen} aria-controls={detailId}>
-                <span className="pas-ico"><Icon name="python" size={16} /></span>
-                <span className="pas-main">
-                  <span className="pas-name mono">{script.script}</span>
-                  <span className="pas-sub mono">{script.table} / {script.freq}</span>
-                </span>
-                <span className="pas-tags">
-                  <span className="pas-grp">
-                    <span className="pas-grp-label">检查</span>
-                    {audit.lintErr ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{audit.lintErr}</span> : null}
-                    {audit.lintWarn ? <span className="sev warn"><Icon name="alert" size={11} stroke={2.4} />{audit.lintWarn}</span> : null}
-                    {!audit.lintErr && !audit.lintWarn ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} /></span> : null}
-                  </span>
-                  <span className="pas-div" />
-                  <span className="pas-grp">
-                    <span className="pas-grp-label">依赖</span>
-                    {audit.miss ? <span className="sev err">缺失 {audit.miss}</span> : null}
-                    {audit.extra ? <span className="sev warn">多余 {audit.extra}</span> : null}
-                    {!audit.miss && !audit.extra ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} />一致</span> : null}
-                  </span>
-                </span>
-                <Icon name="chevron" size={16} className="pas-chev" />
-                </button>
-                <button
-                  type="button"
-                  className="btn ghost sm pas-lineage"
-                  onClick={() => onViewLineage?.({ ...script, lineageKey })}
-                  disabled={!lineageEnabled || !lineageKey}
-                  title={lineageEnabled ? "查看该 Python 的上下游血缘" : "审查完成后可查看"}
-                ><Icon name="flow" size={13} /> 查看血缘</button>
-                </div>
-                <ScriptDetailAccordion script={script} detailId={detailId} open={isOpen} onClose={() => onToggle(scriptKey)} />
-              </div>
+              <PyScriptResultCard
+                key={scriptKey}
+                script={script}
+                audit={audit}
+                scriptElementId={scriptElementId}
+                detailId={detailId}
+                isOpen={isOpen}
+                onToggle={() => onToggle(scriptKey)}
+                onViewLineage={onViewLineage}
+                lineageKey={lineageKey}
+                lineageEnabled={lineageEnabled}
+              />
             );
           })}
         </div>
       </div>
     </Panel>
+  );
+}
+
+function PyScriptResultCard({ script, audit, scriptElementId, detailId, isOpen, onToggle, onViewLineage, lineageKey, lineageEnabled }) {
+  return (
+    <div id={scriptElementId} className={`accordion-item py-script-card${isOpen ? " open" : ""}`}>
+      <PyScriptSummary
+        script={script}
+        audit={audit}
+        detailId={detailId}
+        isOpen={isOpen}
+        onToggle={onToggle}
+        onViewLineage={onViewLineage}
+        lineageKey={lineageKey}
+        lineageEnabled={lineageEnabled}
+      />
+      <ScriptDetailAccordion script={script} detailId={detailId} open={isOpen} onClose={onToggle} />
+    </div>
+  );
+}
+
+function PyScriptSummary({ script, audit, detailId, isOpen, onToggle, onViewLineage, lineageKey, lineageEnabled }) {
+  return (
+    <div className="pas-row-shell">
+      <button className="pas-row" onClick={onToggle} aria-expanded={isOpen} aria-controls={detailId}>
+        <span className="pas-ico"><Icon name="python" size={16} /></span>
+        <span className="pas-main">
+          <span className="pas-name mono">{script.script}</span>
+          <span className="pas-sub mono">{script.table} / {script.freq}</span>
+        </span>
+        <span className="pas-tags">
+          <span className="pas-grp">
+            <span className="pas-grp-label">检查</span>
+            {audit.lintErr ? <span className="sev err"><Icon name="x" size={11} stroke={2.4} />{audit.lintErr}</span> : null}
+            {audit.lintWarn ? <span className="sev warn"><Icon name="alert" size={11} stroke={2.4} />{audit.lintWarn}</span> : null}
+            {!audit.lintErr && !audit.lintWarn ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} /></span> : null}
+          </span>
+          <span className="pas-div" />
+          <span className="pas-grp">
+            <span className="pas-grp-label">依赖</span>
+            {audit.miss ? <span className="sev err">缺失 {audit.miss}</span> : null}
+            {audit.extra ? <span className="sev warn">多余 {audit.extra}</span> : null}
+            {!audit.miss && !audit.extra ? <span className="sev ok"><Icon name="check" size={11} stroke={2.4} />一致</span> : null}
+          </span>
+        </span>
+        <Icon name="chevron" size={16} className="pas-chev" />
+      </button>
+      <button
+        type="button"
+        className="btn ghost sm pas-lineage"
+        onClick={() => onViewLineage?.({ ...script, lineageKey })}
+        disabled={!lineageEnabled || !lineageKey}
+        title={lineageEnabled ? "查看该 Python 的上下游血缘" : "审查完成后可查看"}
+      ><Icon name="flow" size={13} /> 查看血缘</button>
+    </div>
   );
 }
 

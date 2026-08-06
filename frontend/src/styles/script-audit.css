@@ -1,16 +1,32 @@
-/* Python 脚本表依赖核对 — list rows + slide-over drawer */
+/* Python 脚本表依赖核对 — 独立脚本卡片
+   通用部件（.pas-tags / .pas-main / .detail-accordion / .sd-*）同时被 FineReport 复用，
+   Python 专属卡片样式作用域于 .py-script-cards，避免影响其他结果模块。 */
 
 /* shared mini severity counts (also used in CheckSection) */
 .mini-counts { display: inline-flex; gap: 10px; align-items: center; }
 
-/* ---- script list rows ---- */
+/* ---- python script card list ---- */
 .pas-list { display: flex; flex-direction: column; }
-.pas-row {
-  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
-  padding: 11px var(--pad-card); border: none; border-bottom: 1px solid var(--border);
-  background: transparent; cursor: pointer; font-family: var(--font-ui); color: var(--text);
+.py-script-cards { gap: 14px; padding: var(--pad-card); }
+
+/* ---- python script card ---- */
+.py-script-cards .accordion-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+  scroll-margin-top: 12px;
 }
-.pas-row:last-child { border-bottom: none; }
+.py-script-cards .accordion-item:hover { border-color: var(--border-strong); }
+.py-script-cards .accordion-item.open { border-color: var(--accent-line); }
+
+/* ---- summary header (python only; FineReport uses .fr-row) ---- */
+.pas-row {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; text-align: left;
+  padding: 10px 14px; border: none; border-bottom: 1px solid transparent;
+  background: transparent; cursor: pointer; font-family: var(--font-ui); color: var(--text);
+  min-height: 54px;
+}
 .pas-row:hover { background: var(--surface-2); }
 .pas-ico { width: 30px; height: 30px; border-radius: 8px; flex: none; display: grid; place-items: center; background: var(--surface-3); color: var(--text-2); }
 .pas-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
@@ -24,16 +40,19 @@
 .pas-grp-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-3); font-weight: 600; }
 .pas-div { width: 1px; height: 16px; background: var(--border); flex: none; }
 
-.pas-chev { color: var(--text-3); flex: none; }
+.pas-chev { color: var(--text-3); flex: none; transition: transform .18s ease, color .18s ease; }
 .pas-row:hover .pas-chev { color: var(--text-2); }
 
-/* ---- inline detail accordion ---- */
+/* lineage action (kept beside the expandable summary row) */
+.pas-row-shell { display: flex; align-items: center; }
+.pas-lineage { flex: none; margin-right: 14px; white-space: nowrap; }
+
+/* ---- inline detail accordion (shared with FineReport rows) ---- */
 .accordion-item { border-bottom: 1px solid var(--border); scroll-margin-top: 12px; }
 .accordion-item:last-child { border-bottom: none; }
 .accordion-item .pas-row { border-bottom: none; }
-.accordion-item.open .pas-row { background: var(--surface-2); }
+.accordion-item.open .pas-row { background: transparent; border-bottom: 1px solid var(--border); }
 .accordion-item.open .pas-chev { color: var(--accent); transform: rotate(90deg); }
-.pas-chev { transition: transform .18s ease, color .18s ease; }
 
 .detail-accordion {
   display: grid; grid-template-rows: 0fr; overflow: hidden; opacity: 0; visibility: hidden;
@@ -49,6 +68,20 @@
 [data-theme="dark"] .detail-accordion-content {
   background: #101a2d; border-color: var(--accent-line); border-top-color: var(--accent);
   box-shadow: 0 8px 18px rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .04);
+}
+
+/* Python 卡片内的展开详情：归属卡片本体，去掉独立外框与重阴影，仅保留顶部强调色 */
+.py-script-cards .detail-accordion-content {
+  background: #f5f7ff;
+  border: 0;
+  border-top: 3px solid var(--accent);
+  box-shadow: none;
+}
+.py-script-cards .sd-head { background: transparent; }
+[data-theme="dark"] .py-script-cards .detail-accordion-content {
+  background: #101a2d;
+  border-top-color: var(--accent);
+  box-shadow: none;
 }
 
 /* header */
@@ -98,11 +131,17 @@
 /* empty block */
 .sd-empty { font-size: var(--fs-sm); color: var(--text-3); padding: 6px 2px; }
 
+@media (max-width: 720px) {
+  .pas-row-shell { align-items: stretch; flex-direction: column; }
+  .pas-lineage { align-self: flex-end; margin: 0 12px 9px; }
+}
+
 @media (max-width: 560px) {
   .sd-meta > div { grid-template-columns: 60px 1fr; }
   .sd-head { padding: 12px 14px 10px; }
   .sd-body { padding: 14px 14px 40px; }
-  .pas-row { padding: 10px 12px; }
+  .py-script-cards { gap: 12px; padding: 12px; }
+  .pas-row { padding: 9px 12px; }
   .pas-tags { gap: 6px; }
 }
 
